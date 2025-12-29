@@ -66,6 +66,11 @@ type Marker = {
 
 type MarkerKind = "like" | "highlight" | "todo";
 
+type DraftSelection = {
+  selector: MenuState["selector"];
+  selectionText: string;
+};
+
 type GrammarPayload = {
   kind: "word" | "bars" | "structure" | "lookup";
   text?: string;
@@ -131,6 +136,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [additionMarkers, setAdditionMarkers] = useState<Record<number, Marker[]>>({});
   const [pendingMarkerKinds, setPendingMarkerKinds] = useState<MarkerKind[]>([]);
+  const [draftSelection, setDraftSelection] = useState<DraftSelection | null>(null);
   const [noteModalOpen, setNoteModalOpen] = useState(false);
   const [grammarModalOpen, setGrammarModalOpen] = useState(false);
   const [audioModalOpen, setAudioModalOpen] = useState(false);
@@ -138,7 +144,10 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
 
   const activeSelection = selections.find((selection) => selection.id === activeSelectionId) ?? null;
   const grammarSelectionText =
-    menuState?.selectionText ?? activeSelection?.selector.quote.exact ?? "";
+    menuState?.selectionText ??
+    draftSelection?.selectionText ??
+    activeSelection?.selector.quote.exact ??
+    "";
 
   const refreshAdditionMarkers = useCallback(async (items: Addition[]) => {
     if (items.length === 0) {
@@ -241,8 +250,17 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     setMenuState(null);
     setIsCommitted(false);
     setPendingMarkerKinds([]);
+    setDraftSelection(null);
     anchorRef.current = null;
   }, []);
+
+  const discardDraftSelection = useCallback(() => {
+    if (!activeSelectionId && !isCommitted) {
+      clearSelection();
+    } else {
+      setDraftSelection(null);
+    }
+  }, [activeSelectionId, clearSelection, isCommitted]);
 
   const persistSelection = useCallback(
     async (selector: MenuState["selector"]): Promise<Selection | null> => {
@@ -307,6 +325,30 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       setMarkers(created);
     }
   }, []);
+
+  const ensureSelectionForAddition = useCallback(async () => {
+    if (activeSelectionId) {
+      return activeSelectionId;
+    }
+    const selector = draftSelection?.selector ?? menuState?.selector;
+    if (!selector) {
+      return null;
+    }
+    const selection = await persistSelection(selector);
+    if (selection && pendingMarkerKinds.length) {
+      await persistSelectionMarkers(selection.id, pendingMarkerKinds);
+      setPendingMarkerKinds([]);
+    }
+    setDraftSelection(null);
+    return selection?.id ?? null;
+  }, [
+    activeSelectionId,
+    draftSelection,
+    menuState,
+    pendingMarkerKinds,
+    persistSelection,
+    persistSelectionMarkers,
+  ]);
 
   const finalizeRange = useCallback(
     (range: Range) => {
@@ -452,22 +494,15 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     if (!menuState) {
       return;
     }
-    const selection = await persistSelection(menuState.selector);
-    if (selection && pendingMarkerKinds.length) {
-      await persistSelectionMarkers(selection.id, pendingMarkerKinds);
-      setPendingMarkerKinds([]);
-    }
-    if (selection) {
-      setEditingNote(null);
-      setNoteModalOpen(true);
-    }
+    setDraftSelection({ selector: menuState.selector, selectionText: menuState.selectionText });
+    setMenuState(null);
+    setEditingNote(null);
+    setNoteModalOpen(true);
   }, [
     activeSelectionId,
     isCommitted,
     menuState,
-    pendingMarkerKinds,
-    persistSelection,
-    persistSelectionMarkers,
+    setDraftSelection,
   ]);
 
   const handleOpenGrammar = useCallback(async () => {
@@ -478,21 +513,14 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     if (!menuState) {
       return;
     }
-    const selection = await persistSelection(menuState.selector);
-    if (selection && pendingMarkerKinds.length) {
-      await persistSelectionMarkers(selection.id, pendingMarkerKinds);
-      setPendingMarkerKinds([]);
-    }
-    if (selection) {
-      setGrammarModalOpen(true);
-    }
+    setDraftSelection({ selector: menuState.selector, selectionText: menuState.selectionText });
+    setMenuState(null);
+    setGrammarModalOpen(true);
   }, [
     activeSelectionId,
     isCommitted,
     menuState,
-    pendingMarkerKinds,
-    persistSelection,
-    persistSelectionMarkers,
+    setDraftSelection,
   ]);
 
   const handleOpenAudio = useCallback(async () => {
@@ -504,27 +532,21 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     if (!menuState) {
       return;
     }
-    const selection = await persistSelection(menuState.selector);
-    if (selection && pendingMarkerKinds.length) {
-      await persistSelectionMarkers(selection.id, pendingMarkerKinds);
-      setPendingMarkerKinds([]);
-    }
-    if (selection) {
-      audioSelectionRef.current = selection.id;
-      setAudioModalOpen(true);
-    }
+    setDraftSelection({ selector: menuState.selector, selectionText: menuState.selectionText });
+    setMenuState(null);
+    audioSelectionRef.current = null;
+    setAudioModalOpen(true);
   }, [
     activeSelectionId,
     isCommitted,
     menuState,
-    pendingMarkerKinds,
-    persistSelection,
-    persistSelectionMarkers,
+    setDraftSelection,
   ]);
 
   const handleClearAudioSelection = useCallback(async () => {
     const selectionId = audioSelectionRef.current ?? activeSelectionId;
     if (!selectionId) {
+      discardDraftSelection();
       setAudioModalOpen(false);
       setMenuState(null);
       return;
@@ -550,15 +572,19 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     audioSelectionRef.current = null;
     setAudioModalOpen(false);
     clearSelection();
-  }, [activeSelectionId, clearSelection]);
+  }, [activeSelectionId, clearSelection, discardDraftSelection]);
 
   const handleSaveNote = useCallback(
     async (text: string) => {
-      if (!activeSelectionId) {
+      if (!text.trim()) {
+        discardDraftSelection();
+        setNoteModalOpen(false);
         return;
       }
-      if (!text.trim()) {
+      const selectionId = await ensureSelectionForAddition();
+      if (!selectionId) {
         setNoteModalOpen(false);
+        setEditingNote(null);
         return;
       }
 
@@ -588,13 +614,13 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            selection_id: activeSelectionId,
-            type: "note",
-            text_content: text,
-            payload: { text },
-          }),
-        });
+        body: JSON.stringify({
+          selection_id: selectionId,
+          type: "note",
+          text_content: text,
+          payload: { text },
+        }),
+      });
         if (response.ok) {
           const data = (await response.json()) as { addition?: Addition };
           if (data.addition) {
@@ -607,12 +633,14 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       setNoteModalOpen(false);
       setEditingNote(null);
     },
-    [activeSelectionId, editingNote]
+    [activeSelectionId, editingNote, ensureSelectionForAddition, discardDraftSelection]
   );
 
   const handleSaveGrammar = useCallback(
     async (payload: GrammarPayload) => {
-      if (!activeSelectionId) {
+      const selectionId = await ensureSelectionForAddition();
+      if (!selectionId) {
+        setGrammarModalOpen(false);
         return;
       }
 
@@ -625,7 +653,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          selection_id: activeSelectionId,
+          selection_id: selectionId,
           type: "grammar",
           text_content: textContent,
           payload,
@@ -645,12 +673,14 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
 
       setGrammarModalOpen(false);
     },
-    [activeSelectionId]
+    [ensureSelectionForAddition]
   );
 
   const handleSaveAudio = useCallback(
     async (payload: AudioPayload) => {
-      if (!activeSelectionId) {
+      const selectionId = await ensureSelectionForAddition();
+      if (!selectionId) {
+        setAudioModalOpen(false);
         return;
       }
 
@@ -660,7 +690,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          selection_id: activeSelectionId,
+          selection_id: selectionId,
           type: "audio",
           payload: { audio: payload },
         }),
@@ -675,14 +705,14 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
             }
             return [...prev, data.addition as Addition];
           });
-          await refreshAdditions(activeSelectionId);
+          await refreshAdditions(selectionId);
           setMenuState(null);
         }
       }
 
       setAudioModalOpen(false);
     },
-    [activeSelectionId, refreshAdditions]
+    [ensureSelectionForAddition, refreshAdditions]
   );
 
   const handleEditNote = useCallback((note: Addition) => {
@@ -786,7 +816,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
             activeSelectionId={activeSelectionId}
             onSelect={handleSelectHighlight}
           />
-          {menuState ? (
+          {menuState && !noteModalOpen && !grammarModalOpen && !audioModalOpen ? (
             <ActionMenu
               top={menuState.top}
               left={menuState.left}
@@ -823,6 +853,9 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         onToggleMarker={handleToggleMarker}
         onSave={handleSaveNote}
         onClose={() => {
+          if (!editingNote && !isCommitted) {
+            discardDraftSelection();
+          }
           setNoteModalOpen(false);
           setEditingNote(null);
         }}
@@ -833,7 +866,12 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         markerKinds={selectionMarkerKinds}
         onToggleMarker={handleToggleMarker}
         onSave={handleSaveGrammar}
-        onClose={() => setGrammarModalOpen(false)}
+        onClose={() => {
+          if (!isCommitted) {
+            discardDraftSelection();
+          }
+          setGrammarModalOpen(false);
+        }}
       />
       <AudioRecorderModal
         isOpen={audioModalOpen}
@@ -842,7 +880,12 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         onToggleMarker={handleToggleMarker}
         onSave={handleSaveAudio}
         onClearSelection={handleClearAudioSelection}
-        onClose={() => setAudioModalOpen(false)}
+        onClose={() => {
+          if (!isCommitted) {
+            discardDraftSelection();
+          }
+          setAudioModalOpen(false);
+        }}
       />
     </div>
   );
