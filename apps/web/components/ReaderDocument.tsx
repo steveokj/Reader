@@ -34,6 +34,28 @@ function buildTitleVariants(title: string) {
   return variants;
 }
 
+function matchesTitle(text: string, titleVariants: Set<string>) {
+  const normalizedText = normalizeTitle(text);
+  if (!normalizedText) {
+    return false;
+  }
+  for (const variant of titleVariants) {
+    if (!variant) {
+      continue;
+    }
+    if (normalizedText === variant) {
+      return true;
+    }
+    if (normalizedText.startsWith(variant)) {
+      return true;
+    }
+    if (variant.startsWith(normalizedText) && normalizedText.length > 6) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function splitParagraphs(contentText: string, documentTitle?: string | null): Paragraph[] {
   const regex = /(?:[^\n]|\n(?!\n))+/g;
   const paragraphs: Paragraph[] = [];
@@ -45,7 +67,7 @@ function splitParagraphs(contentText: string, documentTitle?: string | null): Pa
     if (!text.trim()) {
       continue;
     }
-    if (!paragraphs.length && titleVariants.size && titleVariants.has(normalizeTitle(text))) {
+    if (!paragraphs.length && titleVariants.size && matchesTitle(text, titleVariants)) {
       continue;
     }
     paragraphs.push({ text, start: match.index });
@@ -83,7 +105,7 @@ function stripDocumentTitleFromHtml(html: string, documentTitle?: string | null)
   }
   if (node && node.nodeType === Node.TEXT_NODE) {
     const textValue = node.textContent ?? "";
-    if (titleVariants.has(normalizeTitle(textValue))) {
+    if (matchesTitle(textValue, titleVariants)) {
       node.remove();
     }
   }
@@ -92,20 +114,14 @@ function stripDocumentTitleFromHtml(html: string, documentTitle?: string | null)
   if (firstElement) {
     const tagName = firstElement.tagName.toUpperCase();
     const firstText = firstElement.textContent ?? "";
-    if (
-      (/^H[1-6]$/.test(tagName) || tagName === "P") &&
-      titleVariants.has(normalizeTitle(firstText))
-    ) {
+    if ((/^H[1-6]$/.test(tagName) || tagName === "P") && matchesTitle(firstText, titleVariants)) {
       firstElement.remove();
     } else if (tagName === "DIV" || tagName === "SECTION" || tagName === "ARTICLE") {
       const innerFirst = firstElement.firstElementChild as HTMLElement | null;
       if (innerFirst) {
         const innerTag = innerFirst.tagName.toUpperCase();
         const innerText = innerFirst.textContent ?? "";
-        if (
-          (/^H[1-6]$/.test(innerTag) || innerTag === "P") &&
-          titleVariants.has(normalizeTitle(innerText))
-        ) {
+        if ((/^H[1-6]$/.test(innerTag) || innerTag === "P") && matchesTitle(innerText, titleVariants)) {
           innerFirst.remove();
         }
       }
