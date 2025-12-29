@@ -1,4 +1,5 @@
 import ReaderClient from "@/components/ReaderClient";
+import ReaderSectionPicker from "@/components/ReaderSectionPicker";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -16,6 +17,7 @@ type DocumentSection = {
   section_key: string;
   title?: string | null;
   content_text: string;
+  content_html?: string | null;
   created_at: string;
 };
 
@@ -56,10 +58,7 @@ export default async function ReaderRoute({ params, searchParams }: ReaderRouteP
   }
 
   const requestedSectionKey = resolvedSearch?.sectionKey;
-  const defaultSection =
-    data.sections.length > 1
-      ? [...data.sections].sort((a, b) => b.content_text.length - a.content_text.length)[0]
-      : data.sections[0];
+  const defaultSection = data.sections[0];
   const section =
     requestedSectionKey !== undefined
       ? data.sections.find((item) => item.section_key === requestedSectionKey) ?? defaultSection
@@ -71,11 +70,17 @@ export default async function ReaderRoute({ params, searchParams }: ReaderRouteP
         <div className="reader-kicker">{data.document.source_type}</div>
         <h1 className="reader-title">{data.document.title}</h1>
       </header>
+      <ReaderSectionPicker
+        documentId={data.document.id}
+        sections={data.sections}
+        activeKey={section?.section_key ?? null}
+      />
       {section ? (
         <ReaderClient
           documentId={data.document.id}
           sectionId={section.id}
           contentText={section.content_text}
+          contentHtml={section.content_html}
         />
       ) : (
         <p>No sections found.</p>

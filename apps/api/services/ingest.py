@@ -1,15 +1,21 @@
 import io
+import os
 import posixpath
 import re
+import uuid
 import zipfile
-from html import unescape
+from html import unescape, escape
 from html.parser import HTMLParser
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Set
 from urllib.request import urlopen
 from urllib.error import URLError
+from urllib.parse import unquote, quote, urljoin
 import xml.etree.ElementTree as ET
 
 from .documents import create_document
+
+MEDIA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "media"))
+EPUB_MEDIA_DIR = os.path.join(MEDIA_ROOT, "epub")
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -61,6 +67,281 @@ class _HTMLTextExtractor(HTMLParser):
     def get_text(self) -> str:
         self._flush()
         return "\n\n".join(self._paragraphs)
+
+_ALLOWED_TAGS = {
+    "p",
+    "div",
+    "section",
+    "article",
+    "header",
+    "footer",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "blockquote",
+    "pre",
+    "code",
+    "ul",
+    "ol",
+    "li",
+    "em",
+    "strong",
+    "b",
+    "i",
+    "u",
+    "span",
+    "sup",
+    "sub",
+    "a",
+    "img",
+    "figure",
+    "figcaption",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    "br",
+    "hr",
+}
+
+_VOID_TAGS = {"img", "br", "hr"}
+_BLOCK_TAGS = {
+    "p",
+    "div",
+    "section",
+    "article",
+    "header",
+    "footer",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "blockquote",
+    "pre",
+    "ul",
+    "ol",
+    "li",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+}
+_SKIP_CONTENT_TAGS = {"script", "style"}
+_UNWRAP_TAGS = {"html", "head", "body"}
+_PRESERVE_WS_TAGS = {"pre", "code"}
+
+_ALLOWED_ATTRS: Dict[str, Set[str]] = {
+    "a": {"href", "title"},
+    "img": {"src", "alt", "title"},
+    "th": {"colspan", "rowspan"},
+    "td": {"colspan", "rowspan"},
+}
+
+
+class _HTMLSanitizer(HTMLParser):
+    def __init__(self, resolve_src):
+        super().__init__(convert_charrefs=True)
+        self._resolve_src = resolve_src
+        self._html_parts: List[str] = []
+        self._text_parts: List[str] = []
+        self._skip_stack: List[str] = []
+        self._preserve_ws = 0
+        self._last_text_char: Optional[str] = None
+
+    def _emit_text(self, text: str) -> None:
+        if not text:
+            return
+        if self._last_text_char is None:
+            text = text.lstrip()
+        elif self._last_text_char.isspace():
+            text = text.lstrip()
+        if not text:
+            return
+        self._html_parts.append(escape(text, quote=False))
+        self._text_parts.append(text)
+        self._last_text_char = text[-1]
+
+    def _append_space(self) -> None:
+        if self._last_text_char is None or self._last_text_char.isspace():
+            return
+        self._emit_text(" ")
+
+    def _append_block_break(self) -> None:
+        if self._last_text_char is None:
+            return
+        if self._last_text_char != "\n":
+            self._emit_text("\n")
+
+    def _append_text(self, text: str) -> None:
+        if not text:
+            return
+        if self._preserve_ws > 0:
+            self._emit_text(text)
+            return
+        normalized = re.sub(r"\s+", " ", text)
+        if not normalized.strip():
+            self._append_space()
+            return
+        self._emit_text(normalized)
+
+    def _sanitize_attrs(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> str:
+        allowed = _ALLOWED_ATTRS.get(tag, set())
+        safe_attrs: List[Tuple[str, str]] = []
+        for name, value in attrs:
+            if not name:
+                continue
+            key = name.lower()
+            if key.startswith("on") or key == "style":
+                continue
+            if key not in allowed:
+                continue
+            if value is None:
+                continue
+            cleaned = value.strip()
+            if not cleaned:
+                continue
+            if key == "href":
+                if cleaned.lower().startswith("javascript:"):
+                    continue
+            if key == "src":
+                resolved = self._resolve_src(cleaned)
+                if not resolved:
+                    continue
+                cleaned = resolved
+            safe_attrs.append((key, cleaned))
+
+        if not safe_attrs:
+            return ""
+        return "".join(
+            f' {name}="{escape(val, quote=True)}"' for name, val in safe_attrs if val is not None
+        )
+
+    def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
+        tag = tag.lower()
+        if self._skip_stack:
+            if tag in _SKIP_CONTENT_TAGS:
+                self._skip_stack.append(tag)
+            return
+        if tag in _SKIP_CONTENT_TAGS:
+            self._skip_stack.append(tag)
+            return
+        if tag in _UNWRAP_TAGS:
+            return
+        if tag not in _ALLOWED_TAGS:
+            return
+
+        if tag in _PRESERVE_WS_TAGS:
+            self._preserve_ws += 1
+
+        attrs_text = self._sanitize_attrs(tag, attrs)
+        if tag in _VOID_TAGS:
+            self._html_parts.append(f"<{tag}{attrs_text}>")
+            if tag in {"br", "hr"}:
+                self._append_block_break()
+            return
+
+        self._html_parts.append(f"<{tag}{attrs_text}>")
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if self._skip_stack:
+            if self._skip_stack and self._skip_stack[-1] == tag:
+                self._skip_stack.pop()
+            return
+        if tag in _UNWRAP_TAGS or tag not in _ALLOWED_TAGS or tag in _VOID_TAGS:
+            return
+
+        if tag in _PRESERVE_WS_TAGS:
+            self._preserve_ws = max(0, self._preserve_ws - 1)
+
+        self._html_parts.append(f"</{tag}>")
+        if tag in _BLOCK_TAGS:
+            self._append_block_break()
+
+    def handle_startendtag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
+        self.handle_starttag(tag, attrs)
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_stack:
+            return
+        self._append_text(data)
+
+    def handle_decl(self, decl: str) -> None:
+        return
+
+    def get_html(self) -> str:
+        html = "".join(self._html_parts)
+        return html.strip()
+
+    def get_text(self) -> str:
+        text = "".join(self._text_parts)
+        text = re.sub(r"[ \t]+", " ", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text.strip()
+
+
+def _sanitize_html(html: str, resolve_src) -> Tuple[str, str]:
+    sanitizer = _HTMLSanitizer(resolve_src)
+    sanitizer.feed(html)
+    sanitizer.close()
+    return sanitizer.get_html(), sanitizer.get_text()
+
+
+def _plain_text_to_html(text: str) -> str:
+    paragraphs = [para.strip() for para in re.split(r"\n\s*\n", text) if para.strip()]
+    html_paragraphs = []
+    for paragraph in paragraphs:
+        lines = [escape(line, quote=False) for line in paragraph.splitlines()]
+        html_paragraphs.append(f"<p>{'<br>'.join(lines)}</p>")
+    return "\n".join(html_paragraphs)
+
+
+def _resolve_epub_asset(
+    zf: zipfile.ZipFile,
+    asset_dir: str,
+    asset_root: str,
+    asset_cache: Dict[str, str],
+    base_dir: str,
+    src: str,
+) -> Optional[str]:
+    if not src:
+        return None
+    if src.startswith("data:"):
+        return src
+    if re.match(r"^https?://", src, re.IGNORECASE):
+        return src
+
+    cleaned = unquote(src.split("#", 1)[0].split("?", 1)[0])
+    resolved = posixpath.normpath(posixpath.join(base_dir, cleaned))
+    resolved = resolved.lstrip("/")
+    if resolved.startswith(".."):
+        return None
+
+    if resolved in asset_cache:
+        return asset_cache[resolved]
+
+    try:
+        data = zf.read(resolved)
+    except KeyError:
+        return None
+
+    safe_rel = resolved
+    output_path = os.path.join(asset_dir, *safe_rel.split("/"))
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "wb") as handle:
+        handle.write(data)
+
+    url_path = quote(safe_rel, safe="/")
+    url = f"/media/epub/{asset_root}/{url_path}"
+    asset_cache[resolved] = url
+    return url
 
 
 def _replace_images(html: str) -> str:
@@ -126,6 +407,15 @@ def _extract_title_from_html(html: str) -> Optional[str]:
     return title or None
 
 
+def _extract_heading_from_html(html: str) -> Optional[str]:
+    match = re.search(r"<h[1-3][^>]*>(.*?)</h[1-3]>", html, re.IGNORECASE | re.DOTALL)
+    if not match:
+        return None
+    heading = re.sub(r"<[^>]+>", " ", match.group(1))
+    heading = re.sub(r"\s+", " ", heading).strip()
+    return heading or None
+
+
 def _local_name(tag: str) -> str:
     return tag.split("}")[-1] if "}" in tag else tag
 
@@ -186,6 +476,11 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
         epub_title, manifest, spine_ids = _parse_opf(opf_bytes)
 
         base_dir = posixpath.dirname(opf_path)
+        os.makedirs(EPUB_MEDIA_DIR, exist_ok=True)
+        asset_root = uuid.uuid4().hex
+        asset_dir = os.path.join(EPUB_MEDIA_DIR, asset_root)
+        os.makedirs(asset_dir, exist_ok=True)
+        asset_cache: Dict[str, str] = {}
         sections: List[Dict[str, Any]] = []
         section_index = 0
         for spine_id in spine_ids:
@@ -204,15 +499,25 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
             except KeyError:
                 continue
             html = _decode_html_bytes(html_bytes)
-            content_text = _extract_text_from_html(html)
-            if not content_text.strip():
+            html_dir = posixpath.dirname(item_path)
+
+            def resolve_src(src: str) -> Optional[str]:
+                return _resolve_epub_asset(zf, asset_dir, asset_root, asset_cache, html_dir, src)
+
+            content_html, content_text = _sanitize_html(html, resolve_src)
+            if not content_text.strip() and not content_html.strip():
                 continue
-            section_title = _extract_title_from_html(html) or f"Section {section_index + 1}"
+            section_title = (
+                _extract_title_from_html(html)
+                or _extract_heading_from_html(html)
+                or f"Section {section_index + 1}"
+            )
             sections.append(
                 {
                     "section_key": str(section_index),
                     "title": section_title,
                     "content_text": content_text,
+                    "content_html": content_html or None,
                 }
             )
             section_index += 1
@@ -239,10 +544,13 @@ def ingest_article(conn, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List[
         raise ValueError("Provide a URL or pasted text.")
 
     content_text = ""
+    content_html: Optional[str] = None
     derived_title: Optional[str] = None
 
     if text:
         content_text = text.strip()
+        if content_text:
+            content_html = _plain_text_to_html(content_text)
     if url and not content_text:
         try:
             with urlopen(url) as response:
@@ -251,7 +559,17 @@ def ingest_article(conn, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List[
         except URLError as exc:
             raise ValueError("Unable to fetch article URL.") from exc
         derived_title = _extract_title_from_html(html)
-        content_text = _extract_text_from_html(html)
+
+        def resolve_article_src(src: str) -> Optional[str]:
+            if not src:
+                return None
+            if src.startswith("data:") or re.match(r"^https?://", src, re.IGNORECASE):
+                return src
+            if url:
+                return urljoin(url, src)
+            return None
+
+        content_html, content_text = _sanitize_html(html, resolve_article_src)
 
     if not content_text.strip():
         raise ValueError("No readable content found.")
@@ -266,6 +584,7 @@ def ingest_article(conn, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List[
                 "section_key": "0",
                 "title": "Article",
                 "content_text": content_text,
+                "content_html": content_html or None,
             }
         ],
     }

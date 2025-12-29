@@ -1,4 +1,4 @@
-﻿export type SelectionOffsets = {
+export type SelectionOffsets = {
   start: number;
   end: number;
 };
@@ -37,27 +37,40 @@ export function getSelectionOffsets(
   const startParagraph = getParagraphElement(range.startContainer);
   const endParagraph = getParagraphElement(range.endContainer);
 
-  if (!startParagraph || !endParagraph) {
-    return null;
+  if (startParagraph && endParagraph) {
+    const startBase = Number.parseInt(startParagraph.dataset.start ?? "0", 10);
+    const endBase = Number.parseInt(endParagraph.dataset.start ?? "0", 10);
+
+    if (!Number.isNaN(startBase) && !Number.isNaN(endBase)) {
+      const startOffset = startBase + getOffsetWithinParagraph(
+        startParagraph,
+        range.startContainer,
+        range.startOffset
+      );
+      const endOffset = endBase + getOffsetWithinParagraph(
+        endParagraph,
+        range.endContainer,
+        range.endOffset
+      );
+
+      if (!Number.isNaN(startOffset) && !Number.isNaN(endOffset)) {
+        return {
+          start: Math.min(startOffset, endOffset),
+          end: Math.max(startOffset, endOffset),
+        };
+      }
+    }
   }
 
-  const startBase = Number.parseInt(startParagraph.dataset.start ?? "0", 10);
-  const endBase = Number.parseInt(endParagraph.dataset.start ?? "0", 10);
+  const startRange = document.createRange();
+  startRange.setStart(container, 0);
+  startRange.setEnd(range.startContainer, range.startOffset);
+  const startOffset = startRange.toString().length;
 
-  if (Number.isNaN(startBase) || Number.isNaN(endBase)) {
-    return null;
-  }
-
-  const startOffset = startBase + getOffsetWithinParagraph(
-    startParagraph,
-    range.startContainer,
-    range.startOffset
-  );
-  const endOffset = endBase + getOffsetWithinParagraph(
-    endParagraph,
-    range.endContainer,
-    range.endOffset
-  );
+  const endRange = document.createRange();
+  endRange.setStart(container, 0);
+  endRange.setEnd(range.endContainer, range.endOffset);
+  const endOffset = endRange.toString().length;
 
   if (Number.isNaN(startOffset) || Number.isNaN(endOffset)) {
     return null;

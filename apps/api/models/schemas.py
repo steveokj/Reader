@@ -7,6 +7,7 @@ class DocumentSectionCreate(BaseModel):
     section_key: str
     title: Optional[str] = None
     content_text: str
+    content_html: Optional[str] = None
 
 
 class DocumentCreate(BaseModel):
@@ -30,6 +31,7 @@ class DocumentSection(BaseModel):
     section_key: str
     title: Optional[str] = None
     content_text: str
+    content_html: Optional[str] = None
     created_at: str
 
 

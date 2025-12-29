@@ -1,5 +1,6 @@
-﻿type ReaderDocumentProps = {
+type ReaderDocumentProps = {
   contentText: string;
+  contentHtml?: string | null;
 };
 
 type Paragraph = {
@@ -23,7 +24,16 @@ function splitParagraphs(contentText: string): Paragraph[] {
   return paragraphs;
 }
 
-export default function ReaderDocument({ contentText }: ReaderDocumentProps) {
+export default function ReaderDocument({ contentText, contentHtml }: ReaderDocumentProps) {
+  if (contentHtml && contentHtml.trim()) {
+    return (
+      <article
+        className="reader-article reader-article--html"
+        dangerouslySetInnerHTML={{ __html: contentHtml }}
+      />
+    );
+  }
+
   const paragraphs = splitParagraphs(contentText);
 
   return (

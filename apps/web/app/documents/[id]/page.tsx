@@ -16,6 +16,7 @@ type DocumentSection = {
   section_key: string;
   title?: string | null;
   content_text: string;
+  content_html?: string | null;
   created_at: string;
 };
 

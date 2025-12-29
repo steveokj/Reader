@@ -43,6 +43,31 @@ a {
   padding: 36px 20px 0;
 }
 
+.reader-section-picker {
+  max-width: 1120px;
+  margin: 12px auto 0;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: rgba(31, 28, 22, 0.7);
+}
+
+.reader-section-picker__label {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.reader-section-picker__select {
+  flex: 0 1 320px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(31, 28, 22, 0.2);
+  background: #fff;
+  color: #1f1c16;
+}
+
 .reader-kicker {
   font-size: 12px;
   text-transform: uppercase;
@@ -324,11 +349,57 @@ a {
   position: relative;
 }
 
+.reader-surface {
+  position: relative;
+}
+
 .reader-article {
   margin-top: 24px;
   padding-bottom: 56px;
   line-height: 1.7;
   font-size: 18px;
+}
+
+.reader-article--html p {
+  margin-bottom: 1rem;
+}
+
+.reader-article--html img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1.25rem auto;
+}
+
+.reader-article--html figure {
+  margin: 1.5rem 0;
+}
+
+.reader-article--html h1,
+.reader-article--html h2,
+.reader-article--html h3,
+.reader-article--html h4 {
+  margin: 1.6rem 0 0.75rem;
+  line-height: 1.3;
+}
+
+.reader-article--html ul,
+.reader-article--html ol {
+  margin: 0.8rem 0 0.8rem 1.5rem;
+}
+
+.reader-article--html blockquote {
+  margin: 1.2rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid rgba(31, 28, 22, 0.2);
+  color: rgba(31, 28, 22, 0.75);
+}
+
+.reader-article--html pre {
+  background: rgba(31, 28, 22, 0.06);
+  padding: 12px 16px;
+  border-radius: 12px;
+  overflow-x: auto;
 }
 
 .reader-paragraph {

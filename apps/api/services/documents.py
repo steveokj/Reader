@@ -32,14 +32,15 @@ def create_document(conn, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List
         section_now = _iso_now()
         cur = conn.execute(
             """
-            INSERT INTO document_sections (document_id, section_key, title, content_text, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO document_sections (document_id, section_key, title, content_text, content_html, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 document_id,
                 section["section_key"],
                 section.get("title"),
                 section["content_text"],
+                section.get("content_html"),
                 section_now,
             ),
         )
@@ -50,6 +51,7 @@ def create_document(conn, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List
                 "section_key": section["section_key"],
                 "title": section.get("title"),
                 "content_text": section["content_text"],
+                "content_html": section.get("content_html"),
                 "created_at": section_now,
             }
         )
@@ -81,7 +83,7 @@ def get_document(conn, document_id: int) -> Optional[Tuple[Dict[str, Any], List[
         return None
     sections = conn.execute(
         """
-        SELECT id, document_id, section_key, title, content_text, created_at
+        SELECT id, document_id, section_key, title, content_text, content_html, created_at
         FROM document_sections
         WHERE document_id = ?
         ORDER BY id

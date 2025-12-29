@@ -19,6 +19,7 @@ type ReaderClientProps = {
   documentId: number;
   sectionId: number;
   contentText: string;
+  contentHtml?: string | null;
 };
 
 type MenuState = {
@@ -122,7 +123,12 @@ function buildRange(anchor: Range, focus: Range): Range {
   return range;
 }
 
-export default function ReaderClient({ documentId, sectionId, contentText }: ReaderClientProps) {
+export default function ReaderClient({
+  documentId,
+  sectionId,
+  contentText,
+  contentHtml,
+}: ReaderClientProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<Range | null>(null);
   const audioSelectionRef = useRef<number | null>(null);
@@ -369,7 +375,9 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         return;
       }
 
-      const quote = buildQuoteSelector(contentText, offsets.start, offsets.end);
+      const usesParagraphOffsets = Boolean(container.querySelector("[data-paragraph]"));
+      const currentText = usesParagraphOffsets ? contentText : container.textContent ?? contentText;
+      const quote = buildQuoteSelector(currentText, offsets.start, offsets.end);
       const existing = selections.find(
         (selection) =>
           selection.selector.position.start === offsets.start &&
@@ -839,20 +847,22 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
   return (
     <div className="reader-layout">
       <div className="reader-content">
-        <div
-          className="reader-shell"
-          ref={containerRef}
-          onMouseUp={handlePointerUp}
-          onTouchEnd={handlePointerUp}
-          onDoubleClick={handleDoubleClick}
-        >
-          <ReaderDocument contentText={contentText} />
-          <SelectionOverlay
-            selections={selections}
-            containerRef={containerRef}
-            activeSelectionId={activeSelectionId}
-            onSelect={handleSelectHighlight}
-          />
+        <div className="reader-shell">
+          <div
+            className="reader-surface"
+            ref={containerRef}
+            onMouseUp={handlePointerUp}
+            onTouchEnd={handlePointerUp}
+            onDoubleClick={handleDoubleClick}
+          >
+            <ReaderDocument contentText={contentText} contentHtml={contentHtml} />
+            <SelectionOverlay
+              selections={selections}
+              containerRef={containerRef}
+              activeSelectionId={activeSelectionId}
+              onSelect={handleSelectHighlight}
+            />
+          </div>
           {menuState && !noteModalOpen && !grammarModalOpen && !audioModalOpen ? (
             <ActionMenu
               top={menuState.top}
