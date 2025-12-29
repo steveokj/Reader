@@ -97,10 +97,10 @@ function buildRange(anchor: Range, focus: Range): Range {
 export default function ReaderClient({ documentId, sectionId, contentText }: ReaderClientProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<Range | null>(null);
-  const lastSignatureRef = useRef<string | null>(null);
 
   const [menuState, setMenuState] = useState<MenuState | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCommitted, setIsCommitted] = useState(false);
   const [selections, setSelections] = useState<Selection[]>([]);
   const [activeSelectionId, setActiveSelectionId] = useState<number | null>(null);
   const [additions, setAdditions] = useState<Addition[]>([]);
@@ -159,16 +159,12 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       selection.removeAllRanges();
     }
     setMenuState(null);
+    setIsCommitted(false);
     anchorRef.current = null;
   }, []);
 
   const persistSelection = useCallback(
     async (selector: MenuState["selector"]) => {
-      const signature = `${selector.position.start}-${selector.position.end}`;
-      if (signature === lastSignatureRef.current) {
-        return;
-      }
-      lastSignatureRef.current = signature;
       setIsSaving(true);
       try {
         const response = await fetch(`${API_BASE}/selections`, {
@@ -192,6 +188,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
               return [...prev, data.selection as Selection];
             });
             setActiveSelectionId(data.selection.id);
+            setIsCommitted(true);
           }
         }
       } finally {
@@ -221,6 +218,11 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       }
 
       const quote = buildQuoteSelector(contentText, offsets.start, offsets.end);
+      const existing = selections.find(
+        (selection) =>
+          selection.selector.position.start === offsets.start &&
+          selection.selector.position.end === offsets.end
+      );
 
       const rects = range.getClientRects();
       const rect = rects.length > 0 ? rects[0] : range.getBoundingClientRect();
@@ -235,9 +237,15 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         },
       });
 
-      persistSelection({ position: offsets, quote });
+      if (existing) {
+        setActiveSelectionId(existing.id);
+        setIsCommitted(true);
+      } else {
+        setActiveSelectionId(null);
+        setIsCommitted(false);
+      }
     },
-    [clearSelection, contentText, persistSelection]
+    [clearSelection, contentText, selections]
   );
 
   const handlePointerUp = useCallback(() => {
@@ -293,7 +301,25 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
 
   const handleSelectHighlight = useCallback((selection: Selection) => {
     setActiveSelectionId(selection.id);
+    setIsCommitted(true);
   }, []);
+
+  const handleCommitSelection = useCallback(async () => {
+    if (!menuState || isCommitted) {
+      return;
+    }
+    const signature = `${menuState.selector.position.start}-${menuState.selector.position.end}`;
+    const existing = selections.find(
+      (selection) =>
+        `${selection.selector.position.start}-${selection.selector.position.end}` === signature
+    );
+    if (existing) {
+      setActiveSelectionId(existing.id);
+      setIsCommitted(true);
+      return;
+    }
+    await persistSelection(menuState.selector);
+  }, [isCommitted, menuState, persistSelection, selections]);
 
   const handleOpenNote = useCallback(() => {
     if (!activeSelectionId) {
@@ -387,7 +413,9 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
               left={menuState.left}
               selectionText={menuState.selectionText}
               isSaving={isSaving}
+              isCommitted={isCommitted}
               canCreateNote={Boolean(activeSelectionId)}
+              onCommit={handleCommitSelection}
               onNote={handleOpenNote}
               onClose={clearSelection}
             />

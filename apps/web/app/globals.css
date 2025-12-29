@@ -222,6 +222,7 @@ a {
   background: var(--paper-soft);
   border: 1px solid rgba(31, 28, 22, 0.12);
   box-shadow: 0 12px 30px var(--shadow);
+  opacity: 1;
 }
 
 .action-menu__meta {
@@ -235,11 +236,44 @@ a {
   margin-bottom: 8px;
 }
 
-.action-menu__close {
+.action-menu__meta-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-menu__icon,
+.action-menu__commit {
   border: none;
   background: none;
-  color: rgba(31, 28, 22, 0.55);
+  color: rgba(31, 28, 22, 0.7);
   cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-menu__commit {
+  background: rgba(217, 102, 63, 0.15);
+}
+
+.action-menu__icon svg,
+.action-menu__commit svg,
+.action-menu__actions svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.action-menu__commit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .action-menu__text {
@@ -257,10 +291,15 @@ a {
 .action-menu__actions button {
   border: 1px solid rgba(31, 28, 22, 0.2);
   background: white;
-  padding: 6px 10px;
-  border-radius: 999px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 12px;
   font-size: 13px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .action-menu__actions button:hover {
