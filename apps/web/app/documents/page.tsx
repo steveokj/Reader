@@ -1,51 +1,5 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { redirect } from "next/navigation";
 
-type Document = {
-  id: number;
-  title: string;
-  source_type: string;
-  source_ref?: string | null;
-  created_at: string;
-};
-
-async function fetchDocuments(): Promise<Document[]> {
-  const response = await fetch(`${API_BASE}/books`, { cache: "no-store" });
-  if (!response.ok) {
-    return [];
-  }
-  const data = (await response.json()) as { documents?: Document[] };
-  return data.documents ?? [];
-}
-
-export default async function DocumentsPage() {
-  const documents = await fetchDocuments();
-
-  return (
-    <main className="reader-main documents-page">
-      <header className="reader-header documents-header">
-        <div className="reader-kicker">Library</div>
-        <h1 className="reader-title">Documents</h1>
-      </header>
-      <section className="documents-grid">
-        <a href="/documents/new" className="document-card document-card--create">
-          <div className="document-card__meta">Create / Upload</div>
-          <div className="document-card__title">Add a new document</div>
-          <div className="document-card__hint">Import EPUB or article text.</div>
-        </a>
-        {documents.length === 0 ? (
-          <div className="empty-state">No documents yet.</div>
-        ) : (
-          documents.map((doc) => (
-            <a key={doc.id} href={`/book/${doc.id}`} className="document-card">
-              <div className="document-card__meta">{doc.source_type}</div>
-              <div className="document-card__title">{doc.title}</div>
-              <div className="document-card__hint">
-                Added {new Date(doc.created_at).toISOString()}
-              </div>
-            </a>
-          ))
-        )}
-      </section>
-    </main>
-  );
+export default function DocumentsRedirect() {
+  redirect("/books");
 }

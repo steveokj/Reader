@@ -1,13 +1,5 @@
-import DocumentIngestForm from "@/components/DocumentIngestForm";
+import { redirect } from "next/navigation";
 
-export default function DocumentNewPage() {
-  return (
-    <main className="reader-main documents-page">
-      <header className="reader-header documents-header">
-        <div className="reader-kicker">Documents</div>
-        <h1 className="reader-title">Create or Upload</h1>
-      </header>
-      <DocumentIngestForm />
-    </main>
-  );
+export default function DocumentNewRedirect() {
+  redirect("/new");
 }

@@ -11,5 +11,5 @@ export default async function ReaderIdRedirect({ params, searchParams }: ReaderI
   const query = resolvedSearch?.sectionKey
     ? `?sectionKey=${encodeURIComponent(resolvedSearch.sectionKey)}`
     : "";
-  redirect(`/book/${resolvedParams.id}${query}`);
+  redirect(`/books/${resolvedParams.id}${query}`);
 }

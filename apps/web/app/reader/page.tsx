@@ -13,12 +13,13 @@ type ReaderRedirectProps = {
 export default async function ReaderRedirect({ searchParams }: ReaderRedirectProps) {
   const resolvedParams = searchParams ? await Promise.resolve(searchParams) : undefined;
   const params = new URLSearchParams();
-  if (resolvedParams?.documentId) {
-    params.set("documentId", resolvedParams.documentId);
-  }
+  const documentId = resolvedParams?.documentId;
   if (resolvedParams?.sectionKey) {
     params.set("sectionKey", resolvedParams.sectionKey);
   }
   const query = params.toString();
-  redirect(`/book${query ? `?${query}` : ""}`);
+  if (documentId) {
+    redirect(`/books/${documentId}${query ? `?${query}` : ""}`);
+  }
+  redirect("/books");
 }

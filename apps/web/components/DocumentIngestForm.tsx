@@ -40,7 +40,7 @@ export default function DocumentIngestForm() {
       }
       const data = (await response.json()) as { document?: { id: number } };
       if (data.document?.id) {
-        router.push(`/book/${data.document.id}`);
+        router.push(`/books/${data.document.id}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
@@ -73,7 +73,7 @@ export default function DocumentIngestForm() {
       }
       const data = (await response.json()) as { document?: { id: number } };
       if (data.document?.id) {
-        router.push(`/book/${data.document.id}`);
+        router.push(`/books/${data.document.id}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed.");
