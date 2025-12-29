@@ -1,10 +1,12 @@
 ﻿"use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 
 import ActionMenu from "@/components/ActionMenu";
 import ReaderDocument from "@/components/ReaderDocument";
+import SelectionOverlay from "@/components/SelectionOverlay";
+import SidePanel from "@/components/SidePanel";
 import { buildQuoteSelector } from "@/lib/selection/buildQuoteSelector";
 import { getSelectionOffsets } from "@/lib/selection/getSelectionOffsets";
 
@@ -31,6 +33,14 @@ type MenuState = {
       suffix: string;
     };
   };
+};
+
+type Selection = {
+  id: number;
+  document_id: number;
+  section_id: number;
+  selector: MenuState["selector"];
+  created_at: string;
 };
 
 type CaretRangeFromPoint = (x: number, y: number) => Range | null;
@@ -79,6 +89,30 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
 
   const [menuState, setMenuState] = useState<MenuState | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [selections, setSelections] = useState<Selection[]>([]);
+  const [activeSelectionId, setActiveSelectionId] = useState<number | null>(null);
+
+  const activeSelection = selections.find((selection) => selection.id === activeSelectionId) ?? null;
+
+  useEffect(() => {
+    const loadSelections = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/selections?document_id=${documentId}&section_id=${sectionId}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { selections?: Selection[] };
+        setSelections(data.selections ?? []);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    loadSelections();
+  }, [documentId, sectionId]);
 
   const clearSelection = useCallback(() => {
     const selection = window.getSelection();
@@ -98,7 +132,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       lastSignatureRef.current = signature;
       setIsSaving(true);
       try {
-        await fetch(`${API_BASE}/selections`, {
+        const response = await fetch(`${API_BASE}/selections`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -109,6 +143,18 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
             selector,
           }),
         });
+        if (response.ok) {
+          const data = (await response.json()) as { selection?: Selection };
+          if (data.selection) {
+            setSelections((prev) => {
+              if (prev.some((item) => item.id === data.selection?.id)) {
+                return prev;
+              }
+              return [...prev, data.selection as Selection];
+            });
+            setActiveSelectionId(data.selection.id);
+          }
+        }
       } finally {
         setIsSaving(false);
       }
@@ -206,24 +252,39 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     [finalizeRange]
   );
 
+  const handleSelectHighlight = useCallback((selection: Selection) => {
+    setActiveSelectionId(selection.id);
+  }, []);
+
   return (
-    <div
-      className="reader-shell"
-      ref={containerRef}
-      onMouseUp={handlePointerUp}
-      onTouchEnd={handlePointerUp}
-      onDoubleClick={handleDoubleClick}
-    >
-      <ReaderDocument contentText={contentText} />
-      {menuState ? (
-        <ActionMenu
-          top={menuState.top}
-          left={menuState.left}
-          selectionText={menuState.selectionText}
-          isSaving={isSaving}
-          onClose={clearSelection}
-        />
-      ) : null}
+    <div className="reader-layout">
+      <div className="reader-content">
+        <div
+          className="reader-shell"
+          ref={containerRef}
+          onMouseUp={handlePointerUp}
+          onTouchEnd={handlePointerUp}
+          onDoubleClick={handleDoubleClick}
+        >
+          <ReaderDocument contentText={contentText} />
+          <SelectionOverlay
+            selections={selections}
+            containerRef={containerRef}
+            activeSelectionId={activeSelectionId}
+            onSelect={handleSelectHighlight}
+          />
+          {menuState ? (
+            <ActionMenu
+              top={menuState.top}
+              left={menuState.left}
+              selectionText={menuState.selectionText}
+              isSaving={isSaving}
+              onClose={clearSelection}
+            />
+          ) : null}
+        </div>
+      </div>
+      <SidePanel selection={activeSelection} />
     </div>
   );
 }
