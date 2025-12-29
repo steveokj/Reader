@@ -272,6 +272,22 @@ a {
   padding: 8px 10px;
   font-size: 13px;
   font-family: inherit;
+  background: white;
+}
+
+.ingest-input[type="file"] {
+  cursor: pointer;
+}
+
+.ingest-input[type="file"]::file-selector-button {
+  border: none;
+  background: var(--accent-soft);
+  color: var(--ink);
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  margin-right: 10px;
+  font-size: 12px;
 }
 
 .ingest-textarea {

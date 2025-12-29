@@ -76,10 +76,14 @@ export default async function ReaderPage({ searchParams }: ReaderPageProps) {
   }
 
   const requestedSectionKey = resolvedParams?.sectionKey;
+  const defaultSection =
+    data.sections.length > 1
+      ? [...data.sections].sort((a, b) => b.content_text.length - a.content_text.length)[0]
+      : data.sections[0];
   const section =
     requestedSectionKey !== undefined
-      ? data.sections.find((item) => item.section_key === requestedSectionKey) ?? data.sections[0]
-      : data.sections[0];
+      ? data.sections.find((item) => item.section_key === requestedSectionKey) ?? defaultSection
+      : defaultSection;
 
   return (
     <main className="reader-main">

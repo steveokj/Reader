@@ -2,6 +2,7 @@ import io
 import posixpath
 import re
 import zipfile
+from html import unescape
 from html.parser import HTMLParser
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.request import urlopen
@@ -62,10 +63,59 @@ class _HTMLTextExtractor(HTMLParser):
         return "\n\n".join(self._paragraphs)
 
 
+def _replace_images(html: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        tag = match.group(0)
+        alt_match = re.search(r'alt=[\"\\\'](.*?)[\"\\\']', tag, re.IGNORECASE)
+        src_match = re.search(r'src=[\"\\\'](.*?)[\"\\\']', tag, re.IGNORECASE)
+        alt = alt_match.group(1).strip() if alt_match else ""
+        src = src_match.group(1).strip() if src_match else ""
+        label = alt or src or "image"
+        return f"<p>[Image: {label}]</p>"
+
+    return re.sub(r"<img[^>]*>", repl, html, flags=re.IGNORECASE)
+
+
+def _strip_tags_fallback(html: str) -> str:
+    cleaned = re.sub(r"<(script|style)[^>]*>.*?</\\1>", "", html, flags=re.IGNORECASE | re.DOTALL)
+    cleaned = re.sub(r"<[^>]+>", " ", cleaned)
+    cleaned = unescape(cleaned)
+    cleaned = re.sub(r"\\s+", " ", cleaned)
+    return cleaned.strip()
+
+
 def _extract_text_from_html(html: str) -> str:
+    html = _replace_images(html)
     parser = _HTMLTextExtractor()
     parser.feed(html)
-    return parser.get_text()
+    text = parser.get_text()
+    if text.strip():
+        return text
+    return _strip_tags_fallback(html)
+
+
+def _decode_html_bytes(data: bytes) -> str:
+    head = data[:1000]
+    encoding_match = re.search(br'encoding=[\"\\\']([^\"\\\']+)[\"\\\']', head)
+    if encoding_match:
+        encoding = encoding_match.group(1).decode("ascii", errors="ignore")
+        try:
+            return data.decode(encoding, errors="ignore")
+        except LookupError:
+            pass
+    charset_match = re.search(br'charset=([A-Za-z0-9_\\-]+)', head, re.IGNORECASE)
+    if charset_match:
+        encoding = charset_match.group(1).decode("ascii", errors="ignore")
+        try:
+            return data.decode(encoding, errors="ignore")
+        except LookupError:
+            pass
+    for encoding in ("utf-8", "utf-16", "latin-1"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="ignore")
 
 
 def _extract_title_from_html(html: str) -> Optional[str]:
@@ -153,7 +203,7 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
                 html_bytes = zf.read(item_path)
             except KeyError:
                 continue
-            html = html_bytes.decode("utf-8", errors="ignore")
+            html = _decode_html_bytes(html_bytes)
             content_text = _extract_text_from_html(html)
             if not content_text.strip():
                 continue
