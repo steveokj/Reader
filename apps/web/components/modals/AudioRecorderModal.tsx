@@ -12,10 +12,11 @@ type AudioRecorderModalProps = {
   isOpen: boolean;
   apiBase: string;
   onSave: (payload: AudioPayload) => void;
+  onClearSelection: () => void;
   onClose: () => void;
 };
 
-type RecorderState = "idle" | "recording" | "recorded" | "uploading";
+type RecorderState = "idle" | "recording" | "paused" | "recorded" | "uploading";
 
 function getExtensionFromMime(mime: string) {
   if (mime.includes("webm")) return "webm";
@@ -32,10 +33,78 @@ function formatTime(seconds: number) {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+function IconRecord() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="6" />
+    </svg>
+  );
+}
+
+function IconStop() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="7" y="7" width="10" height="10" rx="1" />
+    </svg>
+  );
+}
+
+function IconPause() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8 6v12M16 6v12" />
+    </svg>
+  );
+}
+
+function IconPlay() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8 5l11 7-11 7V5z" />
+    </svg>
+  );
+}
+
+function IconRestart() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 12a8 8 0 108-8" />
+      <path d="M4 4v6h6" />
+    </svg>
+  );
+}
+
+function IconClear() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 7h14" />
+      <path d="M9 7l1 12h4l1-12" />
+      <path d="M9 7l1-2h4l1 2" />
+    </svg>
+  );
+}
+
+function IconSave() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 12l4 4 10-10" />
+    </svg>
+  );
+}
+
+function IconClose() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 6l12 12M18 6l-12 12" />
+    </svg>
+  );
+}
+
 export default function AudioRecorderModal({
   isOpen,
   apiBase,
   onSave,
+  onClearSelection,
   onClose,
 }: AudioRecorderModalProps) {
   const [state, setState] = useState<RecorderState>("idle");
@@ -89,6 +158,19 @@ export default function AudioRecorderModal({
     streamRef.current = null;
   };
 
+  const resetRecording = () => {
+    setAudioBlob(null);
+    setAudioUrl((prev) => {
+      if (prev) {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
+    setElapsed(0);
+    chunksRef.current = [];
+    setState("idle");
+  };
+
   const handleStart = async () => {
     setError(null);
     setElapsed(0);
@@ -124,9 +206,35 @@ export default function AudioRecorderModal({
   };
 
   const handleStop = () => {
-    if (mediaRecorderRef.current && state === "recording") {
+    if (mediaRecorderRef.current && (state === "recording" || state === "paused")) {
       mediaRecorderRef.current.stop();
     }
+  };
+
+  const handleTogglePause = () => {
+    if (!mediaRecorderRef.current) {
+      return;
+    }
+    if (state === "recording") {
+      mediaRecorderRef.current.pause();
+      setState("paused");
+    } else if (state === "paused") {
+      mediaRecorderRef.current.resume();
+      setState("recording");
+    }
+  };
+
+  const handleRestart = () => {
+    if (state === "recording" || state === "paused") {
+      handleStop();
+    }
+    stopTracks();
+    resetRecording();
+  };
+
+  const handleClear = () => {
+    resetRecording();
+    onClearSelection();
   };
 
   const handleUpload = async () => {
@@ -160,7 +268,7 @@ export default function AudioRecorderModal({
   };
 
   const handleClose = () => {
-    if (state === "recording") {
+    if (state === "recording" || state === "paused") {
       handleStop();
     }
     stopTracks();
@@ -177,55 +285,88 @@ export default function AudioRecorderModal({
     return null;
   }
 
-  const statusText =
-    state === "recording"
-      ? `Recording... ${formatTime(elapsed)}`
-      : state === "uploading"
-      ? "Uploading..."
-      : state === "recorded"
-      ? "Recording ready"
-      : "Ready to record";
+  const statusText = formatTime(elapsed);
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal-card">
         <div className="modal-header">
-          <h2>Record Audio</h2>
-          <button type="button" onClick={handleClose}>
-            Close
+          <span />
+          <button type="button" onClick={handleClose} aria-label="Close" className="modal-icon">
+            <IconClose />
           </button>
         </div>
 
         <div className="modal-section">
           <div className="audio-status">
             <span className={state === "recording" ? "pulse-dot" : "idle-dot"} />
-            <span>{statusText}</span>
+            <span className="audio-timer">{statusText}</span>
           </div>
           <div className="audio-recorder">
-            <button
-              type="button"
-              className="audio-control"
-              onClick={handleStart}
-              disabled={state === "recording" || state === "uploading"}
-            >
-              Start
-            </button>
-            <button
-              type="button"
-              className="audio-control secondary"
-              onClick={handleStop}
-              disabled={state !== "recording"}
-            >
-              Stop
-            </button>
-            <button
-              type="button"
-              className="audio-control"
-              onClick={handleUpload}
-              disabled={state !== "recorded"}
-            >
-              Save
-            </button>
+            {state === "idle" ? (
+              <button
+                type="button"
+                className="audio-control"
+                onClick={handleStart}
+                aria-label="Start recording"
+                title="Start"
+              >
+                <IconRecord />
+              </button>
+            ) : null}
+            {state === "recording" || state === "paused" ? (
+              <>
+                <button
+                  type="button"
+                  className="audio-control"
+                  onClick={handleTogglePause}
+                  aria-label={state === "recording" ? "Pause recording" : "Resume recording"}
+                  title={state === "recording" ? "Pause" : "Resume"}
+                >
+                  {state === "recording" ? <IconPause /> : <IconPlay />}
+                </button>
+                <button
+                  type="button"
+                  className="audio-control secondary"
+                  onClick={handleStop}
+                  aria-label="Stop recording"
+                  title="Stop"
+                >
+                  <IconStop />
+                </button>
+              </>
+            ) : null}
+            {state === "recorded" ? (
+              <>
+                <button
+                  type="button"
+                  className="audio-control secondary"
+                  onClick={handleRestart}
+                  aria-label="Restart recording"
+                  title="Restart"
+                >
+                  <IconRestart />
+                </button>
+                <button
+                  type="button"
+                  className="audio-control secondary"
+                  onClick={handleClear}
+                  aria-label="Clear recording"
+                  title="Clear"
+                >
+                  <IconClear />
+                </button>
+                <button
+                  type="button"
+                  className="audio-control"
+                  onClick={handleUpload}
+                  aria-label="Save recording"
+                  title="Save"
+                >
+                  <IconSave />
+                </button>
+              </>
+            ) : null}
           </div>
           {audioUrl ? <audio controls src={audioUrl} /> : null}
           {error ? <div className="modal-hint">{error}</div> : null}

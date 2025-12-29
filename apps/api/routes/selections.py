@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter
+﻿from fastapi import APIRouter, HTTPException
 
 from ..db.conn import get_conn
 from ..models.schemas import SelectionCreate, SelectionResponse, SelectionsResponse
@@ -23,5 +23,17 @@ def list_selections(document_id: int | None = None, section_id: int | None = Non
     try:
         selections = selections_service.get_selections(conn, document_id, section_id)
         return {"selections": selections}
+    finally:
+        conn.close()
+
+
+@router.delete("/{selection_id}")
+def delete_selection(selection_id: int):
+    conn = get_conn()
+    try:
+        deleted = selections_service.delete_selection(conn, selection_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Selection not found")
+        return {"ok": True}
     finally:
         conn.close()

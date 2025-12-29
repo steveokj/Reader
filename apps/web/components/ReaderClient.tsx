@@ -111,6 +111,7 @@ function buildRange(anchor: Range, focus: Range): Range {
 export default function ReaderClient({ documentId, sectionId, contentText }: ReaderClientProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<Range | null>(null);
+  const audioSelectionRef = useRef<number | null>(null);
 
   const [menuState, setMenuState] = useState<MenuState | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -378,6 +379,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
 
   const handleOpenAudio = useCallback(async () => {
     if (isCommitted && activeSelectionId) {
+      audioSelectionRef.current = activeSelectionId;
       setAudioModalOpen(true);
       return;
     }
@@ -386,9 +388,38 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     }
     const selection = await persistSelection(menuState.selector);
     if (selection) {
+      audioSelectionRef.current = selection.id;
       setAudioModalOpen(true);
     }
   }, [activeSelectionId, isCommitted, menuState, persistSelection]);
+
+  const handleClearAudioSelection = useCallback(async () => {
+    const selectionId = audioSelectionRef.current ?? activeSelectionId;
+    if (!selectionId) {
+      setAudioModalOpen(false);
+      setMenuState(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/selections/${selectionId}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        setSelections((prev) => prev.filter((item) => item.id !== selectionId));
+        if (activeSelectionId === selectionId) {
+          setActiveSelectionId(null);
+          setAdditions([]);
+        }
+      }
+    } catch (error) {
+      console.error(error);
+    }
+
+    audioSelectionRef.current = null;
+    setAudioModalOpen(false);
+    clearSelection();
+  }, [activeSelectionId, clearSelection]);
 
   const handleSaveNote = useCallback(
     async (text: string) => {
@@ -507,6 +538,12 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       if (response.ok) {
         const data = (await response.json()) as { addition?: Addition };
         if (data.addition) {
+          setAdditions((prev) => {
+            if (prev.some((item) => item.id === data.addition?.id)) {
+              return prev;
+            }
+            return [...prev, data.addition as Addition];
+          });
           await refreshAdditions(activeSelectionId);
           setMenuState(null);
         }
@@ -581,6 +618,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         isOpen={audioModalOpen}
         apiBase={API_BASE}
         onSave={handleSaveAudio}
+        onClearSelection={handleClearAudioSelection}
         onClose={() => setAudioModalOpen(false)}
       />
     </div>

@@ -351,15 +351,30 @@ a {
   align-items: center;
 }
 
-.modal-header h2 {
-  font-size: 20px;
-}
-
 .modal-header button {
   border: none;
   background: none;
   cursor: pointer;
   color: rgba(31, 28, 22, 0.55);
+}
+
+.modal-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+}
+
+.modal-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .modal-textarea {
@@ -504,6 +519,9 @@ a {
   border-radius: 999px;
   cursor: pointer;
   font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .audio-control.secondary {
@@ -515,6 +533,16 @@ a {
 .audio-control:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.audio-control svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .modal-card audio {

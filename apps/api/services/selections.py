@@ -64,3 +64,10 @@ def get_selections(
             }
         )
     return selections
+
+
+def delete_selection(conn, selection_id: int) -> bool:
+    conn.execute("DELETE FROM additions WHERE selection_id = ?", (selection_id,))
+    cur = conn.execute("DELETE FROM selections WHERE id = ?", (selection_id,))
+    conn.commit()
+    return cur.rowcount > 0
