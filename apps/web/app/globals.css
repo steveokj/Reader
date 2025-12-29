@@ -302,6 +302,31 @@ a {
   margin-bottom: 12px;
 }
 
+.side-panel__tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.side-panel__tab {
+  border: 1px solid rgba(31, 28, 22, 0.15);
+  background: white;
+  color: rgba(31, 28, 22, 0.7);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.side-panel__tab.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.highlights-panel .card-stack {
+  grid-template-columns: 1fr;
+}
+
 .side-panel__body {
   display: flex;
   flex-direction: column;

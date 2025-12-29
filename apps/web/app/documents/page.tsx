@@ -40,7 +40,7 @@ export default async function DocumentsPage() {
               <div className="document-card__meta">{doc.source_type}</div>
               <div className="document-card__title">{doc.title}</div>
               <div className="document-card__hint">
-                Added {new Date(doc.created_at).toLocaleDateString()}
+                Added {new Date(doc.created_at).toISOString()}
               </div>
             </a>
           ))

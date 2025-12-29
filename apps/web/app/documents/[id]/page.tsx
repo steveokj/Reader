@@ -140,7 +140,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
   );
 
   const defaultSectionKey = detail.sections[0]?.section_key ?? "0";
-  const readHref = `/reader?documentId=${detail.document.id}&sectionKey=${defaultSectionKey}`;
+  const readHref = `/reader/${detail.document.id}?sectionKey=${defaultSectionKey}`;
 
   return (
     <main className="reader-main documents-page">
@@ -149,7 +149,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
         <h1 className="reader-title">{detail.document.title}</h1>
         <div className="document-meta">
           <span>Sections {detail.sections.length}</span>
-          <span>Created {new Date(detail.document.created_at).toLocaleDateString()}</span>
+          <span>Created {new Date(detail.document.created_at).toISOString()}</span>
         </div>
         <div className="document-actions">
           <a href={readHref} className="action-link">

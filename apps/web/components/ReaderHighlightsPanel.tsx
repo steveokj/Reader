@@ -1,23 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-type Document = {
-  id: number;
-  title: string;
-  source_type: string;
-  source_ref?: string | null;
-  created_at: string;
-};
-
-type DocumentSection = {
-  id: number;
-  document_id: number;
-  section_key: string;
-  title?: string | null;
-  content_text: string;
-  created_at: string;
-};
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type Selection = {
   id: number;
@@ -49,6 +34,11 @@ type Marker = {
   created_at: string;
 };
 
+type DocumentSection = {
+  id: number;
+  section_key: string;
+};
+
 type SelectionBundle = {
   selection: Selection;
   additions: Addition[];
@@ -56,15 +46,15 @@ type SelectionBundle = {
   additionMarkers: Record<number, Marker[]>;
 };
 
-type DocumentDetailClientProps = {
-  document: Document;
-  sections: DocumentSection[];
-  bundles: SelectionBundle[];
+type ReaderHighlightsPanelProps = {
+  documentId: number;
+  refreshKey: number;
+  isActive: boolean;
 };
 
 type TabKey = "selections" | "additions" | "markers";
 
-function formatSnippet(value: string, limit = 80) {
+function formatSnippet(value: string, limit = 60) {
   const trimmed = value.trim();
   if (!trimmed) {
     return "Untitled";
@@ -75,21 +65,118 @@ function formatSnippet(value: string, limit = 80) {
   return `${trimmed.slice(0, limit).trimEnd()}...`;
 }
 
-export default function DocumentDetailClient({ document, sections, bundles }: DocumentDetailClientProps) {
+export default function ReaderHighlightsPanel({ documentId, refreshKey, isActive }: ReaderHighlightsPanelProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("selections");
+  const [bundles, setBundles] = useState<SelectionBundle[]>([]);
+  const [sectionsById, setSectionsById] = useState<Map<number, string>>(new Map());
+  const [loading, setLoading] = useState(false);
 
-  const sectionKeyById = useMemo(() => {
-    return new Map(sections.map((section) => [section.id, section.section_key]));
-  }, [sections]);
+  useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+    let cancelled = false;
 
-  const selectionById = useMemo(() => {
-    return new Map(bundles.map((bundle) => [bundle.selection.id, bundle.selection]));
-  }, [bundles]);
+    const load = async () => {
+      setLoading(true);
+      try {
+        const documentRes = await fetch(`${API_BASE}/documents/${documentId}`, {
+          cache: "no-store",
+        });
+        if (!documentRes.ok) {
+          if (!cancelled) {
+            setBundles([]);
+          }
+          return;
+        }
+        const documentData = (await documentRes.json()) as { sections?: DocumentSection[] };
+        const sectionMap = new Map<number, string>();
+        (documentData.sections ?? []).forEach((section) => {
+          sectionMap.set(section.id, section.section_key);
+        });
+
+        const selectionsRes = await fetch(
+          `${API_BASE}/selections?document_id=${documentId}`,
+          { cache: "no-store" }
+        );
+        if (!selectionsRes.ok) {
+          if (!cancelled) {
+            setBundles([]);
+          }
+          return;
+        }
+        const selectionsData = (await selectionsRes.json()) as { selections?: Selection[] };
+        const selections = selectionsData.selections ?? [];
+        const nextBundles = await Promise.all(
+          selections.map(async (selection) => {
+            const [additionsRes, markersRes] = await Promise.all([
+              fetch(`${API_BASE}/additions?selection_id=${selection.id}`, { cache: "no-store" }),
+              fetch(`${API_BASE}/markers?target_type=selection&target_id=${selection.id}`, {
+                cache: "no-store",
+              }),
+            ]);
+            const additionsData = additionsRes.ok
+              ? ((await additionsRes.json()) as { additions?: Addition[] })
+              : { additions: [] };
+            const markersData = markersRes.ok
+              ? ((await markersRes.json()) as { markers?: Marker[] })
+              : { markers: [] };
+
+            const additions = additionsData.additions ?? [];
+            const additionMarkersEntries = await Promise.all(
+              additions.map(async (addition) => {
+                const response = await fetch(
+                  `${API_BASE}/markers?target_type=addition&target_id=${addition.id}`,
+                  { cache: "no-store" }
+                );
+                if (!response.ok) {
+                  return [addition.id, []] as const;
+                }
+                const data = (await response.json()) as { markers?: Marker[] };
+                return [addition.id, data.markers ?? []] as const;
+              })
+            );
+
+            return {
+              selection,
+              additions,
+              markers: markersData.markers ?? [],
+              additionMarkers: Object.fromEntries(additionMarkersEntries),
+            } as SelectionBundle;
+          })
+        );
+
+        if (!cancelled) {
+          setSectionsById(sectionMap);
+          setBundles(nextBundles);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setBundles([]);
+        }
+        console.error(error);
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId, refreshKey, isActive]);
 
   const additions = useMemo(() => {
     return bundles.flatMap((bundle) =>
       bundle.additions.map((addition) => ({ ...addition, selectionId: bundle.selection.id }))
     );
+  }, [bundles]);
+
+  const selectionById = useMemo(() => {
+    return new Map(bundles.map((bundle) => [bundle.selection.id, bundle.selection]));
   }, [bundles]);
 
   const additionById = useMemo(() => {
@@ -122,8 +209,12 @@ export default function DocumentDetailClient({ document, sections, bundles }: Do
     markers: markerItems.length,
   };
 
+  if (!isActive) {
+    return null;
+  }
+
   return (
-    <section className="document-detail">
+    <div className="highlights-panel">
       <div className="document-detail__tabs">
         {(["selections", "additions", "markers"] as TabKey[]).map((tab) => (
           <button
@@ -138,6 +229,8 @@ export default function DocumentDetailClient({ document, sections, bundles }: Do
         ))}
       </div>
 
+      {loading ? <div className="empty-state">Loading...</div> : null}
+
       {activeTab === "selections" ? (
         <div className="tab-panel">
           {bundles.length === 0 ? (
@@ -146,7 +239,7 @@ export default function DocumentDetailClient({ document, sections, bundles }: Do
             <div className="card-stack">
               {bundles.map((bundle) => {
                 const selection = bundle.selection;
-                const sectionKey = sectionKeyById.get(selection.section_id) ?? "unknown";
+                const sectionKey = sectionsById.get(selection.section_id) ?? `${selection.section_id}`;
                 return (
                   <article key={selection.id} className="data-card">
                     <div className="data-card__meta">
@@ -228,6 +321,6 @@ export default function DocumentDetailClient({ document, sections, bundles }: Do
           )}
         </div>
       ) : null}
-    </section>
+    </div>
   );
 }

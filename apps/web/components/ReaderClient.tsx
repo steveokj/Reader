@@ -878,6 +878,8 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         markers={markers}
         additionMarkers={additionMarkers}
         mediaBase={API_BASE}
+        documentId={documentId}
+        highlightsRefreshKey={selections.length + additions.length + markers.length}
         onEditNote={handleEditNote}
         onToggleMarker={handleToggleMarker}
         onToggleAdditionMarker={handleToggleAdditionMarker}
