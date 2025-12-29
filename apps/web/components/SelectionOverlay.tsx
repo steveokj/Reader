@@ -40,6 +40,7 @@ type SelectionOverlayProps = {
   containerRef: RefObject<HTMLDivElement>;
   activeSelectionId: number | null;
   onSelect: (selection: Selection) => void;
+  getSectionElement?: (selection: Selection) => HTMLElement | null;
 };
 
 export default function SelectionOverlay({
@@ -47,6 +48,7 @@ export default function SelectionOverlay({
   containerRef,
   activeSelectionId,
   onSelect,
+  getSectionElement,
 }: SelectionOverlayProps) {
   const [highlights, setHighlights] = useState<Highlight[]>([]);
 
@@ -60,8 +62,10 @@ export default function SelectionOverlay({
     const nextHighlights: Highlight[] = [];
 
     selections.forEach((selection) => {
+      const sectionElement = getSectionElement ? getSectionElement(selection) : null;
+      const scope = sectionElement ?? container;
       const { start, end } = selection.selector.position;
-      const range = rangeFromOffsets(container, start, end);
+      const range = rangeFromOffsets(scope, start, end);
       if (!range) {
         return;
       }
@@ -81,7 +85,7 @@ export default function SelectionOverlay({
     });
 
     setHighlights(nextHighlights);
-  }, [containerRef, selections]);
+  }, [containerRef, selections, getSectionElement]);
 
   useLayoutEffect(() => {
     computeHighlights();

@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 
 import ActionMenu from "@/components/ActionMenu";
@@ -15,17 +15,25 @@ import { getSelectionOffsets } from "@/lib/selection/getSelectionOffsets";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+type ReaderSection = {
+  id: number;
+  section_key: string;
+  title?: string | null;
+  content_text: string;
+  content_html?: string | null;
+};
+
 type ReaderClientProps = {
   documentId: number;
-  sectionId: number;
-  contentText: string;
-  contentHtml?: string | null;
+  sections: ReaderSection[];
+  initialSectionKey?: string | null;
 };
 
 type MenuState = {
   top: number;
   left: number;
   selectionText: string;
+  sectionId: number;
   selector: {
     position: {
       start: number;
@@ -70,6 +78,7 @@ type MarkerKind = "like" | "highlight" | "todo";
 type DraftSelection = {
   selector: MenuState["selector"];
   selectionText: string;
+  sectionId: number;
 };
 
 type GrammarPayload = {
@@ -125,9 +134,8 @@ function buildRange(anchor: Range, focus: Range): Range {
 
 export default function ReaderClient({
   documentId,
-  sectionId,
-  contentText,
-  contentHtml,
+  sections,
+  initialSectionKey,
 }: ReaderClientProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<Range | null>(null);
@@ -147,6 +155,11 @@ export default function ReaderClient({
   const [grammarModalOpen, setGrammarModalOpen] = useState(false);
   const [audioModalOpen, setAudioModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Addition | null>(null);
+  const scrolledSectionRef = useRef<string | null>(null);
+
+  const sectionById = useMemo(() => {
+    return new Map(sections.map((section) => [section.id, section]));
+  }, [sections]);
 
   const activeSelection = selections.find((selection) => selection.id === activeSelectionId) ?? null;
   const grammarSelectionText =
@@ -219,10 +232,9 @@ export default function ReaderClient({
   useEffect(() => {
     const loadSelections = async () => {
       try {
-        const response = await fetch(
-          `${API_BASE}/selections?document_id=${documentId}&section_id=${sectionId}`,
-          { cache: "no-store" }
-        );
+        const response = await fetch(`${API_BASE}/selections?document_id=${documentId}`, {
+          cache: "no-store",
+        });
         if (!response.ok) {
           return;
         }
@@ -234,7 +246,26 @@ export default function ReaderClient({
     };
 
     loadSelections();
-  }, [documentId, sectionId]);
+  }, [documentId]);
+
+  useEffect(() => {
+    if (!initialSectionKey) {
+      return;
+    }
+    if (scrolledSectionRef.current === initialSectionKey) {
+      return;
+    }
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+    const safeKey = initialSectionKey.replace(/"/g, '\\"');
+    const target = container.querySelector<HTMLElement>(`[data-section-key="${safeKey}"]`);
+    if (target) {
+      target.scrollIntoView({ block: "start" });
+      scrolledSectionRef.current = initialSectionKey;
+    }
+  }, [initialSectionKey, sections]);
 
   useEffect(() => {
     if (!activeSelectionId) {
@@ -269,7 +300,7 @@ export default function ReaderClient({
   }, [activeSelectionId, clearSelection, isCommitted]);
 
   const persistSelection = useCallback(
-    async (selector: MenuState["selector"]): Promise<Selection | null> => {
+    async (selector: MenuState["selector"], sectionId: number): Promise<Selection | null> => {
       setIsSaving(true);
       try {
         const response = await fetch(`${API_BASE}/selections`, {
@@ -303,7 +334,7 @@ export default function ReaderClient({
       }
       return null;
     },
-    [documentId, sectionId]
+    [documentId]
   );
 
   const persistSelectionMarkers = useCallback(async (selectionId: number, kinds: MarkerKind[]) => {
@@ -332,15 +363,40 @@ export default function ReaderClient({
     }
   }, []);
 
+  const getSectionElementFromNode = useCallback((node: Node | null): HTMLElement | null => {
+    if (!node) {
+      return null;
+    }
+    if (node instanceof HTMLElement) {
+      return node.closest("[data-section-id]") as HTMLElement | null;
+    }
+    if (node.parentElement) {
+      return node.parentElement.closest("[data-section-id]") as HTMLElement | null;
+    }
+    return null;
+  }, []);
+
+  const getSectionElementForSelection = useCallback(
+    (selection: Selection): HTMLElement | null => {
+      const container = containerRef.current;
+      if (!container) {
+        return null;
+      }
+      return container.querySelector<HTMLElement>(`[data-section-id="${selection.section_id}"]`);
+    },
+    []
+  );
+
   const ensureSelectionForAddition = useCallback(async () => {
     if (activeSelectionId) {
       return activeSelectionId;
     }
     const selector = draftSelection?.selector ?? menuState?.selector;
-    if (!selector) {
+    const selectionSectionId = draftSelection?.sectionId ?? menuState?.sectionId;
+    if (!selector || !selectionSectionId) {
       return null;
     }
-    const selection = await persistSelection(selector);
+    const selection = await persistSelection(selector, selectionSectionId);
     if (selection && pendingMarkerKinds.length) {
       await persistSelectionMarkers(selection.id, pendingMarkerKinds);
       setPendingMarkerKinds([]);
@@ -363,23 +419,39 @@ export default function ReaderClient({
         return;
       }
 
+      const sectionElement = getSectionElementFromNode(range.startContainer);
+      const endSectionElement = getSectionElementFromNode(range.endContainer);
+      if (!sectionElement || !endSectionElement || sectionElement !== endSectionElement) {
+        clearSelection();
+        return;
+      }
+      const sectionId = Number(sectionElement.dataset.sectionId ?? "");
+      if (!sectionId || Number.isNaN(sectionId)) {
+        clearSelection();
+        return;
+      }
+
       const selectedText = range.toString();
       if (!selectedText.trim()) {
         clearSelection();
         return;
       }
 
-      const offsets = getSelectionOffsets(range, container);
+      const offsets = getSelectionOffsets(range, sectionElement);
       if (!offsets) {
         clearSelection();
         return;
       }
 
-      const usesParagraphOffsets = Boolean(container.querySelector("[data-paragraph]"));
-      const currentText = usesParagraphOffsets ? contentText : container.textContent ?? contentText;
+      const section = sectionById.get(sectionId);
+      const usesParagraphOffsets = Boolean(sectionElement.querySelector("[data-paragraph]"));
+      const currentText = usesParagraphOffsets
+        ? section?.content_text ?? ""
+        : sectionElement.textContent ?? section?.content_text ?? "";
       const quote = buildQuoteSelector(currentText, offsets.start, offsets.end);
       const existing = selections.find(
         (selection) =>
+          selection.section_id === sectionId &&
           selection.selector.position.start === offsets.start &&
           selection.selector.position.end === offsets.end
       );
@@ -391,6 +463,7 @@ export default function ReaderClient({
         top: Math.max(12, rect.top - 48),
         left: Math.max(12, rect.left),
         selectionText: selectedText,
+        sectionId,
         selector: {
           position: offsets,
           quote,
@@ -406,7 +479,7 @@ export default function ReaderClient({
       }
       setPendingMarkerKinds([]);
     },
-    [clearSelection, contentText, selections]
+    [clearSelection, getSectionElementFromNode, sectionById, selections]
   );
 
   const handlePointerUp = useCallback(() => {
@@ -472,6 +545,7 @@ export default function ReaderClient({
     const signature = `${menuState.selector.position.start}-${menuState.selector.position.end}`;
     const existing = selections.find(
       (selection) =>
+        selection.section_id === menuState.sectionId &&
         `${selection.selector.position.start}-${selection.selector.position.end}` === signature
     );
     if (existing) {
@@ -480,7 +554,7 @@ export default function ReaderClient({
       setMenuState(null);
       return;
     }
-    const selection = await persistSelection(menuState.selector);
+    const selection = await persistSelection(menuState.selector, menuState.sectionId);
     if (selection && pendingMarkerKinds.length) {
       await persistSelectionMarkers(selection.id, pendingMarkerKinds);
       setPendingMarkerKinds([]);
@@ -502,7 +576,11 @@ export default function ReaderClient({
     if (!menuState) {
       return;
     }
-    setDraftSelection({ selector: menuState.selector, selectionText: menuState.selectionText });
+    setDraftSelection({
+      selector: menuState.selector,
+      selectionText: menuState.selectionText,
+      sectionId: menuState.sectionId,
+    });
     setMenuState(null);
     setEditingNote(null);
     setNoteModalOpen(true);
@@ -521,7 +599,11 @@ export default function ReaderClient({
     if (!menuState) {
       return;
     }
-    setDraftSelection({ selector: menuState.selector, selectionText: menuState.selectionText });
+    setDraftSelection({
+      selector: menuState.selector,
+      selectionText: menuState.selectionText,
+      sectionId: menuState.sectionId,
+    });
     setMenuState(null);
     setGrammarModalOpen(true);
   }, [
@@ -540,7 +622,11 @@ export default function ReaderClient({
     if (!menuState) {
       return;
     }
-    setDraftSelection({ selector: menuState.selector, selectionText: menuState.selectionText });
+    setDraftSelection({
+      selector: menuState.selector,
+      selectionText: menuState.selectionText,
+      sectionId: menuState.sectionId,
+    });
     setMenuState(null);
     audioSelectionRef.current = null;
     setAudioModalOpen(true);
@@ -855,16 +941,29 @@ export default function ReaderClient({
             onTouchEnd={handlePointerUp}
             onDoubleClick={handleDoubleClick}
           >
-          <ReaderDocument
-            contentText={contentText}
-            contentHtml={contentHtml}
-            mediaBase={API_BASE}
-          />
+            {sections.map((section) => (
+              <section
+                key={section.id}
+                className="reader-section"
+                data-section-id={section.id}
+                data-section-key={section.section_key}
+              >
+                {!section.content_html && section.title ? (
+                  <h2 className="reader-section__title">{section.title}</h2>
+                ) : null}
+                <ReaderDocument
+                  contentText={section.content_text}
+                  contentHtml={section.content_html}
+                  mediaBase={API_BASE}
+                />
+              </section>
+            ))}
             <SelectionOverlay
               selections={selections}
               containerRef={containerRef}
               activeSelectionId={activeSelectionId}
               onSelect={handleSelectHighlight}
+              getSectionElement={getSectionElementForSelection}
             />
           </div>
           {menuState && !noteModalOpen && !grammarModalOpen && !audioModalOpen ? (

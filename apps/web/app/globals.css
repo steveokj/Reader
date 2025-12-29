@@ -68,6 +68,22 @@ a {
   color: #1f1c16;
 }
 
+.reader-section {
+  scroll-margin-top: 96px;
+}
+
+.reader-section + .reader-section {
+  margin-top: 48px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(31, 28, 22, 0.08);
+}
+
+.reader-section__title {
+  margin-top: 32px;
+  margin-bottom: 12px;
+  font-size: 22px;
+}
+
 .reader-kicker {
   font-size: 12px;
   text-transform: uppercase;

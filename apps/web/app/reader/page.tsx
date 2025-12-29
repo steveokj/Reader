@@ -77,12 +77,7 @@ export default async function ReaderPage({ searchParams }: ReaderPageProps) {
     );
   }
 
-  const requestedSectionKey = resolvedParams?.sectionKey;
-  const defaultSection = data.sections[0];
-  const section =
-    requestedSectionKey !== undefined
-      ? data.sections.find((item) => item.section_key === requestedSectionKey) ?? defaultSection
-      : defaultSection;
+  const requestedSectionKey = resolvedParams?.sectionKey ?? null;
 
   return (
     <main className="reader-main">
@@ -93,14 +88,13 @@ export default async function ReaderPage({ searchParams }: ReaderPageProps) {
       <ReaderSectionPicker
         documentId={data.document.id}
         sections={data.sections}
-        activeKey={section?.section_key ?? null}
+        activeKey={requestedSectionKey}
       />
-      {section ? (
+      {data.sections.length ? (
         <ReaderClient
           documentId={data.document.id}
-          sectionId={section.id}
-          contentText={section.content_text}
-          contentHtml={section.content_html}
+          sections={data.sections}
+          initialSectionKey={requestedSectionKey}
         />
       ) : (
         <p>No sections found.</p>
