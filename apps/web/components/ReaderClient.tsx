@@ -2,9 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
+import { useRouter } from "next/navigation";
 
 import ActionMenu from "@/components/ActionMenu";
 import ReaderDocument from "@/components/ReaderDocument";
+import ReaderHighlightsPanel from "@/components/ReaderHighlightsPanel";
+import ReaderSectionPicker from "@/components/ReaderSectionPicker";
 import SelectionOverlay from "@/components/SelectionOverlay";
 import SidePanel from "@/components/SidePanel";
 import AudioRecorderModal from "@/components/modals/AudioRecorderModal";
@@ -26,6 +29,8 @@ type ReaderSection = {
 
 type ReaderClientProps = {
   documentId: number;
+  documentTitle: string;
+  sourceType: string;
   sections: ReaderSection[];
   initialSectionKey?: string | null;
 };
@@ -94,6 +99,45 @@ type AudioPayload = {
   size_bytes: number;
 };
 
+function IconChapters() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 5h6v14H5z" />
+      <path d="M13 7h6v12h-6z" />
+      <path d="M7 9h2" />
+      <path d="M15 11h2" />
+    </svg>
+  );
+}
+
+function IconNew() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function IconSettings() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M4 12h2M18 12h2M12 4v2M12 18v2M6.5 6.5l1.4 1.4M16.1 16.1l1.4 1.4M6.5 17.5l1.4-1.4M16.1 7.9l1.4-1.4" />
+    </svg>
+  );
+}
+
+function IconHighlights() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 5h14v14H5z" />
+      <path d="M8 9h8" />
+      <path d="M8 13h6" />
+    </svg>
+  );
+}
+
 type CaretRangeFromPoint = (x: number, y: number) => Range | null;
 type CaretPositionFromPoint = (x: number, y: number) => { offsetNode: Node; offset: number } | null;
 
@@ -135,12 +179,17 @@ function buildRange(anchor: Range, focus: Range): Range {
 
 export default function ReaderClient({
   documentId,
+  documentTitle,
+  sourceType,
   sections,
   initialSectionKey,
 }: ReaderClientProps) {
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<Range | null>(null);
   const audioSelectionRef = useRef<number | null>(null);
+  const mobileNavRef = useRef<HTMLDivElement>(null);
+  const mobilePanelRef = useRef<HTMLDivElement>(null);
 
   const [menuState, setMenuState] = useState<MenuState | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -157,6 +206,9 @@ export default function ReaderClient({
   const [audioModalOpen, setAudioModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Addition | null>(null);
   const scrolledSectionRef = useRef<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<"chapters" | "highlights" | null>(null);
 
   const sectionById = useMemo(() => {
     return new Map(sections.map((section) => [section.id, section]));
@@ -248,6 +300,33 @@ export default function ReaderClient({
 
     loadSelections();
   }, [documentId]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 900px)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsMobile(event.matches);
+    };
+    setIsMobile(media.matches);
+    if (media.addEventListener) {
+      media.addEventListener("change", handleChange);
+    } else {
+      media.addListener(handleChange);
+    }
+    return () => {
+      if (media.addEventListener) {
+        media.removeEventListener("change", handleChange);
+      } else {
+        media.removeListener(handleChange);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileNavOpen(false);
+      setMobilePanel(null);
+    }
+  }, [isMobile]);
 
   useEffect(() => {
     if (!initialSectionKey) {
@@ -925,6 +1004,28 @@ export default function ReaderClient({
     }
   }, [activeSelectionId]);
 
+  const handleBodyClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (!isMobile) {
+        return;
+      }
+      if (event.detail >= 3) {
+        setMobileNavOpen(true);
+        return;
+      }
+      if (!mobileNavOpen) {
+        return;
+      }
+      const target = event.target as Node;
+      if (mobileNavRef.current?.contains(target) || mobilePanelRef.current?.contains(target)) {
+        return;
+      }
+      setMobileNavOpen(false);
+      setMobilePanel(null);
+    },
+    [isMobile, mobileNavOpen]
+  );
+
   const handleJumpToSelection = useCallback(
     (selection: Selection) => {
       setActiveSelectionId(selection.id);
@@ -937,6 +1038,10 @@ export default function ReaderClient({
       setAudioModalOpen(false);
       setEditingNote(null);
       audioSelectionRef.current = null;
+      if (isMobile) {
+        setMobilePanel(null);
+        setMobileNavOpen(false);
+      }
 
       const sectionElement = getSectionElementForSelection(selection);
       if (!sectionElement) {
@@ -951,7 +1056,7 @@ export default function ReaderClient({
       const scrollTop = Math.max(0, rect.top + window.scrollY - 140);
       window.scrollTo({ top: scrollTop, behavior: "smooth" });
     },
-    [getSectionElementForSelection]
+    [getSectionElementForSelection, isMobile]
   );
 
   const selectionMarkerKinds = markers.map((marker) => marker.kind as MarkerKind);
@@ -961,11 +1066,38 @@ export default function ReaderClient({
   const actionMenuToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
 
   return (
-    <div className="reader-layout">
-      <div className="reader-content">
+    <div className="reader-layout reader-layout--columns">
+      <aside className="reader-sidebar">
+        <div className="reader-sidebar__header">
+          <div className="reader-kicker">{sourceType}</div>
+          <h1 className="reader-title">{documentTitle}</h1>
+        </div>
+        <ReaderSectionPicker
+          documentId={documentId}
+          sections={sections}
+          activeKey={initialSectionKey ?? null}
+        />
+        <div className="reader-sidebar__links">
+          <button
+            type="button"
+            className="reader-sidebar__link"
+            onClick={() => router.push("/new")}
+          >
+            Add new book
+          </button>
+          <button
+            type="button"
+            className="reader-sidebar__link"
+            onClick={() => router.push("/settings")}
+          >
+            Settings
+          </button>
+        </div>
+      </aside>
+      <div className="reader-body" onClick={handleBodyClick}>
         <div className="reader-shell">
           <div
-            className="reader-surface"
+            className="reader-scroll"
             ref={containerRef}
             onMouseUp={handlePointerUp}
             onTouchEnd={handlePointerUp}
@@ -1013,22 +1145,94 @@ export default function ReaderClient({
               onClose={clearSelection}
             />
           ) : null}
+          {isMobile && mobilePanel ? (
+            <div
+              className="mobile-panel"
+              ref={mobilePanelRef}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {mobilePanel === "chapters" ? (
+                <div className="mobile-panel__content">
+                  <div className="mobile-panel__title">Chapters</div>
+                  <ReaderSectionPicker
+                    documentId={documentId}
+                    sections={sections}
+                    activeKey={initialSectionKey ?? null}
+                  />
+                </div>
+              ) : (
+                <ReaderHighlightsPanel
+                  documentId={documentId}
+                  refreshKey={selections.length + additions.length + markers.length}
+                  isActive
+                  onJumpToSelection={handleJumpToSelection}
+                />
+              )}
+            </div>
+          ) : null}
+          {isMobile && mobileNavOpen ? (
+            <div
+              className="mobile-nav"
+              ref={mobileNavRef}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  setMobilePanel((prev) => (prev === "chapters" ? null : "chapters"))
+                }
+                aria-label="Chapters"
+                className={mobilePanel === "chapters" ? "is-active" : undefined}
+              >
+                <IconChapters />
+                <span>Chapters</span>
+              </button>
+              <button type="button" onClick={() => router.push("/new")} aria-label="New">
+                <IconNew />
+                <span>New</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/settings")}
+                aria-label="Settings"
+              >
+                <IconSettings />
+                <span>Settings</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setMobilePanel((prev) => (prev === "highlights" ? null : "highlights"))
+                }
+                aria-label="Highlights"
+                className={mobilePanel === "highlights" ? "is-active" : undefined}
+              >
+                <IconHighlights />
+                <span>Highlights</span>
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
-      <SidePanel
-        selection={activeSelection}
-        additions={additions}
-        markers={markers}
-        additionMarkers={additionMarkers}
-        mediaBase={API_BASE}
-        documentId={documentId}
-        highlightsRefreshKey={selections.length + additions.length + markers.length}
-        onEditNote={handleEditNote}
-        onToggleMarker={handleToggleMarker}
-        onToggleAdditionMarker={handleToggleAdditionMarker}
-        onDeleteSelection={handleDeleteSelection}
-        onJumpToSelection={handleJumpToSelection}
-      />
+      {!isMobile ? (
+        <aside className="reader-highlights">
+          <SidePanel
+            selection={activeSelection}
+            additions={additions}
+            markers={markers}
+            additionMarkers={additionMarkers}
+            mediaBase={API_BASE}
+            documentId={documentId}
+            highlightsRefreshKey={selections.length + additions.length + markers.length}
+            initialTab="highlights"
+            onEditNote={handleEditNote}
+            onToggleMarker={handleToggleMarker}
+            onToggleAdditionMarker={handleToggleAdditionMarker}
+            onDeleteSelection={handleDeleteSelection}
+            onJumpToSelection={handleJumpToSelection}
+          />
+        </aside>
+      ) : null}
       <NoteModal
         isOpen={noteModalOpen}
         initialText={editingNote?.text_content ?? ""}
