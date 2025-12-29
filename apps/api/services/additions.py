@@ -1,15 +1,31 @@
-﻿import json
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+import json
 
 
 def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _normalize_text_content(payload: Dict[str, Any]) -> Optional[str]:
+    if payload.get("type") != "grammar":
+        return payload.get("text_content")
+
+    if payload.get("text_content"):
+        return payload.get("text_content")
+
+    grammar_payload = payload.get("payload") or {}
+    kind = grammar_payload.get("kind")
+    text = grammar_payload.get("text")
+    if kind in {"word", "bars"} and isinstance(text, str) and text.strip():
+        return text
+    return None
+
+
 def create_addition(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
     now = _iso_now()
     payload_json = json.dumps(payload.get("payload") or {})
+    text_content = _normalize_text_content(payload)
     cur = conn.execute(
         """
         INSERT INTO additions (selection_id, type, title, text_content, payload_json, created_at, updated_at)
@@ -19,7 +35,7 @@ def create_addition(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
             payload["selection_id"],
             payload["type"],
             payload.get("title"),
-            payload.get("text_content"),
+            text_content,
             payload_json,
             now,
             now,
@@ -32,7 +48,7 @@ def create_addition(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
         "selection_id": payload["selection_id"],
         "type": payload["type"],
         "title": payload.get("title"),
-        "text_content": payload.get("text_content"),
+        "text_content": text_content,
         "payload": payload.get("payload") or {},
         "created_at": now,
         "updated_at": now,

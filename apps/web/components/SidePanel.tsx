@@ -30,8 +30,16 @@ type SidePanelProps = {
   onEditNote: (note: Addition) => void;
 };
 
+function formatGrammar(addition: Addition) {
+  const payload = addition.payload as { kind?: string; text?: string };
+  const label = payload.kind ? payload.kind : "grammar";
+  const text = addition.text_content || payload.text || "";
+  return { label, text };
+}
+
 export default function SidePanel({ selection, additions, onEditNote }: SidePanelProps) {
   const notes = additions.filter((addition) => addition.type === "note");
+  const grammarItems = additions.filter((addition) => addition.type === "grammar");
 
   return (
     <aside className="side-panel">
@@ -66,6 +74,26 @@ export default function SidePanel({ selection, additions, onEditNote }: SidePane
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+          <div className="side-panel__section">
+            <div className="side-panel__section-title">Grammar</div>
+            {grammarItems.length === 0 ? (
+              <div className="side-panel__empty">No grammar items yet.</div>
+            ) : (
+              <div className="note-list">
+                {grammarItems.map((item) => {
+                  const formatted = formatGrammar(item);
+                  return (
+                    <div key={item.id} className="note-card">
+                      <div className="note-card__tag">{formatted.label}</div>
+                      {formatted.text ? (
+                        <div className="note-card__text">{formatted.text}</div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

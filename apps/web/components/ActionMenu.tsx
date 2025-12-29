@@ -4,9 +4,9 @@
   selectionText: string;
   isSaving: boolean;
   isCommitted: boolean;
-  canCreateNote: boolean;
   onCommit: () => void;
   onNote: () => void;
+  onGrammar: () => void;
   onClose: () => void;
 };
 
@@ -78,9 +78,9 @@ export default function ActionMenu({
   selectionText,
   isSaving,
   isCommitted,
-  canCreateNote,
   onCommit,
   onNote,
+  onGrammar,
   onClose,
 }: ActionMenuProps) {
   const status = isSaving ? "Saving..." : isCommitted ? "Saved" : "Not saved";
@@ -113,13 +113,13 @@ export default function ActionMenu({
       </div>
       <div className="action-menu__text">{selectionText}</div>
       <div className="action-menu__actions">
-        <button type="button" onClick={onNote} disabled={!canCreateNote} aria-label="Note" title="Note">
+        <button type="button" onClick={onNote} aria-label="Note" title="Note">
           <IconNote />
         </button>
         <button type="button" aria-label="Audio" title="Audio">
           <IconAudio />
         </button>
-        <button type="button" aria-label="Grammar" title="Grammar">
+        <button type="button" onClick={onGrammar} aria-label="Grammar" title="Grammar">
           <IconGrammar />
         </button>
         <button type="button" aria-label="Explore" title="Explore">

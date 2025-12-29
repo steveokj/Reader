@@ -7,6 +7,7 @@ import ActionMenu from "@/components/ActionMenu";
 import ReaderDocument from "@/components/ReaderDocument";
 import SelectionOverlay from "@/components/SelectionOverlay";
 import SidePanel from "@/components/SidePanel";
+import GrammarModal from "@/components/modals/GrammarModal";
 import NoteModal from "@/components/modals/NoteModal";
 import { buildQuoteSelector } from "@/lib/selection/buildQuoteSelector";
 import { getSelectionOffsets } from "@/lib/selection/getSelectionOffsets";
@@ -53,6 +54,12 @@ type Addition = {
   payload: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+};
+
+type GrammarPayload = {
+  kind: "word" | "bars" | "structure" | "lookup";
+  text?: string;
+  lookup_url?: string;
 };
 
 type CaretRangeFromPoint = (x: number, y: number) => Range | null;
@@ -105,9 +112,12 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
   const [activeSelectionId, setActiveSelectionId] = useState<number | null>(null);
   const [additions, setAdditions] = useState<Addition[]>([]);
   const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [grammarModalOpen, setGrammarModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Addition | null>(null);
 
   const activeSelection = selections.find((selection) => selection.id === activeSelectionId) ?? null;
+  const grammarSelectionText =
+    menuState?.selectionText ?? activeSelection?.selector.quote.exact ?? "";
 
   useEffect(() => {
     const loadSelections = async () => {
@@ -341,6 +351,20 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     }
   }, [activeSelectionId, isCommitted, menuState, persistSelection]);
 
+  const handleOpenGrammar = useCallback(async () => {
+    if (isCommitted && activeSelectionId) {
+      setGrammarModalOpen(true);
+      return;
+    }
+    if (!menuState) {
+      return;
+    }
+    const selection = await persistSelection(menuState.selector);
+    if (selection) {
+      setGrammarModalOpen(true);
+    }
+  }, [activeSelectionId, isCommitted, menuState, persistSelection]);
+
   const handleSaveNote = useCallback(
     async (text: string) => {
       if (!activeSelectionId) {
@@ -399,6 +423,44 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     [activeSelectionId, editingNote]
   );
 
+  const handleSaveGrammar = useCallback(
+    async (payload: GrammarPayload) => {
+      if (!activeSelectionId) {
+        return;
+      }
+
+      const textContent =
+        payload.kind === "word" || payload.kind === "bars" ? payload.text ?? null : null;
+
+      const response = await fetch(`${API_BASE}/additions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          selection_id: activeSelectionId,
+          type: "grammar",
+          text_content: textContent,
+          payload,
+        }),
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as { addition?: Addition };
+        if (data.addition) {
+          setAdditions((prev) => [...prev, data.addition as Addition]);
+          setMenuState(null);
+          if (payload.kind === "lookup" && payload.lookup_url) {
+            window.open(payload.lookup_url, "_blank", "noopener,noreferrer");
+          }
+        }
+      }
+
+      setGrammarModalOpen(false);
+    },
+    [activeSelectionId]
+  );
+
   const handleEditNote = useCallback((note: Addition) => {
     setEditingNote(note);
     setNoteModalOpen(true);
@@ -428,9 +490,9 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
               selectionText={menuState.selectionText}
               isSaving={isSaving}
               isCommitted={isCommitted}
-              canCreateNote
               onCommit={handleCommitSelection}
               onNote={handleOpenNote}
+              onGrammar={handleOpenGrammar}
               onClose={clearSelection}
             />
           ) : null}
@@ -446,6 +508,12 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
           setNoteModalOpen(false);
           setEditingNote(null);
         }}
+      />
+      <GrammarModal
+        isOpen={grammarModalOpen}
+        selectionText={grammarSelectionText}
+        onSave={handleSaveGrammar}
+        onClose={() => setGrammarModalOpen(false)}
       />
     </div>
   );

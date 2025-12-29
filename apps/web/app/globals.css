@@ -202,6 +202,13 @@ a {
   color: rgba(31, 28, 22, 0.8);
 }
 
+.note-card__tag {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(31, 28, 22, 0.55);
+}
+
 .note-card button {
   align-self: flex-start;
   border: none;
@@ -364,6 +371,59 @@ a {
   font-family: inherit;
   resize: vertical;
   background: white;
+}
+
+.modal-input {
+  border-radius: 12px;
+  border: 1px solid rgba(31, 28, 22, 0.12);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  background: white;
+}
+
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: white;
+  border: 1px solid rgba(31, 28, 22, 0.08);
+}
+
+.modal-section__title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(31, 28, 22, 0.6);
+}
+
+.modal-quote {
+  font-size: 14px;
+  color: rgba(31, 28, 22, 0.75);
+}
+
+.modal-hint {
+  font-size: 12px;
+  color: rgba(31, 28, 22, 0.55);
+  word-break: break-all;
+}
+
+.modal-section button {
+  align-self: flex-start;
+  border: none;
+  background: var(--accent);
+  color: white;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.modal-section button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .modal-actions {
