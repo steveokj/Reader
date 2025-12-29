@@ -326,7 +326,7 @@ a {
 
 .modal-card {
   width: min(520px, 100%);
-  background: var(--paper-soft);
+  background: #fffaf5;
   border-radius: 18px;
   padding: 20px;
   border: 1px solid rgba(31, 28, 22, 0.12);
@@ -334,6 +334,8 @@ a {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  opacity: 1;
+  mix-blend-mode: normal;
 }
 
 .modal-header {
