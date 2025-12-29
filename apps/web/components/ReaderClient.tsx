@@ -209,6 +209,7 @@ export default function ReaderClient({
   const [isMobile, setIsMobile] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<"chapters" | "highlights" | null>(null);
+  const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
 
   const sectionById = useMemo(() => {
     return new Map(sections.map((section) => [section.id, section]));
@@ -616,6 +617,7 @@ export default function ReaderClient({
   const handleSelectHighlight = useCallback((selection: Selection) => {
     setActiveSelectionId(selection.id);
     setIsCommitted(true);
+    setSidePanelTab("active");
   }, []);
 
   const handleCommitSelection = useCallback(async () => {
@@ -1038,6 +1040,7 @@ export default function ReaderClient({
       setAudioModalOpen(false);
       setEditingNote(null);
       audioSelectionRef.current = null;
+      setSidePanelTab("active");
       if (isMobile) {
         setMobilePanel(null);
         setMobileNavOpen(false);
@@ -1047,14 +1050,25 @@ export default function ReaderClient({
       if (!sectionElement) {
         return;
       }
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
       const range = rangeFromOffsets(
         sectionElement,
         selection.selector.position.start,
         selection.selector.position.end
       );
       const rect = range ? range.getBoundingClientRect() : sectionElement.getBoundingClientRect();
-      const scrollTop = Math.max(0, rect.top + window.scrollY - 140);
-      window.scrollTo({ top: scrollTop, behavior: "smooth" });
+      const containerRect = container.getBoundingClientRect();
+      const offsetTop = rect.top - containerRect.top + container.scrollTop;
+      const scrollTarget = Math.max(0, offsetTop - 120);
+      const isScrollable = container.scrollHeight > container.clientHeight + 1;
+      if (isScrollable) {
+        container.scrollTo({ top: scrollTarget });
+      } else {
+        window.scrollTo({ top: Math.max(0, rect.top + window.scrollY - 120) });
+      }
     },
     [getSectionElementForSelection, isMobile]
   );
@@ -1225,6 +1239,8 @@ export default function ReaderClient({
             documentId={documentId}
             highlightsRefreshKey={selections.length + additions.length + markers.length}
             initialTab="highlights"
+            activeTab={sidePanelTab}
+            onTabChange={setSidePanelTab}
             onEditNote={handleEditNote}
             onToggleMarker={handleToggleMarker}
             onToggleAdditionMarker={handleToggleAdditionMarker}

@@ -48,6 +48,9 @@ type SidePanelProps = {
   mediaBase: string;
   documentId: number;
   highlightsRefreshKey: number;
+  initialTab?: "active" | "highlights";
+  activeTab?: "active" | "highlights";
+  onTabChange?: (tab: "active" | "highlights") => void;
   onEditNote: (note: Addition) => void;
   onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
   onToggleAdditionMarker: (additionId: number, kind: "like" | "highlight" | "todo") => void;
@@ -77,13 +80,18 @@ export default function SidePanel({
   mediaBase,
   documentId,
   highlightsRefreshKey,
+  initialTab = "active",
+  activeTab,
+  onTabChange,
   onEditNote,
   onToggleMarker,
   onToggleAdditionMarker,
   onDeleteSelection,
   onJumpToSelection,
 }: SidePanelProps) {
-  const [activeTab, setActiveTab] = useState<"active" | "highlights">("active");
+  const [internalTab, setInternalTab] = useState<"active" | "highlights">(initialTab);
+  const resolvedTab = activeTab ?? internalTab;
+  const setTab = onTabChange ?? setInternalTab;
   const notes = additions.filter((addition) => addition.type === "note");
   const grammarItems = additions.filter((addition) => addition.type === "grammar");
   const audioItems = additions.filter((addition) => addition.type === "audio");
@@ -95,20 +103,22 @@ export default function SidePanel({
       <div className="side-panel__tabs">
         <button
           type="button"
-          className={activeTab === "active" ? "side-panel__tab is-active" : "side-panel__tab"}
-          onClick={() => setActiveTab("active")}
+          className={resolvedTab === "active" ? "side-panel__tab is-active" : "side-panel__tab"}
+          onClick={() => setTab("active")}
         >
           Active
         </button>
         <button
           type="button"
-          className={activeTab === "highlights" ? "side-panel__tab is-active" : "side-panel__tab"}
-          onClick={() => setActiveTab("highlights")}
+          className={
+            resolvedTab === "highlights" ? "side-panel__tab is-active" : "side-panel__tab"
+          }
+          onClick={() => setTab("highlights")}
         >
           Highlights
         </button>
       </div>
-      {activeTab === "active" ? (
+      {resolvedTab === "active" ? (
         selection ? (
           <div className="side-panel__body">
             <div className="side-panel__quote">{selection.selector.quote.exact}</div>
@@ -231,7 +241,7 @@ export default function SidePanel({
         <ReaderHighlightsPanel
           documentId={documentId}
           refreshKey={highlightsRefreshKey}
-          isActive={activeTab === "highlights"}
+          isActive={resolvedTab === "highlights"}
           onJumpToSelection={onJumpToSelection}
         />
       )}
