@@ -855,7 +855,11 @@ export default function ReaderClient({
             onTouchEnd={handlePointerUp}
             onDoubleClick={handleDoubleClick}
           >
-            <ReaderDocument contentText={contentText} contentHtml={contentHtml} />
+          <ReaderDocument
+            contentText={contentText}
+            contentHtml={contentHtml}
+            mediaBase={API_BASE}
+          />
             <SelectionOverlay
               selections={selections}
               containerRef={containerRef}

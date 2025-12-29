@@ -1,6 +1,7 @@
 type ReaderDocumentProps = {
   contentText: string;
   contentHtml?: string | null;
+  mediaBase?: string | null;
 };
 
 type Paragraph = {
@@ -24,12 +25,24 @@ function splitParagraphs(contentText: string): Paragraph[] {
   return paragraphs;
 }
 
-export default function ReaderDocument({ contentText, contentHtml }: ReaderDocumentProps) {
+function normalizeMediaHtml(contentHtml: string, mediaBase?: string | null) {
+  if (!mediaBase) {
+    return contentHtml;
+  }
+  const base = mediaBase.replace(/\/+$/, "");
+  if (!base) {
+    return contentHtml;
+  }
+  return contentHtml.replace(/src=(["'])\/media\//gi, `src=$1${base}/media/`);
+}
+
+export default function ReaderDocument({ contentText, contentHtml, mediaBase }: ReaderDocumentProps) {
   if (contentHtml && contentHtml.trim()) {
+    const html = normalizeMediaHtml(contentHtml, mediaBase);
     return (
       <article
         className="reader-article reader-article--html"
-        dangerouslySetInnerHTML={{ __html: contentHtml }}
+        dangerouslySetInnerHTML={{ __html: html }}
       />
     );
   }
