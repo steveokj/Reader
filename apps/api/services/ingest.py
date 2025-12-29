@@ -434,7 +434,9 @@ def _local_name(tag: str) -> str:
     return tag.split("}")[-1] if "}" in tag else tag
 
 
-def _parse_opf(opf_bytes: bytes) -> Tuple[Optional[str], Dict[str, Dict[str, str]], List[str]]:
+def _parse_opf(
+    opf_bytes: bytes,
+) -> Tuple[Optional[str], Dict[str, Dict[str, str]], List[str], Optional[str], Optional[str]]:
     root = ET.fromstring(opf_bytes)
     metadata = root.find(".//{*}metadata")
     title: Optional[str] = None
@@ -447,6 +449,7 @@ def _parse_opf(opf_bytes: bytes) -> Tuple[Optional[str], Dict[str, Dict[str, str
                     break
 
     manifest: Dict[str, Dict[str, str]] = {}
+    nav_href: Optional[str] = None
     manifest_el = root.find(".//{*}manifest")
     if manifest_el is not None:
         for item in manifest_el.findall("{*}item"):
@@ -455,16 +458,92 @@ def _parse_opf(opf_bytes: bytes) -> Tuple[Optional[str], Dict[str, Dict[str, str
             media_type = item.get("media-type")
             if item_id and href and media_type:
                 manifest[item_id] = {"href": href, "media_type": media_type}
+            if href and "nav" in (item.get("properties") or "").split():
+                nav_href = href
 
     spine_ids: List[str] = []
+    toc_id: Optional[str] = None
     spine_el = root.find(".//{*}spine")
     if spine_el is not None:
+        toc_id = spine_el.get("toc")
         for itemref in spine_el.findall("{*}itemref"):
             idref = itemref.get("idref")
             if idref:
                 spine_ids.append(idref)
 
-    return title, manifest, spine_ids
+    return title, manifest, spine_ids, toc_id, nav_href
+
+
+def _normalize_epub_href(base_dir: str, href: str) -> Optional[str]:
+    if not href:
+        return None
+    cleaned = unquote(href.split("#", 1)[0].split("?", 1)[0])
+    if not cleaned:
+        return None
+    resolved = (
+        posixpath.normpath(posixpath.join(base_dir, cleaned)) if base_dir else posixpath.normpath(cleaned)
+    )
+    resolved = resolved.lstrip("/")
+    if resolved.startswith(".."):
+        return None
+    return resolved
+
+
+def _extract_nav_text(element: ET.Element) -> str:
+    text = "".join(element.itertext())
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _parse_ncx_toc(zf: zipfile.ZipFile, ncx_path: str) -> Dict[str, str]:
+    try:
+        ncx_bytes = zf.read(ncx_path)
+    except KeyError:
+        return {}
+    root = ET.fromstring(ncx_bytes)
+    base_dir = posixpath.dirname(ncx_path)
+    toc_map: Dict[str, str] = {}
+    for nav_point in root.findall(".//{*}navPoint"):
+        label_el = nav_point.find(".//{*}navLabel/{*}text")
+        content_el = nav_point.find(".//{*}content")
+        if content_el is None:
+            continue
+        src = content_el.get("src") or ""
+        normalized = _normalize_epub_href(base_dir, src)
+        if not normalized:
+            continue
+        label = _extract_nav_text(label_el) if label_el is not None else ""
+        if label:
+            toc_map[normalized] = label
+    return toc_map
+
+
+def _parse_nav_toc(zf: zipfile.ZipFile, nav_path: str) -> Dict[str, str]:
+    try:
+        nav_bytes = zf.read(nav_path)
+    except KeyError:
+        return {}
+    root = ET.fromstring(nav_bytes)
+    base_dir = posixpath.dirname(nav_path)
+    toc_map: Dict[str, str] = {}
+    for nav in root.findall(".//{*}nav"):
+        nav_type = ""
+        for key, value in nav.attrib.items():
+            if key.endswith("type"):
+                nav_type = value
+                break
+        if nav_type and "toc" not in nav_type:
+            continue
+        for anchor in nav.findall(".//{*}a"):
+            href = anchor.get("href") or ""
+            normalized = _normalize_epub_href(base_dir, href)
+            if not normalized:
+                continue
+            label = _extract_nav_text(anchor)
+            if label:
+                toc_map[normalized] = label
+        if toc_map:
+            break
+    return toc_map
 
 
 def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
@@ -487,7 +566,7 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
             raise ValueError("Invalid EPUB package path.")
 
         opf_bytes = zf.read(opf_path)
-        epub_title, manifest, spine_ids = _parse_opf(opf_bytes)
+        epub_title, manifest, spine_ids, toc_id, nav_href = _parse_opf(opf_bytes)
 
         base_dir = posixpath.dirname(opf_path)
         os.makedirs(EPUB_MEDIA_DIR, exist_ok=True)
@@ -495,6 +574,17 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
         asset_dir = os.path.join(EPUB_MEDIA_DIR, asset_root)
         os.makedirs(asset_dir, exist_ok=True)
         asset_cache: Dict[str, str] = {}
+        toc_map: Dict[str, str] = {}
+        if nav_href:
+            nav_path = _normalize_epub_href(base_dir, nav_href)
+            if nav_path:
+                toc_map = _parse_nav_toc(zf, nav_path)
+        if not toc_map and toc_id:
+            toc_item = manifest.get(toc_id)
+            if toc_item:
+                ncx_path = _normalize_epub_href(base_dir, toc_item.get("href", ""))
+                if ncx_path:
+                    toc_map = _parse_ncx_toc(zf, ncx_path)
         sections: List[Dict[str, Any]] = []
         section_index = 0
         for spine_id in spine_ids:
@@ -507,7 +597,9 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
             href = item.get("href")
             if not href:
                 continue
-            item_path = posixpath.join(base_dir, href) if base_dir else href
+            item_path = _normalize_epub_href(base_dir, href)
+            if not item_path:
+                continue
             try:
                 html_bytes = zf.read(item_path)
             except KeyError:
@@ -523,8 +615,9 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
             if not content_text.strip() and not content_html.strip():
                 continue
             section_title = (
-                _extract_title_from_html(html)
+                toc_map.get(item_path)
                 or _extract_heading_from_html(html)
+                or _extract_title_from_html(html)
                 or f"Section {section_index + 1}"
             )
             sections.append(
