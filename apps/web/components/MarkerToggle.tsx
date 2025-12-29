@@ -5,6 +5,8 @@ type MarkerKind = "like" | "highlight" | "todo";
 type MarkerToggleProps = {
   activeKinds: MarkerKind[];
   onToggle: (kind: MarkerKind) => void;
+  compact?: boolean;
+  className?: string;
 };
 
 function IconLike() {
@@ -57,9 +59,18 @@ function MarkerButton({
   );
 }
 
-export default function MarkerToggle({ activeKinds, onToggle }: MarkerToggleProps) {
+export default function MarkerToggle({
+  activeKinds,
+  onToggle,
+  compact,
+  className,
+}: MarkerToggleProps) {
+  const classes = ["marker-toggle", compact ? "marker-toggle--compact" : null, className]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className="marker-toggle">
+    <div className={classes}>
       <MarkerButton active={activeKinds.includes("like")} onClick={() => onToggle("like")} title="Like">
         <IconLike />
       </MarkerButton>

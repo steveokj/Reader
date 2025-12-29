@@ -1,9 +1,16 @@
-﻿type ActionMenuProps = {
+﻿"use client";
+
+import MarkerToggle from "@/components/MarkerToggle";
+
+type ActionMenuProps = {
   top: number;
   left: number;
   selectionText: string;
   isSaving: boolean;
   isCommitted: boolean;
+  markerKinds: Array<"like" | "highlight" | "todo">;
+  showMarkers: boolean;
+  onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
   onCommit: () => void;
   onNote: () => void;
   onAudio: () => void;
@@ -79,6 +86,9 @@ export default function ActionMenu({
   selectionText,
   isSaving,
   isCommitted,
+  markerKinds,
+  showMarkers,
+  onToggleMarker,
   onCommit,
   onNote,
   onAudio,
@@ -113,6 +123,11 @@ export default function ActionMenu({
           <IconClose />
         </button>
       </div>
+      {showMarkers ? (
+        <div className="action-menu__markers">
+          <MarkerToggle activeKinds={markerKinds} onToggle={onToggleMarker} compact />
+        </div>
+      ) : null}
       <div className="action-menu__text">{selectionText}</div>
       <div className="action-menu__actions">
         <button type="button" onClick={onNote} aria-label="Note" title="Note">

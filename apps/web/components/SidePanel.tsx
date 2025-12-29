@@ -1,4 +1,4 @@
-﻿"use client";
+﻿import MarkerToggle from "@/components/MarkerToggle";
 
 type Selection = {
   id: number;
@@ -37,12 +37,12 @@ type SidePanelProps = {
   selection: Selection | null;
   additions: Addition[];
   markers: Marker[];
+  additionMarkers: Record<number, Marker[]>;
   mediaBase: string;
   onEditNote: (note: Addition) => void;
   onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
+  onToggleAdditionMarker: (additionId: number, kind: "like" | "highlight" | "todo") => void;
 };
-
-import MarkerToggle from "@/components/MarkerToggle";
 
 function formatGrammar(addition: Addition) {
   const payload = addition.payload as { kind?: string; text?: string };
@@ -62,9 +62,11 @@ export default function SidePanel({
   selection,
   additions,
   markers,
+  additionMarkers,
   mediaBase,
   onEditNote,
   onToggleMarker,
+  onToggleAdditionMarker,
 }: SidePanelProps) {
   const notes = additions.filter((addition) => addition.type === "note");
   const grammarItems = additions.filter((addition) => addition.type === "grammar");
@@ -97,14 +99,27 @@ export default function SidePanel({
               <div className="side-panel__empty">No notes yet.</div>
             ) : (
               <div className="note-list">
-                {notes.map((note) => (
-                  <div key={note.id} className="note-card">
-                    <div className="note-card__text">{note.text_content}</div>
-                    <button type="button" onClick={() => onEditNote(note)}>
-                      Edit
-                    </button>
-                  </div>
-                ))}
+                {notes.map((note) => {
+                  const noteMarkers = additionMarkers[note.id] ?? [];
+                  const noteMarkerKinds = noteMarkers.map(
+                    (marker) => marker.kind as "like" | "highlight" | "todo"
+                  );
+                  return (
+                    <div key={note.id} className="note-card">
+                      <div className="note-card__header">
+                        <MarkerToggle
+                          activeKinds={noteMarkerKinds}
+                          onToggle={(kind) => onToggleAdditionMarker(note.id, kind)}
+                          compact
+                        />
+                        <button type="button" onClick={() => onEditNote(note)}>
+                          Edit
+                        </button>
+                      </div>
+                      <div className="note-card__text">{note.text_content}</div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -135,13 +150,24 @@ export default function SidePanel({
             ) : (
               <div className="note-list">
                 {audioItems.map((item) => {
+                  const audioMarkers = additionMarkers[item.id] ?? [];
+                  const audioMarkerKinds = audioMarkers.map(
+                    (marker) => marker.kind as "like" | "highlight" | "todo"
+                  );
                   const audio = item.payload as { audio?: { url?: string; mime?: string } };
                   const src = audio.audio?.url
                     ? resolveMediaUrl(audio.audio.url, mediaBase)
                     : undefined;
                   return (
                     <div key={item.id} className="note-card">
-                      <div className="note-card__tag">Audio</div>
+                      <div className="note-card__header">
+                        <MarkerToggle
+                          activeKinds={audioMarkerKinds}
+                          onToggle={(kind) => onToggleAdditionMarker(item.id, kind)}
+                          compact
+                        />
+                        <div className="note-card__tag">Audio</div>
+                      </div>
                       {src ? <audio controls src={src} /> : null}
                     </div>
                   );

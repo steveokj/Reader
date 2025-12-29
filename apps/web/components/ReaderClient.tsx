@@ -64,6 +64,8 @@ type Marker = {
   kind: "like" | "highlight" | "todo";
 };
 
+type MarkerKind = "like" | "highlight" | "todo";
+
 type GrammarPayload = {
   kind: "word" | "bars" | "structure" | "lookup";
   text?: string;
@@ -127,6 +129,8 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
   const [activeSelectionId, setActiveSelectionId] = useState<number | null>(null);
   const [additions, setAdditions] = useState<Addition[]>([]);
   const [markers, setMarkers] = useState<Marker[]>([]);
+  const [additionMarkers, setAdditionMarkers] = useState<Record<number, Marker[]>>({});
+  const [pendingMarkerKinds, setPendingMarkerKinds] = useState<MarkerKind[]>([]);
   const [noteModalOpen, setNoteModalOpen] = useState(false);
   const [grammarModalOpen, setGrammarModalOpen] = useState(false);
   const [audioModalOpen, setAudioModalOpen] = useState(false);
@@ -135,6 +139,31 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
   const activeSelection = selections.find((selection) => selection.id === activeSelectionId) ?? null;
   const grammarSelectionText =
     menuState?.selectionText ?? activeSelection?.selector.quote.exact ?? "";
+
+  const refreshAdditionMarkers = useCallback(async (items: Addition[]) => {
+    if (items.length === 0) {
+      setAdditionMarkers({});
+      return;
+    }
+    try {
+      const entries = await Promise.all(
+        items.map(async (item) => {
+          const response = await fetch(
+            `${API_BASE}/markers?target_type=addition&target_id=${item.id}`,
+            { cache: "no-store" }
+          );
+          if (!response.ok) {
+            return [item.id, []] as const;
+          }
+          const data = (await response.json()) as { markers?: Marker[] };
+          return [item.id, data.markers ?? []] as const;
+        })
+      );
+      setAdditionMarkers(Object.fromEntries(entries));
+    } catch (error) {
+      console.error(error);
+    }
+  }, []);
 
   const refreshAdditions = useCallback(
     async (selectionId: number) => {
@@ -146,12 +175,14 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
           return;
         }
         const data = (await response.json()) as { additions?: Addition[] };
-        setAdditions(data.additions ?? []);
+        const nextAdditions = data.additions ?? [];
+        setAdditions(nextAdditions);
+        await refreshAdditionMarkers(nextAdditions);
       } catch (error) {
         console.error(error);
       }
     },
-    []
+    [refreshAdditionMarkers]
   );
 
   const refreshMarkers = useCallback(async (selectionId: number) => {
@@ -194,6 +225,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     if (!activeSelectionId) {
       setAdditions([]);
       setMarkers([]);
+      setAdditionMarkers({});
       return;
     }
 
@@ -208,6 +240,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     }
     setMenuState(null);
     setIsCommitted(false);
+    setPendingMarkerKinds([]);
     anchorRef.current = null;
   }, []);
 
@@ -248,6 +281,32 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     },
     [documentId, sectionId]
   );
+
+  const persistSelectionMarkers = useCallback(async (selectionId: number, kinds: MarkerKind[]) => {
+    const created: Marker[] = [];
+    for (const kind of kinds) {
+      const response = await fetch(`${API_BASE}/markers`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          target_type: "selection",
+          target_id: selectionId,
+          kind,
+        }),
+      });
+      if (response.ok) {
+        const data = (await response.json()) as { marker?: Marker };
+        if (data.marker) {
+          created.push(data.marker as Marker);
+        }
+      }
+    }
+    if (created.length) {
+      setMarkers(created);
+    }
+  }, []);
 
   const finalizeRange = useCallback(
     (range: Range) => {
@@ -295,6 +354,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         setActiveSelectionId(null);
         setIsCommitted(false);
       }
+      setPendingMarkerKinds([]);
     },
     [clearSelection, contentText, selections]
   );
@@ -370,8 +430,18 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       setMenuState(null);
       return;
     }
-    await persistSelection(menuState.selector);
-  }, [isCommitted, menuState, persistSelection, selections]);
+    const selection = await persistSelection(menuState.selector);
+    if (selection && pendingMarkerKinds.length) {
+      await persistSelectionMarkers(selection.id, pendingMarkerKinds);
+      setPendingMarkerKinds([]);
+    }
+  }, [isCommitted, menuState, persistSelection, selections, pendingMarkerKinds, persistSelectionMarkers]);
+
+  const handleTogglePendingMarker = useCallback((kind: MarkerKind) => {
+    setPendingMarkerKinds((prev) =>
+      prev.includes(kind) ? prev.filter((item) => item !== kind) : [...prev, kind]
+    );
+  }, []);
 
   const handleOpenNote = useCallback(async () => {
     if (isCommitted && activeSelectionId) {
@@ -437,6 +507,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
           setActiveSelectionId(null);
           setAdditions([]);
           setMarkers([]);
+          setAdditionMarkers({});
         }
       }
     } catch (error) {
@@ -587,7 +658,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
   }, []);
 
   const handleToggleMarker = useCallback(
-    async (kind: "like" | "highlight" | "todo") => {
+    async (kind: MarkerKind) => {
       if (!activeSelectionId) {
         return;
       }
@@ -622,6 +693,45 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     [activeSelectionId, markers]
   );
 
+  const handleToggleAdditionMarker = useCallback(
+    async (additionId: number, kind: MarkerKind) => {
+      const existing = (additionMarkers[additionId] ?? []).find((marker) => marker.kind === kind);
+      if (existing) {
+        const response = await fetch(`${API_BASE}/markers/${existing.id}`, {
+          method: "DELETE",
+        });
+        if (response.ok) {
+          setAdditionMarkers((prev) => ({
+            ...prev,
+            [additionId]: prev[additionId].filter((item) => item.id !== existing.id),
+          }));
+        }
+        return;
+      }
+      const response = await fetch(`${API_BASE}/markers`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          target_type: "addition",
+          target_id: additionId,
+          kind,
+        }),
+      });
+      if (response.ok) {
+        const data = (await response.json()) as { marker?: Marker };
+        if (data.marker) {
+          setAdditionMarkers((prev) => ({
+            ...prev,
+            [additionId]: [...(prev[additionId] ?? []), data.marker as Marker],
+          }));
+        }
+      }
+    },
+    [additionMarkers]
+  );
+
   return (
     <div className="reader-layout">
       <div className="reader-content">
@@ -646,6 +756,9 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
               selectionText={menuState.selectionText}
               isSaving={isSaving}
               isCommitted={isCommitted}
+              markerKinds={pendingMarkerKinds}
+              showMarkers={!isCommitted}
+              onToggleMarker={handleTogglePendingMarker}
               onCommit={handleCommitSelection}
               onNote={handleOpenNote}
               onAudio={handleOpenAudio}
@@ -659,9 +772,11 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         selection={activeSelection}
         additions={additions}
         markers={markers}
+        additionMarkers={additionMarkers}
         mediaBase={API_BASE}
         onEditNote={handleEditNote}
         onToggleMarker={handleToggleMarker}
+        onToggleAdditionMarker={handleToggleAdditionMarker}
       />
       <NoteModal
         isOpen={noteModalOpen}

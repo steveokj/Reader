@@ -197,6 +197,17 @@ a {
   gap: 8px;
 }
 
+.note-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.note-card__header .marker-toggle {
+  margin: 0;
+}
+
 .note-card__text {
   font-size: 14px;
   color: rgba(31, 28, 22, 0.8);
@@ -242,6 +253,15 @@ a {
   letter-spacing: 0.08em;
   color: rgba(31, 28, 22, 0.6);
   margin-bottom: 8px;
+}
+
+.action-menu__markers {
+  display: flex;
+  margin: 0 0 6px;
+}
+
+.action-menu__markers .marker-toggle {
+  margin: 0;
 }
 
 .action-menu__meta-left {
@@ -557,9 +577,9 @@ a {
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  border: 1px solid rgba(31, 28, 22, 0.2);
-  background: white;
-  color: rgba(31, 28, 22, 0.6);
+  border: none;
+  background: transparent;
+  color: rgba(31, 28, 22, 0.55);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -577,9 +597,23 @@ a {
 }
 
 .marker-button.is-active {
-  border-color: var(--accent);
   color: var(--accent);
-  box-shadow: 0 0 0 1px rgba(217, 102, 63, 0.2);
+}
+
+.marker-toggle--compact {
+  gap: 6px;
+  margin: 0;
+}
+
+.marker-toggle--compact .marker-button {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+}
+
+.marker-toggle--compact .marker-button svg {
+  width: 14px;
+  height: 14px;
 }
 
 .modal-card audio {
