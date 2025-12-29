@@ -95,6 +95,7 @@ export default async function ReaderPage({ searchParams }: ReaderPageProps) {
           documentId={data.document.id}
           sections={data.sections}
           initialSectionKey={requestedSectionKey}
+          documentTitle={data.document.title}
         />
       ) : (
         <p>No sections found.</p>

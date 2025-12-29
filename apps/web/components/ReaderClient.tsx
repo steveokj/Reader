@@ -27,6 +27,7 @@ type ReaderClientProps = {
   documentId: number;
   sections: ReaderSection[];
   initialSectionKey?: string | null;
+  documentTitle?: string | null;
 };
 
 type MenuState = {
@@ -136,6 +137,7 @@ export default function ReaderClient({
   documentId,
   sections,
   initialSectionKey,
+  documentTitle,
 }: ReaderClientProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<Range | null>(null);
@@ -955,6 +957,7 @@ export default function ReaderClient({
                   contentText={section.content_text}
                   contentHtml={section.content_html}
                   mediaBase={API_BASE}
+                  documentTitle={documentTitle}
                 />
               </section>
             ))}
