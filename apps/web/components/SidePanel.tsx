@@ -27,6 +27,7 @@ type Addition = {
 type SidePanelProps = {
   selection: Selection | null;
   additions: Addition[];
+  mediaBase: string;
   onEditNote: (note: Addition) => void;
 };
 
@@ -37,9 +38,17 @@ function formatGrammar(addition: Addition) {
   return { label, text };
 }
 
-export default function SidePanel({ selection, additions, onEditNote }: SidePanelProps) {
+function resolveMediaUrl(url: string, mediaBase: string) {
+  if (url.startsWith("http") || url.startsWith("blob:")) {
+    return url;
+  }
+  return `${mediaBase}${url}`;
+}
+
+export default function SidePanel({ selection, additions, mediaBase, onEditNote }: SidePanelProps) {
   const notes = additions.filter((addition) => addition.type === "note");
   const grammarItems = additions.filter((addition) => addition.type === "grammar");
+  const audioItems = additions.filter((addition) => addition.type === "audio");
 
   return (
     <aside className="side-panel">
@@ -91,6 +100,27 @@ export default function SidePanel({ selection, additions, onEditNote }: SidePane
                       {formatted.text ? (
                         <div className="note-card__text">{formatted.text}</div>
                       ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="side-panel__section">
+            <div className="side-panel__section-title">Audio</div>
+            {audioItems.length === 0 ? (
+              <div className="side-panel__empty">No audio yet.</div>
+            ) : (
+              <div className="note-list">
+                {audioItems.map((item) => {
+                  const audio = item.payload as { audio?: { url?: string; mime?: string } };
+                  const src = audio.audio?.url
+                    ? resolveMediaUrl(audio.audio.url, mediaBase)
+                    : undefined;
+                  return (
+                    <div key={item.id} className="note-card">
+                      <div className="note-card__tag">Audio</div>
+                      {src ? <audio controls src={src} /> : null}
                     </div>
                   );
                 })}

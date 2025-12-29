@@ -6,6 +6,7 @@
   isCommitted: boolean;
   onCommit: () => void;
   onNote: () => void;
+  onAudio: () => void;
   onGrammar: () => void;
   onClose: () => void;
 };
@@ -80,6 +81,7 @@ export default function ActionMenu({
   isCommitted,
   onCommit,
   onNote,
+  onAudio,
   onGrammar,
   onClose,
 }: ActionMenuProps) {
@@ -116,7 +118,7 @@ export default function ActionMenu({
         <button type="button" onClick={onNote} aria-label="Note" title="Note">
           <IconNote />
         </button>
-        <button type="button" aria-label="Audio" title="Audio">
+        <button type="button" onClick={onAudio} aria-label="Audio" title="Audio">
           <IconAudio />
         </button>
         <button type="button" onClick={onGrammar} aria-label="Grammar" title="Grammar">

@@ -7,6 +7,7 @@ import ActionMenu from "@/components/ActionMenu";
 import ReaderDocument from "@/components/ReaderDocument";
 import SelectionOverlay from "@/components/SelectionOverlay";
 import SidePanel from "@/components/SidePanel";
+import AudioRecorderModal from "@/components/modals/AudioRecorderModal";
 import GrammarModal from "@/components/modals/GrammarModal";
 import NoteModal from "@/components/modals/NoteModal";
 import { buildQuoteSelector } from "@/lib/selection/buildQuoteSelector";
@@ -62,6 +63,12 @@ type GrammarPayload = {
   lookup_url?: string;
 };
 
+type AudioPayload = {
+  url: string;
+  mime: string;
+  size_bytes: number;
+};
+
 type CaretRangeFromPoint = (x: number, y: number) => Range | null;
 type CaretPositionFromPoint = (x: number, y: number) => { offsetNode: Node; offset: number } | null;
 
@@ -113,6 +120,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
   const [additions, setAdditions] = useState<Addition[]>([]);
   const [noteModalOpen, setNoteModalOpen] = useState(false);
   const [grammarModalOpen, setGrammarModalOpen] = useState(false);
+  const [audioModalOpen, setAudioModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Addition | null>(null);
 
   const activeSelection = selections.find((selection) => selection.id === activeSelectionId) ?? null;
@@ -148,8 +156,8 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     const loadAdditions = async () => {
       try {
         const response = await fetch(`${API_BASE}/additions?selection_id=${activeSelectionId}`, {
-          cache: "no-store",
-        });
+          cache: "no-store" }
+        );
         if (!response.ok) {
           return;
         }
@@ -365,6 +373,20 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     }
   }, [activeSelectionId, isCommitted, menuState, persistSelection]);
 
+  const handleOpenAudio = useCallback(async () => {
+    if (isCommitted && activeSelectionId) {
+      setAudioModalOpen(true);
+      return;
+    }
+    if (!menuState) {
+      return;
+    }
+    const selection = await persistSelection(menuState.selector);
+    if (selection) {
+      setAudioModalOpen(true);
+    }
+  }, [activeSelectionId, isCommitted, menuState, persistSelection]);
+
   const handleSaveNote = useCallback(
     async (text: string) => {
       if (!activeSelectionId) {
@@ -461,6 +483,37 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     [activeSelectionId]
   );
 
+  const handleSaveAudio = useCallback(
+    async (payload: AudioPayload) => {
+      if (!activeSelectionId) {
+        return;
+      }
+
+      const response = await fetch(`${API_BASE}/additions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          selection_id: activeSelectionId,
+          type: "audio",
+          payload: { audio: payload },
+        }),
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as { addition?: Addition };
+        if (data.addition) {
+          setAdditions((prev) => [...prev, data.addition as Addition]);
+          setMenuState(null);
+        }
+      }
+
+      setAudioModalOpen(false);
+    },
+    [activeSelectionId]
+  );
+
   const handleEditNote = useCallback((note: Addition) => {
     setEditingNote(note);
     setNoteModalOpen(true);
@@ -492,13 +545,19 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
               isCommitted={isCommitted}
               onCommit={handleCommitSelection}
               onNote={handleOpenNote}
+              onAudio={handleOpenAudio}
               onGrammar={handleOpenGrammar}
               onClose={clearSelection}
             />
           ) : null}
         </div>
       </div>
-      <SidePanel selection={activeSelection} additions={additions} onEditNote={handleEditNote} />
+      <SidePanel
+        selection={activeSelection}
+        additions={additions}
+        mediaBase={API_BASE}
+        onEditNote={handleEditNote}
+      />
       <NoteModal
         isOpen={noteModalOpen}
         initialText={editingNote?.text_content ?? ""}
@@ -514,6 +573,12 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         selectionText={grammarSelectionText}
         onSave={handleSaveGrammar}
         onClose={() => setGrammarModalOpen(false)}
+      />
+      <AudioRecorderModal
+        isOpen={audioModalOpen}
+        apiBase={API_BASE}
+        onSave={handleSaveAudio}
+        onClose={() => setAudioModalOpen(false)}
       />
     </div>
   );

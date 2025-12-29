@@ -464,6 +464,16 @@ a {
   cursor: not-allowed;
 }
 
+.audio-recorder {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.modal-card audio {
+  width: 100%;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
