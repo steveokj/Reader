@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .db.init import init_db
 from .routes.documents import router as documents_router
+from .routes.selections import router as selections_router
 
 app = FastAPI()
 
@@ -26,3 +27,4 @@ def on_startup() -> None:
 
 
 app.include_router(documents_router)
+app.include_router(selections_router)

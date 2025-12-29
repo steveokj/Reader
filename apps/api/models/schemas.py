@@ -40,3 +40,41 @@ class DocumentsResponse(BaseModel):
 class DocumentDetailResponse(BaseModel):
     document: Document
     sections: List[DocumentSection]
+
+
+class PositionSelector(BaseModel):
+    start: int
+    end: int
+
+
+class QuoteSelector(BaseModel):
+    exact: str
+    prefix: str
+    suffix: str
+
+
+class Selector(BaseModel):
+    position: PositionSelector
+    quote: QuoteSelector
+
+
+class SelectionCreate(BaseModel):
+    document_id: int
+    section_id: int
+    selector: Selector
+
+
+class Selection(BaseModel):
+    id: int
+    document_id: int
+    section_id: int
+    selector: Selector
+    created_at: str
+
+
+class SelectionResponse(BaseModel):
+    selection: Selection
+
+
+class SelectionsResponse(BaseModel):
+    selections: List[Selection]

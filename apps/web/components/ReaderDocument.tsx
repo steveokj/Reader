@@ -2,25 +2,40 @@
   contentText: string;
 };
 
+type Paragraph = {
+  text: string;
+  start: number;
+};
+
+function splitParagraphs(contentText: string): Paragraph[] {
+  const regex = /(?:[^\n]|\n(?!\n))+/g;
+  const paragraphs: Paragraph[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(contentText)) !== null) {
+    const text = match[0];
+    if (!text.trim()) {
+      continue;
+    }
+    paragraphs.push({ text, start: match.index });
+  }
+
+  return paragraphs;
+}
+
 export default function ReaderDocument({ contentText }: ReaderDocumentProps) {
-  const paragraphs = contentText
-    .split(/\n\s*\n/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
+  const paragraphs = splitParagraphs(contentText);
 
   return (
-    <article
-      style={{
-        maxWidth: "760px",
-        margin: "40px auto",
-        padding: "0 20px 48px",
-        lineHeight: 1.65,
-        fontSize: "18px",
-      }}
-    >
+    <article className="reader-article">
       {paragraphs.map((paragraph, index) => (
-        <p key={index} style={{ marginBottom: "1rem" }}>
-          {paragraph}
+        <p
+          key={`${paragraph.start}-${index}`}
+          className="reader-paragraph"
+          data-paragraph
+          data-start={paragraph.start}
+        >
+          {paragraph.text}
         </p>
       ))}
     </article>
