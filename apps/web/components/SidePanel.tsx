@@ -42,6 +42,7 @@ type SidePanelProps = {
   onEditNote: (note: Addition) => void;
   onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
   onToggleAdditionMarker: (additionId: number, kind: "like" | "highlight" | "todo") => void;
+  onDeleteSelection: () => void;
 };
 
 function formatGrammar(addition: Addition) {
@@ -67,6 +68,7 @@ export default function SidePanel({
   onEditNote,
   onToggleMarker,
   onToggleAdditionMarker,
+  onDeleteSelection,
 }: SidePanelProps) {
   const notes = additions.filter((addition) => addition.type === "note");
   const grammarItems = additions.filter((addition) => addition.type === "grammar");
@@ -80,6 +82,21 @@ export default function SidePanel({
         <div className="side-panel__body">
           <div className="side-panel__quote">{selection.selector.quote.exact}</div>
           <MarkerToggle activeKinds={markerKinds} onToggle={onToggleMarker} />
+          <div className="side-panel__actions">
+            <button
+              type="button"
+              onClick={onDeleteSelection}
+              className="side-panel__danger"
+              aria-label="Delete selection"
+              title="Delete selection"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16" />
+                <path d="M9 7l1-2h4l1 2" />
+                <path d="M8 7l1 12h6l1-12" />
+              </svg>
+            </button>
+          </div>
           <div className="side-panel__meta">
             <div>
               <span>Start</span>

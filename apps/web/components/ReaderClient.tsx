@@ -795,6 +795,41 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     [additionMarkers]
   );
 
+  const handleDeleteSelection = useCallback(async () => {
+    if (!activeSelectionId) {
+      return;
+    }
+    const selectionId = activeSelectionId;
+    try {
+      const response = await fetch(`${API_BASE}/selections/${selectionId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        return;
+      }
+      setSelections((prev) => prev.filter((item) => item.id !== selectionId));
+      setActiveSelectionId(null);
+      setAdditions([]);
+      setMarkers([]);
+      setAdditionMarkers({});
+      setMenuState(null);
+      setIsCommitted(false);
+      setPendingMarkerKinds([]);
+      setDraftSelection(null);
+      setNoteModalOpen(false);
+      setGrammarModalOpen(false);
+      setAudioModalOpen(false);
+      setEditingNote(null);
+      audioSelectionRef.current = null;
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }, [activeSelectionId]);
+
   const selectionMarkerKinds = markers.map((marker) => marker.kind as MarkerKind);
   const modalMarkerKinds = isCommitted ? selectionMarkerKinds : pendingMarkerKinds;
   const modalToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
@@ -846,6 +881,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         onEditNote={handleEditNote}
         onToggleMarker={handleToggleMarker}
         onToggleAdditionMarker={handleToggleAdditionMarker}
+        onDeleteSelection={handleDeleteSelection}
       />
       <NoteModal
         isOpen={noteModalOpen}

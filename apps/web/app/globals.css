@@ -208,6 +208,39 @@ a {
   margin: 0;
 }
 
+.side-panel__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.side-panel__actions button {
+  border: none;
+  background: var(--accent-soft);
+  color: var(--ink);
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.side-panel__actions button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.side-panel__actions .side-panel__danger {
+  background: rgba(226, 74, 59, 0.18);
+  color: #b0392f;
+}
+
 .note-card__text {
   font-size: 14px;
   color: rgba(31, 28, 22, 0.8);
