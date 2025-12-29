@@ -8,7 +8,7 @@ function buildTitleVariants(title: string) {
   if (normalized) {
     variants.add(normalized);
   }
-  const separators = [":", " - ", " – ", " — ", " —", " –", "—", "–", "("];
+  const separators = [":", " - ", " -- ", "("];
   for (const separator of separators) {
     const index = title.indexOf(separator);
     if (index > 0) {

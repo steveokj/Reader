@@ -416,31 +416,6 @@ def _extract_heading_from_html(html: str) -> Optional[str]:
     return heading or None
 
 
-def _normalize_heading_text(text: str) -> str:
-    return re.sub(r"\s+", " ", text).strip().lower()
-
-
-def _apply_section_title(html: str, toc_title: Optional[str], book_title: Optional[str]) -> str:
-    if not toc_title:
-        return html
-
-    escaped_toc = escape(toc_title, quote=False)
-    match = re.search(r"<h([1-6])[^>]*>(.*?)</h\\1>", html, re.IGNORECASE | re.DOTALL)
-    if not match:
-        return f"<h2>{escaped_toc}</h2>\n{html}"
-
-    heading_text = re.sub(r"<[^>]+>", " ", match.group(2))
-    heading_text = re.sub(r"\s+", " ", heading_text).strip()
-    if heading_text:
-        if _normalize_heading_text(heading_text) == _normalize_heading_text(toc_title):
-            return html
-        if book_title and _normalize_heading_text(heading_text) == _normalize_heading_text(book_title):
-            return f"{html[:match.start(2)]}{escaped_toc}{html[match.end(2):]}"
-        return html
-
-    return f"{html[:match.start(2)]}{escaped_toc}{html[match.end(2):]}"
-
-
 def _rewrite_svg_images(html: str) -> str:
     def repl(match: re.Match[str]) -> str:
         tag = match.group(0)
@@ -631,7 +606,6 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
                 continue
             html = _decode_html_bytes(html_bytes)
             html = _rewrite_svg_images(html)
-            html = _apply_section_title(html, toc_map.get(item_path), epub_title)
             html_dir = posixpath.dirname(item_path)
 
             def resolve_src(src: str) -> Optional[str]:

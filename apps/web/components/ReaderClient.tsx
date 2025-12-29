@@ -12,6 +12,7 @@ import GrammarModal from "@/components/modals/GrammarModal";
 import NoteModal from "@/components/modals/NoteModal";
 import { buildQuoteSelector } from "@/lib/selection/buildQuoteSelector";
 import { getSelectionOffsets } from "@/lib/selection/getSelectionOffsets";
+import { rangeFromOffsets } from "@/lib/selection/rangeFromOffsets";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -924,6 +925,35 @@ export default function ReaderClient({
     }
   }, [activeSelectionId]);
 
+  const handleJumpToSelection = useCallback(
+    (selection: Selection) => {
+      setActiveSelectionId(selection.id);
+      setIsCommitted(true);
+      setMenuState(null);
+      setPendingMarkerKinds([]);
+      setDraftSelection(null);
+      setNoteModalOpen(false);
+      setGrammarModalOpen(false);
+      setAudioModalOpen(false);
+      setEditingNote(null);
+      audioSelectionRef.current = null;
+
+      const sectionElement = getSectionElementForSelection(selection);
+      if (!sectionElement) {
+        return;
+      }
+      const range = rangeFromOffsets(
+        sectionElement,
+        selection.selector.position.start,
+        selection.selector.position.end
+      );
+      const rect = range ? range.getBoundingClientRect() : sectionElement.getBoundingClientRect();
+      const scrollTop = Math.max(0, rect.top + window.scrollY - 140);
+      window.scrollTo({ top: scrollTop, behavior: "smooth" });
+    },
+    [getSectionElementForSelection]
+  );
+
   const selectionMarkerKinds = markers.map((marker) => marker.kind as MarkerKind);
   const modalMarkerKinds = isCommitted ? selectionMarkerKinds : pendingMarkerKinds;
   const modalToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
@@ -997,6 +1027,7 @@ export default function ReaderClient({
         onToggleMarker={handleToggleMarker}
         onToggleAdditionMarker={handleToggleAdditionMarker}
         onDeleteSelection={handleDeleteSelection}
+        onJumpToSelection={handleJumpToSelection}
       />
       <NoteModal
         isOpen={noteModalOpen}

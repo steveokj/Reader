@@ -30,7 +30,7 @@ export default function DocumentIngestForm() {
       formData.append("title", epubTitle.trim());
     }
     try {
-      const response = await fetch(`${API_BASE}/documents/ingest/epub`, {
+      const response = await fetch(`${API_BASE}/books/ingest/epub`, {
         method: "POST",
         body: formData,
       });
@@ -40,7 +40,7 @@ export default function DocumentIngestForm() {
       }
       const data = (await response.json()) as { document?: { id: number } };
       if (data.document?.id) {
-        router.push(`/reader/${data.document.id}`);
+        router.push(`/book/${data.document.id}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
@@ -58,7 +58,7 @@ export default function DocumentIngestForm() {
     setIsSubmitting(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/documents/ingest/article`, {
+      const response = await fetch(`${API_BASE}/books/ingest/article`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -73,7 +73,7 @@ export default function DocumentIngestForm() {
       }
       const data = (await response.json()) as { document?: { id: number } };
       if (data.document?.id) {
-        router.push(`/reader/${data.document.id}`);
+        router.push(`/book/${data.document.id}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed.");

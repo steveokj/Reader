@@ -58,7 +58,7 @@ type SelectionBundle = {
 };
 
 async function fetchDocumentDetail(documentId: string) {
-  const response = await fetch(`${API_BASE}/documents/${documentId}`, { cache: "no-store" });
+  const response = await fetch(`${API_BASE}/books/${documentId}`, { cache: "no-store" });
   if (!response.ok) {
     return null;
   }
@@ -141,7 +141,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
   );
 
   const defaultSectionKey = detail.sections[0]?.section_key ?? "0";
-  const readHref = `/reader/${detail.document.id}?sectionKey=${defaultSectionKey}`;
+  const readHref = `/book/${detail.document.id}?sectionKey=${defaultSectionKey}`;
 
   return (
     <main className="reader-main documents-page">

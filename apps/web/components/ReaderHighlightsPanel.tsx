@@ -50,6 +50,7 @@ type ReaderHighlightsPanelProps = {
   documentId: number;
   refreshKey: number;
   isActive: boolean;
+  onJumpToSelection?: (selection: Selection) => void;
 };
 
 type TabKey = "selections" | "additions" | "markers";
@@ -65,7 +66,22 @@ function formatSnippet(value: string, limit = 60) {
   return `${trimmed.slice(0, limit).trimEnd()}...`;
 }
 
-export default function ReaderHighlightsPanel({ documentId, refreshKey, isActive }: ReaderHighlightsPanelProps) {
+function IconJump() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 12h10" />
+      <path d="M11 7l5 5-5 5" />
+      <path d="M14 4h5v16h-5" />
+    </svg>
+  );
+}
+
+export default function ReaderHighlightsPanel({
+  documentId,
+  refreshKey,
+  isActive,
+  onJumpToSelection,
+}: ReaderHighlightsPanelProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("selections");
   const [bundles, setBundles] = useState<SelectionBundle[]>([]);
   const [sectionsById, setSectionsById] = useState<Map<number, string>>(new Map());
@@ -80,7 +96,7 @@ export default function ReaderHighlightsPanel({ documentId, refreshKey, isActive
     const load = async () => {
       setLoading(true);
       try {
-        const documentRes = await fetch(`${API_BASE}/documents/${documentId}`, {
+        const documentRes = await fetch(`${API_BASE}/books/${documentId}`, {
           cache: "no-store",
         });
         if (!documentRes.ok) {
@@ -243,7 +259,20 @@ export default function ReaderHighlightsPanel({ documentId, refreshKey, isActive
                 return (
                   <article key={selection.id} className="data-card">
                     <div className="data-card__meta">
-                      <span>Section {sectionKey}</span>
+                      <div className="data-card__meta-left">
+                        <span>Section {sectionKey}</span>
+                        {onJumpToSelection ? (
+                          <button
+                            type="button"
+                            className="data-card__jump"
+                            onClick={() => onJumpToSelection(selection)}
+                            aria-label="Jump to selection"
+                            title="Jump to selection"
+                          >
+                            <IconJump />
+                          </button>
+                        ) : null}
+                      </div>
                       <span>{new Date(selection.created_at).toISOString()}</span>
                     </div>
                     <div className="data-card__title">

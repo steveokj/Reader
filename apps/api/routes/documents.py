@@ -5,7 +5,7 @@ from ..models.schemas import ArticleIngest, DocumentCreate, DocumentDetailRespon
 from ..services import documents as documents_service
 from ..services import ingest as ingest_service
 
-router = APIRouter(prefix="/documents", tags=["documents"])
+router = APIRouter(prefix="/books", tags=["books"])
 
 
 @router.post("", response_model=DocumentDetailResponse)

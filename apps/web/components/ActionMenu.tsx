@@ -18,6 +18,19 @@ type ActionMenuProps = {
   onClose: () => void;
 };
 
+const MAX_SELECTION_PREVIEW = 160;
+
+function truncateSelectionText(value: string, limit = MAX_SELECTION_PREVIEW) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return "";
+  }
+  if (normalized.length <= limit) {
+    return normalized;
+  }
+  return `${normalized.slice(0, limit).trimEnd()}...`;
+}
+
 function IconCheck() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -96,6 +109,8 @@ export default function ActionMenu({
   onClose,
 }: ActionMenuProps) {
   const status = isSaving ? "Saving..." : isCommitted ? "Saved" : "Not saved";
+  const fullSelectionText = selectionText.replace(/\s+/g, " ").trim();
+  const previewText = truncateSelectionText(selectionText);
   const stopEvent = (event: { stopPropagation: () => void }) => {
     event.stopPropagation();
   };
@@ -136,7 +151,9 @@ export default function ActionMenu({
           <MarkerToggle activeKinds={markerKinds} onToggle={onToggleMarker} compact />
         </div>
       ) : null}
-      <div className="action-menu__text">{selectionText}</div>
+      <div className="action-menu__text" title={fullSelectionText}>
+        {previewText}
+      </div>
       <div className="action-menu__actions">
         <button type="button" onClick={onNote} aria-label="Note" title="Note">
           <IconNote />

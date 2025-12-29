@@ -7,6 +7,8 @@ import ReaderHighlightsPanel from "@/components/ReaderHighlightsPanel";
 
 type Selection = {
   id: number;
+  document_id: number;
+  section_id: number;
   selector: {
     position: {
       start: number;
@@ -50,6 +52,7 @@ type SidePanelProps = {
   onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
   onToggleAdditionMarker: (additionId: number, kind: "like" | "highlight" | "todo") => void;
   onDeleteSelection: () => void;
+  onJumpToSelection: (selection: Selection) => void;
 };
 
 function formatGrammar(addition: Addition) {
@@ -78,6 +81,7 @@ export default function SidePanel({
   onToggleMarker,
   onToggleAdditionMarker,
   onDeleteSelection,
+  onJumpToSelection,
 }: SidePanelProps) {
   const [activeTab, setActiveTab] = useState<"active" | "highlights">("active");
   const notes = additions.filter((addition) => addition.type === "note");
@@ -228,6 +232,7 @@ export default function SidePanel({
           documentId={documentId}
           refreshKey={highlightsRefreshKey}
           isActive={activeTab === "highlights"}
+          onJumpToSelection={onJumpToSelection}
         />
       )}
     </aside>

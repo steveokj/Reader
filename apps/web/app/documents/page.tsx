@@ -9,7 +9,7 @@ type Document = {
 };
 
 async function fetchDocuments(): Promise<Document[]> {
-  const response = await fetch(`${API_BASE}/documents`, { cache: "no-store" });
+  const response = await fetch(`${API_BASE}/books`, { cache: "no-store" });
   if (!response.ok) {
     return [];
   }
@@ -36,7 +36,7 @@ export default async function DocumentsPage() {
           <div className="empty-state">No documents yet.</div>
         ) : (
           documents.map((doc) => (
-            <a key={doc.id} href={`/documents/${doc.id}`} className="document-card">
+            <a key={doc.id} href={`/book/${doc.id}`} className="document-card">
               <div className="document-card__meta">{doc.source_type}</div>
               <div className="document-card__title">{doc.title}</div>
               <div className="document-card__hint">

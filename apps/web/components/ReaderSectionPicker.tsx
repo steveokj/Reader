@@ -47,7 +47,7 @@ export default function ReaderSectionPicker({
         value={selected}
         onChange={(event) => {
           const nextKey = event.target.value;
-          router.push(`/reader/${documentId}?sectionKey=${encodeURIComponent(nextKey)}`);
+          router.push(`/book/${documentId}?sectionKey=${encodeURIComponent(nextKey)}`);
         }}
       >
         {options.map((option) => (

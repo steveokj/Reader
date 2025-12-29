@@ -243,6 +243,41 @@ a {
   color: rgba(31, 28, 22, 0.5);
 }
 
+.data-card__meta-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.data-card__jump {
+  border: 1px solid rgba(31, 28, 22, 0.2);
+  background: white;
+  color: inherit;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.data-card__jump svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.data-card__jump:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .data-card__title {
   font-size: 14px;
   color: var(--ink);
