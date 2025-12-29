@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import MarkerToggle from "@/components/MarkerToggle";
+
 type AudioPayload = {
   url: string;
   mime: string;
@@ -11,6 +13,8 @@ type AudioPayload = {
 type AudioRecorderModalProps = {
   isOpen: boolean;
   apiBase: string;
+  markerKinds: Array<"like" | "highlight" | "todo">;
+  onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
   onSave: (payload: AudioPayload) => void;
   onClearSelection: () => void;
   onClose: () => void;
@@ -103,6 +107,8 @@ function IconClose() {
 export default function AudioRecorderModal({
   isOpen,
   apiBase,
+  markerKinds,
+  onToggleMarker,
   onSave,
   onClearSelection,
   onClose,
@@ -295,6 +301,10 @@ export default function AudioRecorderModal({
           <button type="button" onClick={handleClose} aria-label="Close" className="modal-icon">
             <IconClose />
           </button>
+        </div>
+
+        <div className="modal-markers">
+          <MarkerToggle activeKinds={markerKinds} onToggle={onToggleMarker} compact />
         </div>
 
         <div className="modal-section">

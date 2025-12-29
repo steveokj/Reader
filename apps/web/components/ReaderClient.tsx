@@ -453,11 +453,22 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       return;
     }
     const selection = await persistSelection(menuState.selector);
+    if (selection && pendingMarkerKinds.length) {
+      await persistSelectionMarkers(selection.id, pendingMarkerKinds);
+      setPendingMarkerKinds([]);
+    }
     if (selection) {
       setEditingNote(null);
       setNoteModalOpen(true);
     }
-  }, [activeSelectionId, isCommitted, menuState, persistSelection]);
+  }, [
+    activeSelectionId,
+    isCommitted,
+    menuState,
+    pendingMarkerKinds,
+    persistSelection,
+    persistSelectionMarkers,
+  ]);
 
   const handleOpenGrammar = useCallback(async () => {
     if (isCommitted && activeSelectionId) {
@@ -468,10 +479,21 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       return;
     }
     const selection = await persistSelection(menuState.selector);
+    if (selection && pendingMarkerKinds.length) {
+      await persistSelectionMarkers(selection.id, pendingMarkerKinds);
+      setPendingMarkerKinds([]);
+    }
     if (selection) {
       setGrammarModalOpen(true);
     }
-  }, [activeSelectionId, isCommitted, menuState, persistSelection]);
+  }, [
+    activeSelectionId,
+    isCommitted,
+    menuState,
+    pendingMarkerKinds,
+    persistSelection,
+    persistSelectionMarkers,
+  ]);
 
   const handleOpenAudio = useCallback(async () => {
     if (isCommitted && activeSelectionId) {
@@ -483,11 +505,22 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       return;
     }
     const selection = await persistSelection(menuState.selector);
+    if (selection && pendingMarkerKinds.length) {
+      await persistSelectionMarkers(selection.id, pendingMarkerKinds);
+      setPendingMarkerKinds([]);
+    }
     if (selection) {
       audioSelectionRef.current = selection.id;
       setAudioModalOpen(true);
     }
-  }, [activeSelectionId, isCommitted, menuState, persistSelection]);
+  }, [
+    activeSelectionId,
+    isCommitted,
+    menuState,
+    pendingMarkerKinds,
+    persistSelection,
+    persistSelectionMarkers,
+  ]);
 
   const handleClearAudioSelection = useCallback(async () => {
     const selectionId = audioSelectionRef.current ?? activeSelectionId;
@@ -732,6 +765,10 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     [additionMarkers]
   );
 
+  const selectionMarkerKinds = markers.map((marker) => marker.kind as MarkerKind);
+  const actionMenuMarkerKinds = isCommitted ? selectionMarkerKinds : pendingMarkerKinds;
+  const actionMenuToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
+
   return (
     <div className="reader-layout">
       <div className="reader-content">
@@ -756,9 +793,9 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
               selectionText={menuState.selectionText}
               isSaving={isSaving}
               isCommitted={isCommitted}
-              markerKinds={pendingMarkerKinds}
-              showMarkers={!isCommitted}
-              onToggleMarker={handleTogglePendingMarker}
+              markerKinds={actionMenuMarkerKinds}
+              showMarkers
+              onToggleMarker={actionMenuToggle}
               onCommit={handleCommitSelection}
               onNote={handleOpenNote}
               onAudio={handleOpenAudio}
@@ -782,6 +819,8 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         isOpen={noteModalOpen}
         initialText={editingNote?.text_content ?? ""}
         title={editingNote ? "Edit note" : "New note"}
+        markerKinds={selectionMarkerKinds}
+        onToggleMarker={handleToggleMarker}
         onSave={handleSaveNote}
         onClose={() => {
           setNoteModalOpen(false);
@@ -791,12 +830,16 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       <GrammarModal
         isOpen={grammarModalOpen}
         selectionText={grammarSelectionText}
+        markerKinds={selectionMarkerKinds}
+        onToggleMarker={handleToggleMarker}
         onSave={handleSaveGrammar}
         onClose={() => setGrammarModalOpen(false)}
       />
       <AudioRecorderModal
         isOpen={audioModalOpen}
         apiBase={API_BASE}
+        markerKinds={selectionMarkerKinds}
+        onToggleMarker={handleToggleMarker}
         onSave={handleSaveAudio}
         onClearSelection={handleClearAudioSelection}
         onClose={() => setAudioModalOpen(false)}

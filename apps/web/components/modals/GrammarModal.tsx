@@ -1,5 +1,7 @@
 ﻿"use client";
 
+import MarkerToggle from "@/components/MarkerToggle";
+
 type GrammarPayload = {
   kind: "word" | "bars" | "structure" | "lookup";
   text?: string;
@@ -9,6 +11,8 @@ type GrammarPayload = {
 type GrammarModalProps = {
   isOpen: boolean;
   selectionText: string;
+  markerKinds: Array<"like" | "highlight" | "todo">;
+  onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
   onSave: (payload: GrammarPayload) => void;
   onClose: () => void;
 };
@@ -51,7 +55,14 @@ function IconLookup() {
   );
 }
 
-export default function GrammarModal({ isOpen, selectionText, onSave, onClose }: GrammarModalProps) {
+export default function GrammarModal({
+  isOpen,
+  selectionText,
+  markerKinds,
+  onToggleMarker,
+  onSave,
+  onClose,
+}: GrammarModalProps) {
   if (!isOpen) {
     return null;
   }
@@ -69,7 +80,9 @@ export default function GrammarModal({ isOpen, selectionText, onSave, onClose }:
             Close
           </button>
         </div>
-
+        <div className="modal-markers">
+          <MarkerToggle activeKinds={markerKinds} onToggle={onToggleMarker} compact />
+        </div>
         <div className="modal-icon-grid">
           <button
             type="button"

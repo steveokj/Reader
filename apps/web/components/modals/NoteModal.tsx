@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from "react";
 
+import MarkerToggle from "@/components/MarkerToggle";
+
 type NoteModalProps = {
   isOpen: boolean;
   initialText: string;
   title: string;
+  markerKinds: Array<"like" | "highlight" | "todo">;
+  onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
   onSave: (text: string) => void;
   onClose: () => void;
 };
@@ -14,6 +18,8 @@ export default function NoteModal({
   isOpen,
   initialText,
   title,
+  markerKinds,
+  onToggleMarker,
   onSave,
   onClose,
 }: NoteModalProps) {
@@ -35,6 +41,9 @@ export default function NoteModal({
           <button type="button" onClick={onClose}>
             Close
           </button>
+        </div>
+        <div className="modal-markers">
+          <MarkerToggle activeKinds={markerKinds} onToggle={onToggleMarker} compact />
         </div>
         <textarea
           className="modal-textarea"
