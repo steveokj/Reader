@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from .db.init import init_db
 from .routes.additions import router as additions_router
 from .routes.documents import router as documents_router
+from .routes.markers import router as markers_router
 from .routes.media import router as media_router
 from .routes.selections import router as selections_router
 
@@ -34,6 +35,7 @@ def on_startup() -> None:
 app.include_router(documents_router)
 app.include_router(selections_router)
 app.include_router(additions_router)
+app.include_router(markers_router)
 app.include_router(media_router)
 
 MEDIA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "media"))

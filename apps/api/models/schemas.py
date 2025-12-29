@@ -111,3 +111,27 @@ class AdditionResponse(BaseModel):
 
 class AdditionsResponse(BaseModel):
     additions: List[Addition]
+
+
+class MarkerCreate(BaseModel):
+    target_type: str
+    target_id: int
+    kind: str
+    value: Optional[Dict[str, Any]] = None
+
+
+class Marker(BaseModel):
+    id: int
+    target_type: str
+    target_id: int
+    kind: str
+    value: Optional[Dict[str, Any]] = None
+    created_at: str
+
+
+class MarkerResponse(BaseModel):
+    marker: Marker
+
+
+class MarkersResponse(BaseModel):
+    markers: List[Marker]

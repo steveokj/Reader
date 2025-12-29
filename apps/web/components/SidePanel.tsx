@@ -1,4 +1,6 @@
-﻿type Selection = {
+﻿"use client";
+
+type Selection = {
   id: number;
   selector: {
     position: {
@@ -24,12 +26,23 @@ type Addition = {
   updated_at: string;
 };
 
+type Marker = {
+  id: number;
+  target_type: string;
+  target_id: number;
+  kind: string;
+};
+
 type SidePanelProps = {
   selection: Selection | null;
   additions: Addition[];
+  markers: Marker[];
   mediaBase: string;
   onEditNote: (note: Addition) => void;
+  onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
 };
+
+import MarkerToggle from "@/components/MarkerToggle";
 
 function formatGrammar(addition: Addition) {
   const payload = addition.payload as { kind?: string; text?: string };
@@ -45,10 +58,18 @@ function resolveMediaUrl(url: string, mediaBase: string) {
   return `${mediaBase}${url}`;
 }
 
-export default function SidePanel({ selection, additions, mediaBase, onEditNote }: SidePanelProps) {
+export default function SidePanel({
+  selection,
+  additions,
+  markers,
+  mediaBase,
+  onEditNote,
+  onToggleMarker,
+}: SidePanelProps) {
   const notes = additions.filter((addition) => addition.type === "note");
   const grammarItems = additions.filter((addition) => addition.type === "grammar");
   const audioItems = additions.filter((addition) => addition.type === "audio");
+  const markerKinds = markers.map((marker) => marker.kind as "like" | "highlight" | "todo");
 
   return (
     <aside className="side-panel">
@@ -56,6 +77,7 @@ export default function SidePanel({ selection, additions, mediaBase, onEditNote 
       {selection ? (
         <div className="side-panel__body">
           <div className="side-panel__quote">{selection.selector.quote.exact}</div>
+          <MarkerToggle activeKinds={markerKinds} onToggle={onToggleMarker} />
           <div className="side-panel__meta">
             <div>
               <span>Start</span>

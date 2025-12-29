@@ -547,6 +547,41 @@ a {
   stroke-linejoin: round;
 }
 
+.marker-toggle {
+  display: flex;
+  gap: 10px;
+  margin: 6px 0 4px;
+}
+
+.marker-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(31, 28, 22, 0.2);
+  background: white;
+  color: rgba(31, 28, 22, 0.6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.marker-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.marker-button.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px rgba(217, 102, 63, 0.2);
+}
+
 .modal-card audio {
   width: 100%;
 }
