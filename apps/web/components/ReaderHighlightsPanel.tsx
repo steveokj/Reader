@@ -55,15 +55,17 @@ type ReaderHighlightsPanelProps = {
 
 type TabKey = "selections" | "additions" | "markers";
 
-function formatSnippet(value: string, limit = 60) {
-  const trimmed = value.trim();
-  if (!trimmed) {
+const MAX_SNIPPET_LENGTH = 160;
+
+function formatSnippet(value: string, limit = MAX_SNIPPET_LENGTH) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) {
     return "Untitled";
   }
-  if (trimmed.length <= limit) {
-    return trimmed;
+  if (normalized.length <= limit) {
+    return normalized;
   }
-  return `${trimmed.slice(0, limit).trimEnd()}...`;
+  return `${normalized.slice(0, limit).trimEnd()}...`;
 }
 
 function IconJump() {

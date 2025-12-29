@@ -1040,7 +1040,6 @@ export default function ReaderClient({
       setAudioModalOpen(false);
       setEditingNote(null);
       audioSelectionRef.current = null;
-      setSidePanelTab("active");
       if (isMobile) {
         setMobilePanel(null);
         setMobileNavOpen(false);
