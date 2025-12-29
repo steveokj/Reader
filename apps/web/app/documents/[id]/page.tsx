@@ -98,8 +98,13 @@ async function fetchMarkers(targetType: string, targetId: number): Promise<Marke
   return data.markers ?? [];
 }
 
-export default async function DocumentDetailPage({ params }: { params: { id: string } }) {
-  const detail = await fetchDocumentDetail(params.id);
+type DocumentDetailPageProps = {
+  params: { id: string } | Promise<{ id: string }>;
+};
+
+export default async function DocumentDetailPage({ params }: DocumentDetailPageProps) {
+  const resolvedParams = await Promise.resolve(params);
+  const detail = await fetchDocumentDetail(resolvedParams.id);
   if (!detail) {
     return (
       <main className="reader-main documents-page">

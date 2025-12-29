@@ -55,11 +55,15 @@ type ReaderPageProps = {
   searchParams?: {
     documentId?: string;
     sectionKey?: string;
-  };
+  } | Promise<{
+    documentId?: string;
+    sectionKey?: string;
+  }>;
 };
 
 export default async function ReaderPage({ searchParams }: ReaderPageProps) {
-  const documentId = searchParams?.documentId ? Number(searchParams.documentId) : null;
+  const resolvedParams = searchParams ? await Promise.resolve(searchParams) : undefined;
+  const documentId = resolvedParams?.documentId ? Number(resolvedParams.documentId) : null;
   const data = documentId ? await fetchDocumentById(documentId) : await fetchFirstDocument();
 
   if (!data) {
@@ -71,7 +75,7 @@ export default async function ReaderPage({ searchParams }: ReaderPageProps) {
     );
   }
 
-  const requestedSectionKey = searchParams?.sectionKey;
+  const requestedSectionKey = resolvedParams?.sectionKey;
   const section =
     requestedSectionKey !== undefined
       ? data.sections.find((item) => item.section_key === requestedSectionKey) ?? data.sections[0]
