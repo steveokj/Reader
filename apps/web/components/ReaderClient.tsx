@@ -9,6 +9,7 @@ import SelectionOverlay from "@/components/SelectionOverlay";
 import SidePanel from "@/components/SidePanel";
 import AudioRecorderModal from "@/components/modals/AudioRecorderModal";
 import GrammarModal from "@/components/modals/GrammarModal";
+import LinkModal from "@/components/modals/LinkModal";
 import NoteModal from "@/components/modals/NoteModal";
 import { buildQuoteSelector } from "@/lib/selection/buildQuoteSelector";
 import { getSelectionOffsets } from "@/lib/selection/getSelectionOffsets";
@@ -65,6 +66,24 @@ type Marker = {
 };
 
 type MarkerKind = "like" | "highlight" | "todo";
+
+type Link = {
+  id: number;
+  from_type: string;
+  from_id: number;
+  to_type: string;
+  to_id: number;
+  relation_type: string;
+  label?: string | null;
+  created_at: string;
+};
+
+type LinkNode = {
+  type: "selection" | "addition";
+  id: number;
+  label: string;
+  sublabel?: string | null;
+};
 
 type GrammarPayload = {
   kind: "word" | "bars" | "structure" | "lookup";
@@ -131,14 +150,28 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [additionMarkers, setAdditionMarkers] = useState<Record<number, Marker[]>>({});
   const [pendingMarkerKinds, setPendingMarkerKinds] = useState<MarkerKind[]>([]);
+  const [selectionLinksIn, setSelectionLinksIn] = useState<Link[]>([]);
+  const [selectionLinksOut, setSelectionLinksOut] = useState<Link[]>([]);
+  const [additionLinks, setAdditionLinks] = useState<Record<number, { linksIn: Link[]; linksOut: Link[] }>>({});
   const [noteModalOpen, setNoteModalOpen] = useState(false);
   const [grammarModalOpen, setGrammarModalOpen] = useState(false);
   const [audioModalOpen, setAudioModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Addition | null>(null);
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [linkSource, setLinkSource] = useState<{ type: "selection" | "addition"; id: number } | null>(
+    null
+  );
 
   const activeSelection = selections.find((selection) => selection.id === activeSelectionId) ?? null;
   const grammarSelectionText =
     menuState?.selectionText ?? activeSelection?.selector.quote.exact ?? "";
+  const formatSnippet = (value: string, limit = 64) => {
+    const trimmed = value.trim();
+    if (trimmed.length <= limit) {
+      return trimmed;
+    }
+    return `${trimmed.slice(0, limit).trimEnd()}...`;
+  };
 
   const refreshAdditionMarkers = useCallback(async (items: Addition[]) => {
     if (items.length === 0) {
@@ -165,26 +198,6 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     }
   }, []);
 
-  const refreshAdditions = useCallback(
-    async (selectionId: number) => {
-      try {
-        const response = await fetch(`${API_BASE}/additions?selection_id=${selectionId}`, {
-          cache: "no-store",
-        });
-        if (!response.ok) {
-          return;
-        }
-        const data = (await response.json()) as { additions?: Addition[] };
-        const nextAdditions = data.additions ?? [];
-        setAdditions(nextAdditions);
-        await refreshAdditionMarkers(nextAdditions);
-      } catch (error) {
-        console.error(error);
-      }
-    },
-    [refreshAdditionMarkers]
-  );
-
   const refreshMarkers = useCallback(async (selectionId: number) => {
     try {
       const response = await fetch(
@@ -200,6 +213,72 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       console.error(error);
     }
   }, []);
+
+  const refreshSelectionLinks = useCallback(async (selectionId: number) => {
+    try {
+      const response = await fetch(
+        `${API_BASE}/links?node_type=selection&node_id=${selectionId}`,
+        { cache: "no-store" }
+      );
+      if (!response.ok) {
+        return;
+      }
+      const data = (await response.json()) as { links_in?: Link[]; links_out?: Link[] };
+      setSelectionLinksIn(data.links_in ?? []);
+      setSelectionLinksOut(data.links_out ?? []);
+    } catch (error) {
+      console.error(error);
+    }
+  }, []);
+
+  const refreshAdditionLinks = useCallback(async (items: Addition[]) => {
+    if (items.length === 0) {
+      setAdditionLinks({});
+      return;
+    }
+    try {
+      const entries = await Promise.all(
+        items.map(async (item) => {
+          const response = await fetch(
+            `${API_BASE}/links?node_type=addition&node_id=${item.id}`,
+            { cache: "no-store" }
+          );
+          if (!response.ok) {
+            return [item.id, { linksIn: [], linksOut: [] }] as const;
+          }
+          const data = (await response.json()) as { links_in?: Link[]; links_out?: Link[] };
+          return [
+            item.id,
+            { linksIn: data.links_in ?? [], linksOut: data.links_out ?? [] },
+          ] as const;
+        })
+      );
+      setAdditionLinks(Object.fromEntries(entries));
+    } catch (error) {
+      console.error(error);
+    }
+  }, []);
+
+  const refreshAdditions = useCallback(
+    async (selectionId: number) => {
+      try {
+        const response = await fetch(`${API_BASE}/additions?selection_id=${selectionId}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { additions?: Addition[] };
+        const nextAdditions = data.additions ?? [];
+        setAdditions(nextAdditions);
+        await refreshAdditionMarkers(nextAdditions);
+        await refreshAdditionLinks(nextAdditions);
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [refreshAdditionLinks, refreshAdditionMarkers]
+  );
 
   useEffect(() => {
     const loadSelections = async () => {
@@ -226,12 +305,16 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       setAdditions([]);
       setMarkers([]);
       setAdditionMarkers({});
+      setSelectionLinksIn([]);
+      setSelectionLinksOut([]);
+      setAdditionLinks({});
       return;
     }
 
     refreshAdditions(activeSelectionId);
     refreshMarkers(activeSelectionId);
-  }, [activeSelectionId, refreshAdditions, refreshMarkers]);
+    refreshSelectionLinks(activeSelectionId);
+  }, [activeSelectionId, refreshAdditions, refreshMarkers, refreshSelectionLinks]);
 
   const clearSelection = useCallback(() => {
     const selection = window.getSelection();
@@ -690,6 +773,57 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     setNoteModalOpen(true);
   }, []);
 
+  const handleOpenSelectionLink = useCallback(() => {
+    if (!activeSelectionId) {
+      return;
+    }
+    setLinkSource({ type: "selection", id: activeSelectionId });
+    setLinkModalOpen(true);
+  }, [activeSelectionId]);
+
+  const handleOpenAdditionLink = useCallback((additionId: number) => {
+    setLinkSource({ type: "addition", id: additionId });
+    setLinkModalOpen(true);
+  }, []);
+
+  const handleCreateLink = useCallback(
+    async (target: LinkNode) => {
+      if (!linkSource) {
+        return;
+      }
+      const response = await fetch(`${API_BASE}/links`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from_type: linkSource.type,
+          from_id: linkSource.id,
+          to_type: target.type,
+          to_id: target.id,
+        }),
+      });
+      if (response.ok && activeSelectionId) {
+        await refreshSelectionLinks(activeSelectionId);
+        await refreshAdditionLinks(additions);
+      }
+      setLinkModalOpen(false);
+      setLinkSource(null);
+    },
+    [activeSelectionId, additions, linkSource, refreshAdditionLinks, refreshSelectionLinks]
+  );
+
+  const handleDeleteLink = useCallback(
+    async (linkId: number) => {
+      const response = await fetch(`${API_BASE}/links/${linkId}`, { method: "DELETE" });
+      if (response.ok && activeSelectionId) {
+        await refreshSelectionLinks(activeSelectionId);
+        await refreshAdditionLinks(additions);
+      }
+    },
+    [activeSelectionId, additions, refreshAdditionLinks, refreshSelectionLinks]
+  );
+
   const handleToggleMarker = useCallback(
     async (kind: MarkerKind) => {
       if (!activeSelectionId) {
@@ -765,6 +899,55 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     [additionMarkers]
   );
 
+  const describeAdditionLabel = (addition: Addition) => {
+    const text = addition.text_content?.trim() || addition.title?.trim() || addition.type;
+    return formatSnippet(text || addition.type);
+  };
+
+  const selectionLabel = activeSelection
+    ? formatSnippet(activeSelection.selector.quote.exact || "Selection")
+    : "Selection";
+
+  const linkSourceLabel = (() => {
+    if (!linkSource) {
+      return "";
+    }
+    if (linkSource.type === "selection") {
+      return `Selection: ${selectionLabel || "Selection"}`;
+    }
+    const addition = additions.find((item) => item.id === linkSource.id);
+    if (!addition) {
+      return `Addition #${linkSource.id}`;
+    }
+    return `${addition.type}: ${describeAdditionLabel(addition)}`;
+  })();
+
+  const linkTargets = (() => {
+    if (!linkSource) {
+      return [] as LinkNode[];
+    }
+    const selectionTarget =
+      activeSelectionId && activeSelection
+        ? {
+            type: "selection" as const,
+            id: activeSelectionId,
+            label: selectionLabel || "Selection",
+            sublabel: "Selection",
+          }
+        : null;
+    const additionTargets = additions.map((addition) => ({
+      type: "addition" as const,
+      id: addition.id,
+      label: describeAdditionLabel(addition),
+      sublabel: addition.type,
+    }));
+    if (linkSource.type === "selection") {
+      return additionTargets;
+    }
+    const filteredAdditions = additionTargets.filter((target) => target.id !== linkSource.id);
+    return selectionTarget ? [selectionTarget, ...filteredAdditions] : filteredAdditions;
+  })();
+
   const selectionMarkerKinds = markers.map((marker) => marker.kind as MarkerKind);
   const actionMenuMarkerKinds = isCommitted ? selectionMarkerKinds : pendingMarkerKinds;
   const actionMenuToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
@@ -810,10 +993,16 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         additions={additions}
         markers={markers}
         additionMarkers={additionMarkers}
+        selectionLinksIn={selectionLinksIn}
+        selectionLinksOut={selectionLinksOut}
+        additionLinks={additionLinks}
         mediaBase={API_BASE}
         onEditNote={handleEditNote}
         onToggleMarker={handleToggleMarker}
         onToggleAdditionMarker={handleToggleAdditionMarker}
+        onOpenLinkSelection={handleOpenSelectionLink}
+        onOpenLinkAddition={handleOpenAdditionLink}
+        onDeleteLink={handleDeleteLink}
       />
       <NoteModal
         isOpen={noteModalOpen}
@@ -843,6 +1032,16 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         onSave={handleSaveAudio}
         onClearSelection={handleClearAudioSelection}
         onClose={() => setAudioModalOpen(false)}
+      />
+      <LinkModal
+        isOpen={linkModalOpen}
+        sourceLabel={linkSourceLabel}
+        targets={linkTargets}
+        onCreateLink={handleCreateLink}
+        onClose={() => {
+          setLinkModalOpen(false);
+          setLinkSource(null);
+        }}
       />
     </div>
   );

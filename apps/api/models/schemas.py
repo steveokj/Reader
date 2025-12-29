@@ -135,3 +135,32 @@ class MarkerResponse(BaseModel):
 
 class MarkersResponse(BaseModel):
     markers: List[Marker]
+
+
+class LinkCreate(BaseModel):
+    from_type: str
+    from_id: int
+    to_type: str
+    to_id: int
+    relation_type: Optional[str] = None
+    label: Optional[str] = None
+
+
+class Link(BaseModel):
+    id: int
+    from_type: str
+    from_id: int
+    to_type: str
+    to_id: int
+    relation_type: str
+    label: Optional[str] = None
+    created_at: str
+
+
+class LinkResponse(BaseModel):
+    link: Link
+
+
+class LinksResponse(BaseModel):
+    links_in: List[Link]
+    links_out: List[Link]
