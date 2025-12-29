@@ -470,6 +470,53 @@ a {
   flex-wrap: wrap;
 }
 
+.audio-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: rgba(31, 28, 22, 0.7);
+}
+
+.pulse-dot,
+.idle-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.idle-dot {
+  background: rgba(31, 28, 22, 0.25);
+}
+
+.pulse-dot {
+  background: #e24a3b;
+  box-shadow: 0 0 0 0 rgba(226, 74, 59, 0.6);
+  animation: pulse 1.2s infinite;
+}
+
+.audio-control {
+  border: none;
+  background: var(--accent);
+  color: white;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.audio-control.secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid rgba(31, 28, 22, 0.2);
+}
+
+.audio-control:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .modal-card audio {
   width: 100%;
 }
@@ -517,5 +564,17 @@ a {
 
   .action-menu {
     max-width: calc(100vw - 24px);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(226, 74, 59, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(226, 74, 59, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(226, 74, 59, 0);
   }
 }

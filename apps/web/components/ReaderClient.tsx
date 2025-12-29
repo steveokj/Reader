@@ -127,6 +127,24 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
   const grammarSelectionText =
     menuState?.selectionText ?? activeSelection?.selector.quote.exact ?? "";
 
+  const refreshAdditions = useCallback(
+    async (selectionId: number) => {
+      try {
+        const response = await fetch(`${API_BASE}/additions?selection_id=${selectionId}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { additions?: Addition[] };
+        setAdditions(data.additions ?? []);
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     const loadSelections = async () => {
       try {
@@ -153,23 +171,8 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       return;
     }
 
-    const loadAdditions = async () => {
-      try {
-        const response = await fetch(`${API_BASE}/additions?selection_id=${activeSelectionId}`, {
-          cache: "no-store" }
-        );
-        if (!response.ok) {
-          return;
-        }
-        const data = (await response.json()) as { additions?: Addition[] };
-        setAdditions(data.additions ?? []);
-      } catch (error) {
-        console.error(error);
-      }
-    };
-
-    loadAdditions();
-  }, [activeSelectionId]);
+    refreshAdditions(activeSelectionId);
+  }, [activeSelectionId, refreshAdditions]);
 
   const clearSelection = useCallback(() => {
     const selection = window.getSelection();
@@ -504,14 +507,14 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       if (response.ok) {
         const data = (await response.json()) as { addition?: Addition };
         if (data.addition) {
-          setAdditions((prev) => [...prev, data.addition as Addition]);
+          await refreshAdditions(activeSelectionId);
           setMenuState(null);
         }
       }
 
       setAudioModalOpen(false);
     },
-    [activeSelectionId]
+    [activeSelectionId, refreshAdditions]
   );
 
   const handleEditNote = useCallback((note: Addition) => {

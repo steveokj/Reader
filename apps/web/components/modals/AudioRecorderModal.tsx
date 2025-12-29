@@ -26,6 +26,12 @@ function getExtensionFromMime(mime: string) {
   return "webm";
 }
 
+function formatTime(seconds: number) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
 export default function AudioRecorderModal({
   isOpen,
   apiBase,
@@ -36,10 +42,12 @@ export default function AudioRecorderModal({
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [elapsed, setElapsed] = useState(0);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -47,6 +55,7 @@ export default function AudioRecorderModal({
     }
     setState("idle");
     setError(null);
+    setElapsed(0);
     setAudioUrl((prev) => {
       if (prev) {
         URL.revokeObjectURL(prev);
@@ -57,6 +66,24 @@ export default function AudioRecorderModal({
     chunksRef.current = [];
   }, [isOpen]);
 
+  useEffect(() => {
+    if (state === "recording") {
+      timerRef.current = window.setInterval(() => {
+        setElapsed((prev) => prev + 1);
+      }, 1000);
+    } else if (timerRef.current !== null) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    return () => {
+      if (timerRef.current !== null) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [state]);
+
   const stopTracks = () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -64,6 +91,7 @@ export default function AudioRecorderModal({
 
   const handleStart = async () => {
     setError(null);
+    setElapsed(0);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -136,12 +164,27 @@ export default function AudioRecorderModal({
       handleStop();
     }
     stopTracks();
+    setAudioUrl((prev) => {
+      if (prev) {
+        URL.revokeObjectURL(prev);
+      }
+      return null;
+    });
     onClose();
   };
 
   if (!isOpen) {
     return null;
   }
+
+  const statusText =
+    state === "recording"
+      ? `Recording... ${formatTime(elapsed)}`
+      : state === "uploading"
+      ? "Uploading..."
+      : state === "recorded"
+      ? "Recording ready"
+      : "Ready to record";
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -154,24 +197,35 @@ export default function AudioRecorderModal({
         </div>
 
         <div className="modal-section">
-          <div className="modal-section__title">Recorder</div>
+          <div className="audio-status">
+            <span className={state === "recording" ? "pulse-dot" : "idle-dot"} />
+            <span>{statusText}</span>
+          </div>
           <div className="audio-recorder">
-            {state === "idle" ? (
-              <button type="button" onClick={handleStart}>
-                Start recording
-              </button>
-            ) : null}
-            {state === "recording" ? (
-              <button type="button" onClick={handleStop}>
-                Stop recording
-              </button>
-            ) : null}
-            {state === "recorded" ? (
-              <button type="button" onClick={handleUpload}>
-                Save audio
-              </button>
-            ) : null}
-            {state === "uploading" ? <div className="modal-hint">Uploading...</div> : null}
+            <button
+              type="button"
+              className="audio-control"
+              onClick={handleStart}
+              disabled={state === "recording" || state === "uploading"}
+            >
+              Start
+            </button>
+            <button
+              type="button"
+              className="audio-control secondary"
+              onClick={handleStop}
+              disabled={state !== "recording"}
+            >
+              Stop
+            </button>
+            <button
+              type="button"
+              className="audio-control"
+              onClick={handleUpload}
+              disabled={state !== "recorded"}
+            >
+              Save
+            </button>
           </div>
           {audioUrl ? <audio controls src={audioUrl} /> : null}
           {error ? <div className="modal-hint">{error}</div> : null}
