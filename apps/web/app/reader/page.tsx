@@ -19,6 +19,22 @@ type DocumentSection = {
   created_at: string;
 };
 
+async function fetchDocumentById(documentId: number): Promise<{
+  document: Document;
+  sections: DocumentSection[];
+} | null> {
+  const detailRes = await fetch(`${API_BASE}/documents/${documentId}`, {
+    cache: "no-store",
+  });
+  if (!detailRes.ok) {
+    return null;
+  }
+  return (await detailRes.json()) as {
+    document: Document;
+    sections: DocumentSection[];
+  };
+}
+
 async function fetchFirstDocument(): Promise<{
   document: Document;
   sections: DocumentSection[];
@@ -32,21 +48,19 @@ async function fetchFirstDocument(): Promise<{
   if (!firstDoc) {
     return null;
   }
-
-  const detailRes = await fetch(`${API_BASE}/documents/${firstDoc.id}`, {
-    cache: "no-store",
-  });
-  if (!detailRes.ok) {
-    return null;
-  }
-  return (await detailRes.json()) as {
-    document: Document;
-    sections: DocumentSection[];
-  };
+  return fetchDocumentById(firstDoc.id);
 }
 
-export default async function ReaderPage() {
-  const data = await fetchFirstDocument();
+type ReaderPageProps = {
+  searchParams?: {
+    documentId?: string;
+    sectionKey?: string;
+  };
+};
+
+export default async function ReaderPage({ searchParams }: ReaderPageProps) {
+  const documentId = searchParams?.documentId ? Number(searchParams.documentId) : null;
+  const data = documentId ? await fetchDocumentById(documentId) : await fetchFirstDocument();
 
   if (!data) {
     return (
@@ -57,7 +71,11 @@ export default async function ReaderPage() {
     );
   }
 
-  const section = data.sections[0];
+  const requestedSectionKey = searchParams?.sectionKey;
+  const section =
+    requestedSectionKey !== undefined
+      ? data.sections.find((item) => item.section_key === requestedSectionKey) ?? data.sections[0]
+      : data.sections[0];
 
   return (
     <main className="reader-main">
