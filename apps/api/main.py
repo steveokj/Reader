@@ -20,10 +20,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MEDIA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "media"))
-os.makedirs(MEDIA_DIR, exist_ok=True)
-app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
-
 
 @app.get("/health")
 def health():
@@ -39,3 +35,7 @@ app.include_router(documents_router)
 app.include_router(selections_router)
 app.include_router(additions_router)
 app.include_router(media_router)
+
+MEDIA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "media"))
+os.makedirs(MEDIA_DIR, exist_ok=True)
+app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")

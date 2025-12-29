@@ -512,16 +512,18 @@ a {
 }
 
 .audio-control {
-  border: none;
-  background: var(--accent);
-  color: white;
-  padding: 8px 14px;
-  border-radius: 999px;
+  border: 1px solid rgba(31, 28, 22, 0.2);
+  background: transparent;
+  color: var(--ink);
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 50%;
   cursor: pointer;
   font-size: 12px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
 }
 
 .audio-control.secondary {
