@@ -169,6 +169,50 @@ a {
   color: rgba(31, 28, 22, 0.6);
 }
 
+.side-panel__section {
+  margin-top: 8px;
+}
+
+.side-panel__section-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(31, 28, 22, 0.6);
+  margin-bottom: 8px;
+}
+
+.note-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.note-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid rgba(31, 28, 22, 0.08);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.note-card__text {
+  font-size: 14px;
+  color: rgba(31, 28, 22, 0.8);
+}
+
+.note-card button {
+  align-self: flex-start;
+  border: none;
+  background: var(--accent-soft);
+  color: var(--ink);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
 .action-menu {
   position: fixed;
   z-index: 20;
@@ -222,6 +266,83 @@ a {
 .action-menu__actions button:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.action-menu__actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 28, 22, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 20px;
+}
+
+.modal-card {
+  width: min(520px, 100%);
+  background: var(--paper-soft);
+  border-radius: 18px;
+  padding: 20px;
+  border: 1px solid rgba(31, 28, 22, 0.12);
+  box-shadow: 0 20px 40px var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h2 {
+  font-size: 20px;
+}
+
+.modal-header button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: rgba(31, 28, 22, 0.55);
+}
+
+.modal-textarea {
+  min-height: 160px;
+  border-radius: 12px;
+  border: 1px solid rgba(31, 28, 22, 0.12);
+  padding: 12px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  background: white;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.modal-actions button {
+  border: none;
+  background: var(--accent);
+  color: white;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.modal-actions .secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid rgba(31, 28, 22, 0.2);
 }
 
 @media (max-width: 900px) {

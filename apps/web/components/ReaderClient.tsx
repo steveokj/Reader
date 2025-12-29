@@ -7,6 +7,7 @@ import ActionMenu from "@/components/ActionMenu";
 import ReaderDocument from "@/components/ReaderDocument";
 import SelectionOverlay from "@/components/SelectionOverlay";
 import SidePanel from "@/components/SidePanel";
+import NoteModal from "@/components/modals/NoteModal";
 import { buildQuoteSelector } from "@/lib/selection/buildQuoteSelector";
 import { getSelectionOffsets } from "@/lib/selection/getSelectionOffsets";
 
@@ -41,6 +42,17 @@ type Selection = {
   section_id: number;
   selector: MenuState["selector"];
   created_at: string;
+};
+
+type Addition = {
+  id: number;
+  selection_id: number;
+  type: string;
+  title?: string | null;
+  text_content?: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 };
 
 type CaretRangeFromPoint = (x: number, y: number) => Range | null;
@@ -91,6 +103,9 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
   const [isSaving, setIsSaving] = useState(false);
   const [selections, setSelections] = useState<Selection[]>([]);
   const [activeSelectionId, setActiveSelectionId] = useState<number | null>(null);
+  const [additions, setAdditions] = useState<Addition[]>([]);
+  const [noteModalOpen, setNoteModalOpen] = useState(false);
+  const [editingNote, setEditingNote] = useState<Addition | null>(null);
 
   const activeSelection = selections.find((selection) => selection.id === activeSelectionId) ?? null;
 
@@ -113,6 +128,30 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
 
     loadSelections();
   }, [documentId, sectionId]);
+
+  useEffect(() => {
+    if (!activeSelectionId) {
+      setAdditions([]);
+      return;
+    }
+
+    const loadAdditions = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/additions?selection_id=${activeSelectionId}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { additions?: Addition[] };
+        setAdditions(data.additions ?? []);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    loadAdditions();
+  }, [activeSelectionId]);
 
   const clearSelection = useCallback(() => {
     const selection = window.getSelection();
@@ -256,6 +295,75 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     setActiveSelectionId(selection.id);
   }, []);
 
+  const handleOpenNote = useCallback(() => {
+    if (!activeSelectionId) {
+      return;
+    }
+    setEditingNote(null);
+    setNoteModalOpen(true);
+  }, [activeSelectionId]);
+
+  const handleSaveNote = useCallback(
+    async (text: string) => {
+      if (!activeSelectionId) {
+        return;
+      }
+      if (!text.trim()) {
+        setNoteModalOpen(false);
+        return;
+      }
+
+      if (editingNote) {
+        const response = await fetch(`${API_BASE}/additions/${editingNote.id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text_content: text,
+            payload: { text },
+          }),
+        });
+        if (response.ok) {
+          const data = (await response.json()) as { addition?: Addition };
+          if (data.addition) {
+            setAdditions((prev) =>
+              prev.map((item) => (item.id === data.addition?.id ? data.addition : item))
+            );
+          }
+        }
+      } else {
+        const response = await fetch(`${API_BASE}/additions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            selection_id: activeSelectionId,
+            type: "note",
+            text_content: text,
+            payload: { text },
+          }),
+        });
+        if (response.ok) {
+          const data = (await response.json()) as { addition?: Addition };
+          if (data.addition) {
+            setAdditions((prev) => [...prev, data.addition as Addition]);
+          }
+        }
+      }
+
+      setNoteModalOpen(false);
+      setEditingNote(null);
+    },
+    [activeSelectionId, editingNote]
+  );
+
+  const handleEditNote = useCallback((note: Addition) => {
+    setEditingNote(note);
+    setNoteModalOpen(true);
+  }, []);
+
   return (
     <div className="reader-layout">
       <div className="reader-content">
@@ -279,12 +387,24 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
               left={menuState.left}
               selectionText={menuState.selectionText}
               isSaving={isSaving}
+              canCreateNote={Boolean(activeSelectionId)}
+              onNote={handleOpenNote}
               onClose={clearSelection}
             />
           ) : null}
         </div>
       </div>
-      <SidePanel selection={activeSelection} />
+      <SidePanel selection={activeSelection} additions={additions} onEditNote={handleEditNote} />
+      <NoteModal
+        isOpen={noteModalOpen}
+        initialText={editingNote?.text_content ?? ""}
+        title={editingNote ? "Edit note" : "New note"}
+        onSave={handleSaveNote}
+        onClose={() => {
+          setNoteModalOpen(false);
+          setEditingNote(null);
+        }}
+      />
     </div>
   );
 }

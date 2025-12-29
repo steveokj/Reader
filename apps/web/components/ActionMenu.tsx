@@ -3,6 +3,8 @@
   left: number;
   selectionText: string;
   isSaving: boolean;
+  canCreateNote: boolean;
+  onNote: () => void;
   onClose: () => void;
 };
 
@@ -11,6 +13,8 @@ export default function ActionMenu({
   left,
   selectionText,
   isSaving,
+  canCreateNote,
+  onNote,
   onClose,
 }: ActionMenuProps) {
   return (
@@ -23,7 +27,9 @@ export default function ActionMenu({
       </div>
       <div className="action-menu__text">{selectionText}</div>
       <div className="action-menu__actions">
-        <button type="button">Note</button>
+        <button type="button" onClick={onNote} disabled={!canCreateNote}>
+          Note
+        </button>
         <button type="button">Audio</button>
         <button type="button">Grammar</button>
         <button type="button">Explore</button>

@@ -1,4 +1,4 @@
-﻿from typing import List, Optional
+﻿from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -78,3 +78,36 @@ class SelectionResponse(BaseModel):
 
 class SelectionsResponse(BaseModel):
     selections: List[Selection]
+
+
+class AdditionCreate(BaseModel):
+    selection_id: int
+    type: str
+    title: Optional[str] = None
+    text_content: Optional[str] = None
+    payload: Dict[str, Any]
+
+
+class AdditionUpdate(BaseModel):
+    title: Optional[str] = None
+    text_content: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
+
+
+class Addition(BaseModel):
+    id: int
+    selection_id: int
+    type: str
+    title: Optional[str] = None
+    text_content: Optional[str] = None
+    payload: Dict[str, Any]
+    created_at: str
+    updated_at: str
+
+
+class AdditionResponse(BaseModel):
+    addition: Addition
+
+
+class AdditionsResponse(BaseModel):
+    additions: List[Addition]
