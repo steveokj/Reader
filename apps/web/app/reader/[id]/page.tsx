@@ -1,5 +1,6 @@
 import ReaderClient from "@/components/ReaderClient";
 import ReaderSectionPicker from "@/components/ReaderSectionPicker";
+import { stripDocumentTitleFromHtml } from "@/lib/reader/stripDocumentTitle";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -59,6 +60,15 @@ export default async function ReaderRoute({ params, searchParams }: ReaderRouteP
 
   const requestedSectionKey = resolvedSearch?.sectionKey ?? null;
 
+  const sections = data.sections.map((section) =>
+    section.content_html
+      ? {
+          ...section,
+          content_html: stripDocumentTitleFromHtml(section.content_html, data.document.title),
+        }
+      : section
+  );
+
   return (
     <main className="reader-main">
       <header className="reader-header">
@@ -67,15 +77,14 @@ export default async function ReaderRoute({ params, searchParams }: ReaderRouteP
       </header>
       <ReaderSectionPicker
         documentId={data.document.id}
-        sections={data.sections}
+        sections={sections}
         activeKey={requestedSectionKey}
       />
-      {data.sections.length ? (
+      {sections.length ? (
         <ReaderClient
           documentId={data.document.id}
-          sections={data.sections}
+          sections={sections}
           initialSectionKey={requestedSectionKey}
-          documentTitle={data.document.title}
         />
       ) : (
         <p>No sections found.</p>
