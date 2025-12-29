@@ -135,3 +135,9 @@ class MarkerResponse(BaseModel):
 
 class MarkersResponse(BaseModel):
     markers: List[Marker]
+
+
+class ArticleIngest(BaseModel):
+    title: Optional[str] = None
+    url: Optional[str] = None
+    text: Optional[str] = None

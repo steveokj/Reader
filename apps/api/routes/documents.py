@@ -1,8 +1,9 @@
-﻿from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from ..db.conn import get_conn
-from ..models.schemas import DocumentCreate, DocumentDetailResponse, DocumentsResponse
+from ..models.schemas import ArticleIngest, DocumentCreate, DocumentDetailResponse, DocumentsResponse
 from ..services import documents as documents_service
+from ..services import ingest as ingest_service
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -36,5 +37,29 @@ def get_document(document_id: int):
             raise HTTPException(status_code=404, detail="Document not found")
         document, sections = result
         return {"document": document, "sections": sections}
+    finally:
+        conn.close()
+
+
+@router.post("/ingest/epub", response_model=DocumentDetailResponse)
+def ingest_epub(file: UploadFile = File(...), title: str | None = Form(None)):
+    conn = get_conn()
+    try:
+        document, sections = ingest_service.ingest_epub(conn, file, title)
+        return {"document": document, "sections": sections}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        conn.close()
+
+
+@router.post("/ingest/article", response_model=DocumentDetailResponse)
+def ingest_article(payload: ArticleIngest):
+    conn = get_conn()
+    try:
+        document, sections = ingest_service.ingest_article(conn, payload.model_dump())
+        return {"document": document, "sections": sections}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
         conn.close()

@@ -27,11 +27,11 @@ export default async function DocumentsPage() {
         <h1 className="reader-title">Documents</h1>
       </header>
       <section className="documents-grid">
-        <div className="document-card document-card--create">
+        <a href="/documents/new" className="document-card document-card--create">
           <div className="document-card__meta">Create / Upload</div>
           <div className="document-card__title">Add a new document</div>
-          <div className="document-card__hint">Coming soon.</div>
-        </div>
+          <div className="document-card__hint">Import EPUB or article text.</div>
+        </a>
         {documents.length === 0 ? (
           <div className="empty-state">No documents yet.</div>
         ) : (
