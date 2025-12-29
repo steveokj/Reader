@@ -382,6 +382,44 @@ a {
   background: white;
 }
 
+.modal-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: 12px;
+}
+
+.modal-icon-button {
+  height: 64px;
+  border-radius: 14px;
+  border: 1px solid rgba(31, 28, 22, 0.12);
+  background: white;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.modal-icon-button svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.modal-icon-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.modal-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .modal-section {
   display: flex;
   flex-direction: column;

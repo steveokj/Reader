@@ -6,7 +6,13 @@ SAMPLE_TEXT = """The rain arrived in the late afternoon, thin at first, then ste
 
 Inside, the room felt smaller but calmer. A kettle hissed, a book lay open on a table, and the world outside slowed to a gentle rhythm.
 
-When the storm passed, the city seemed freshly rinsed. Leaves shone, sidewalks darkened, and the air held the quiet scent of wet stone."""
+When the storm passed, the city seemed freshly rinsed. Leaves shone, sidewalks darkened, and the air held the quiet scent of wet stone.
+
+In the early morning, the market opened with quiet routines. Vendors lifted shutters, weighed oranges, and called out prices that echoed between the stalls.
+
+At the station, a train rolled in with a long metallic sigh. People gathered their bags, stepped forward, and moved into the crowd with practiced ease.
+
+By dusk, the library lamps warmed each table. Pages turned softly, pens scratched notes, and the last light settled into the corners of the room."""
 
 
 def _iso_now() -> str:

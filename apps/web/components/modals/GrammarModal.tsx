@@ -1,7 +1,5 @@
 ﻿"use client";
 
-import { useEffect, useState } from "react";
-
 type GrammarPayload = {
   kind: "word" | "bars" | "structure" | "lookup";
   text?: string;
@@ -20,20 +18,47 @@ function buildLookupUrl(text: string) {
   return `https://www.google.com/search?q=define+${query}`;
 }
 
+function IconWord() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h6M4 12h10M4 17h14" />
+    </svg>
+  );
+}
+
+function IconBars() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 5v14M12 5v14M18 5v14" />
+    </svg>
+  );
+}
+
+function IconStructure() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 7h14M9 12h10M7 17h12" />
+    </svg>
+  );
+}
+
+function IconLookup() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="11" cy="11" r="6" />
+      <path d="M20 20l-4.2-4.2" />
+    </svg>
+  );
+}
+
 export default function GrammarModal({ isOpen, selectionText, onSave, onClose }: GrammarModalProps) {
-  const [wordText, setWordText] = useState(selectionText);
-  const [lookupText, setLookupText] = useState(selectionText);
-
-  useEffect(() => {
-    setWordText(selectionText);
-    setLookupText(selectionText);
-  }, [selectionText, isOpen]);
-
   if (!isOpen) {
     return null;
   }
 
-  const lookupUrl = buildLookupUrl(lookupText);
+  const trimmed = selectionText.trim();
+  const lookupUrl = buildLookupUrl(trimmed);
+  const disabled = !trimmed;
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -45,55 +70,46 @@ export default function GrammarModal({ isOpen, selectionText, onSave, onClose }:
           </button>
         </div>
 
-        <div className="modal-section">
-          <div className="modal-section__title">Word to learn</div>
-          <input
-            className="modal-input"
-            value={wordText}
-            onChange={(event) => setWordText(event.target.value)}
-            placeholder="Word"
-          />
+        <div className="modal-icon-grid">
           <button
             type="button"
-            onClick={() => onSave({ kind: "word", text: wordText.trim() })}
-            disabled={!wordText.trim()}
+            className="modal-icon-button"
+            onClick={() => onSave({ kind: "word", text: trimmed })}
+            disabled={disabled}
+            aria-label="Word to learn"
+            title="Word"
           >
-            Save word
+            <IconWord />
           </button>
-        </div>
-
-        <div className="modal-section">
-          <div className="modal-section__title">Bars (quote)</div>
-          <div className="modal-quote">{selectionText}</div>
-          <button type="button" onClick={() => onSave({ kind: "bars", text: selectionText })}>
-            Save bars
-          </button>
-        </div>
-
-        <div className="modal-section">
-          <div className="modal-section__title">Sentence structure</div>
-          <button type="button" onClick={() => onSave({ kind: "structure", text: selectionText })}>
-            Save structure
-          </button>
-        </div>
-
-        <div className="modal-section">
-          <div className="modal-section__title">Lookup meaning</div>
-          <input
-            className="modal-input"
-            value={lookupText}
-            onChange={(event) => setLookupText(event.target.value)}
-            placeholder="Lookup text"
-          />
-          <div className="modal-hint">{lookupUrl}</div>
           <button
             type="button"
-            onClick={() =>
-              onSave({ kind: "lookup", text: lookupText.trim(), lookup_url: lookupUrl })
-            }
-            disabled={!lookupText.trim()}
+            className="modal-icon-button"
+            onClick={() => onSave({ kind: "bars", text: selectionText })}
+            disabled={disabled}
+            aria-label="Bars"
+            title="Bars"
           >
-            Save lookup
+            <IconBars />
+          </button>
+          <button
+            type="button"
+            className="modal-icon-button"
+            onClick={() => onSave({ kind: "structure", text: selectionText })}
+            disabled={disabled}
+            aria-label="Structure"
+            title="Structure"
+          >
+            <IconStructure />
+          </button>
+          <button
+            type="button"
+            className="modal-icon-button"
+            onClick={() => onSave({ kind: "lookup", text: trimmed, lookup_url: lookupUrl })}
+            disabled={disabled}
+            aria-label="Lookup"
+            title="Lookup"
+          >
+            <IconLookup />
           </button>
         </div>
       </div>
