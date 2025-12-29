@@ -614,13 +614,13 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
           headers: {
             "Content-Type": "application/json",
           },
-        body: JSON.stringify({
-          selection_id: selectionId,
-          type: "note",
-          text_content: text,
-          payload: { text },
-        }),
-      });
+          body: JSON.stringify({
+            selection_id: selectionId,
+            type: "note",
+            text_content: text,
+            payload: { text },
+          }),
+        });
         if (response.ok) {
           const data = (await response.json()) as { addition?: Addition };
           if (data.addition) {
@@ -796,6 +796,8 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
   );
 
   const selectionMarkerKinds = markers.map((marker) => marker.kind as MarkerKind);
+  const modalMarkerKinds = isCommitted ? selectionMarkerKinds : pendingMarkerKinds;
+  const modalToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
   const actionMenuMarkerKinds = isCommitted ? selectionMarkerKinds : pendingMarkerKinds;
   const actionMenuToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
 
@@ -849,8 +851,8 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
         isOpen={noteModalOpen}
         initialText={editingNote?.text_content ?? ""}
         title={editingNote ? "Edit note" : "New note"}
-        markerKinds={selectionMarkerKinds}
-        onToggleMarker={handleToggleMarker}
+        markerKinds={modalMarkerKinds}
+        onToggleMarker={modalToggle}
         onSave={handleSaveNote}
         onClose={() => {
           if (!editingNote && !isCommitted) {
@@ -863,8 +865,8 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       <GrammarModal
         isOpen={grammarModalOpen}
         selectionText={grammarSelectionText}
-        markerKinds={selectionMarkerKinds}
-        onToggleMarker={handleToggleMarker}
+        markerKinds={modalMarkerKinds}
+        onToggleMarker={modalToggle}
         onSave={handleSaveGrammar}
         onClose={() => {
           if (!isCommitted) {
@@ -876,8 +878,8 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
       <AudioRecorderModal
         isOpen={audioModalOpen}
         apiBase={API_BASE}
-        markerKinds={selectionMarkerKinds}
-        onToggleMarker={handleToggleMarker}
+        markerKinds={modalMarkerKinds}
+        onToggleMarker={modalToggle}
         onSave={handleSaveAudio}
         onClearSelection={handleClearAudioSelection}
         onClose={() => {
