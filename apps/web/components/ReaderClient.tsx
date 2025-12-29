@@ -164,7 +164,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
   }, []);
 
   const persistSelection = useCallback(
-    async (selector: MenuState["selector"]) => {
+    async (selector: MenuState["selector"]): Promise<Selection | null> => {
       setIsSaving(true);
       try {
         const response = await fetch(`${API_BASE}/selections`, {
@@ -189,11 +189,14 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
             });
             setActiveSelectionId(data.selection.id);
             setIsCommitted(true);
+            setMenuState(null);
+            return data.selection as Selection;
           }
         }
       } finally {
         setIsSaving(false);
       }
+      return null;
     },
     [documentId, sectionId]
   );
@@ -316,18 +319,27 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
     if (existing) {
       setActiveSelectionId(existing.id);
       setIsCommitted(true);
+      setMenuState(null);
       return;
     }
     await persistSelection(menuState.selector);
   }, [isCommitted, menuState, persistSelection, selections]);
 
-  const handleOpenNote = useCallback(() => {
-    if (!activeSelectionId) {
+  const handleOpenNote = useCallback(async () => {
+    if (isCommitted && activeSelectionId) {
+      setEditingNote(null);
+      setNoteModalOpen(true);
       return;
     }
-    setEditingNote(null);
-    setNoteModalOpen(true);
-  }, [activeSelectionId]);
+    if (!menuState) {
+      return;
+    }
+    const selection = await persistSelection(menuState.selector);
+    if (selection) {
+      setEditingNote(null);
+      setNoteModalOpen(true);
+    }
+  }, [activeSelectionId, isCommitted, menuState, persistSelection]);
 
   const handleSaveNote = useCallback(
     async (text: string) => {
@@ -356,6 +368,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
             setAdditions((prev) =>
               prev.map((item) => (item.id === data.addition?.id ? data.addition : item))
             );
+            setMenuState(null);
           }
         }
       } else {
@@ -375,6 +388,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
           const data = (await response.json()) as { addition?: Addition };
           if (data.addition) {
             setAdditions((prev) => [...prev, data.addition as Addition]);
+            setMenuState(null);
           }
         }
       }
@@ -414,7 +428,7 @@ export default function ReaderClient({ documentId, sectionId, contentText }: Rea
               selectionText={menuState.selectionText}
               isSaving={isSaving}
               isCommitted={isCommitted}
-              canCreateNote={Boolean(activeSelectionId)}
+              canCreateNote
               onCommit={handleCommitSelection}
               onNote={handleOpenNote}
               onClose={clearSelection}
