@@ -416,6 +416,20 @@ def _extract_heading_from_html(html: str) -> Optional[str]:
     return heading or None
 
 
+def _rewrite_svg_images(html: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        tag = match.group(0)
+        href_match = re.search(
+            r'(?:xlink:href|href)=[\"\'](.*?)[\"\']', tag, re.IGNORECASE
+        )
+        src = href_match.group(1).strip() if href_match else ""
+        if not src:
+            return ""
+        return f'<img src="{src}">'
+
+    return re.sub(r"<image[^>]*>", repl, html, flags=re.IGNORECASE)
+
+
 def _local_name(tag: str) -> str:
     return tag.split("}")[-1] if "}" in tag else tag
 
@@ -499,6 +513,7 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
             except KeyError:
                 continue
             html = _decode_html_bytes(html_bytes)
+            html = _rewrite_svg_images(html)
             html_dir = posixpath.dirname(item_path)
 
             def resolve_src(src: str) -> Optional[str]:
