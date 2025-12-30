@@ -199,6 +199,12 @@ export default function ReaderClient({
   const longPressPointerRef = useRef<number | null>(null);
   const longPressActiveRef = useRef(false);
   const longPressAnchorRef = useRef<Range | null>(null);
+  const suppressTouchFinalizeRef = useRef(false);
+  const tapEligibleRef = useRef(false);
+  const tapCountRef = useRef(0);
+  const tapTimerRef = useRef<number | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const pendingDoubleTapRef = useRef<{ x: number; y: number } | null>(null);
 
   const [menuState, setMenuState] = useState<MenuState | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -226,6 +232,20 @@ export default function ReaderClient({
       longPressTimerRef.current = null;
     }
   }, []);
+
+  const clearTapTimer = useCallback(() => {
+    if (tapTimerRef.current !== null) {
+      window.clearTimeout(tapTimerRef.current);
+      tapTimerRef.current = null;
+    }
+  }, []);
+
+  const resetTapState = useCallback(() => {
+    tapCountRef.current = 0;
+    lastTapRef.current = null;
+    pendingDoubleTapRef.current = null;
+    clearTapTimer();
+  }, [clearTapTimer]);
 
   const clearLongPressAnchor = useCallback(() => {
     longPressAnchorRef.current = null;
@@ -391,7 +411,8 @@ export default function ReaderClient({
     setDraftSelection(null);
     anchorRef.current = null;
     clearLongPressTimer();
-  }, [clearLongPressTimer]);
+    resetTapState();
+  }, [clearLongPressTimer, resetTapState]);
 
   const discardDraftSelection = useCallback(() => {
     if (!activeSelectionId && !isCommitted) {
@@ -591,6 +612,7 @@ export default function ReaderClient({
         return;
       }
       clearLongPressTimer();
+      tapEligibleRef.current = true;
       longPressActiveRef.current = true;
       longPressPointerRef.current = event.pointerId;
       longPressStartRef.current = { x: event.clientX, y: event.clientY };
@@ -605,6 +627,7 @@ export default function ReaderClient({
         const selectionText = selection?.toString() ?? "";
         const normalized = selectionText.replace(/\s+/g, " ").trim();
         if (normalized.length > LONG_PRESS_MULTIWORD_LENGTH || normalized.includes(" ")) {
+          tapEligibleRef.current = false;
           return;
         }
 
@@ -624,11 +647,14 @@ export default function ReaderClient({
             selection.removeAllRanges();
             selection.addRange(combined);
           }
+          suppressTouchFinalizeRef.current = true;
           finalizeRange(combined);
         } else {
           if (selection) {
             selection.removeAllRanges();
           }
+          suppressTouchFinalizeRef.current = true;
+          tapEligibleRef.current = false;
           longPressAnchorRef.current = range;
         }
       }, LONG_PRESS_DELAY);
@@ -653,6 +679,7 @@ export default function ReaderClient({
       if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_THRESHOLD) {
         clearLongPressTimer();
         longPressActiveRef.current = false;
+        tapEligibleRef.current = false;
         if (longPressAnchorRef.current) {
           clearLongPressAnchor();
         }
@@ -682,6 +709,103 @@ export default function ReaderClient({
     longPressStartRef.current = null;
     clearLongPressTimer();
   }, [clearLongPressTimer]);
+
+  const handleTouchDoubleTap = useCallback(
+    (x: number, y: number) => {
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+      const pointRange = getCaretRangeFromPoint(x, y);
+      if (!pointRange) {
+        return;
+      }
+      if (!container.contains(pointRange.startContainer)) {
+        return;
+      }
+
+      if (!anchorRef.current) {
+        anchorRef.current = pointRange;
+        return;
+      }
+
+      const combined = buildRange(anchorRef.current, pointRange);
+      anchorRef.current = null;
+
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(combined);
+      }
+
+      finalizeRange(combined);
+    },
+    [finalizeRange]
+  );
+
+  const handleTouchEnd = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      if (suppressTouchFinalizeRef.current) {
+        suppressTouchFinalizeRef.current = false;
+        return;
+      }
+
+      if (tapEligibleRef.current) {
+        const touch = event.changedTouches[0];
+        if (touch) {
+          const now = Date.now();
+          const last = lastTapRef.current;
+          const withinWindow = last ? now - last.time < 320 : false;
+          const withinDistance = last
+            ? Math.hypot(touch.clientX - last.x, touch.clientY - last.y) < 24
+            : false;
+          const count = withinWindow && withinDistance ? tapCountRef.current + 1 : 1;
+          tapCountRef.current = count;
+          lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+
+          if (count === 1) {
+            clearTapTimer();
+            tapTimerRef.current = window.setTimeout(() => {
+              resetTapState();
+            }, 340);
+          } else if (count === 2) {
+            clearTapTimer();
+            pendingDoubleTapRef.current = { x: touch.clientX, y: touch.clientY };
+            tapTimerRef.current = window.setTimeout(() => {
+              const pending = pendingDoubleTapRef.current;
+              resetTapState();
+              if (pending) {
+                handleTouchDoubleTap(pending.x, pending.y);
+              }
+            }, 220);
+            return;
+          } else if (count >= 3) {
+            const selection = window.getSelection();
+            if (!menuState && (!selection || selection.isCollapsed)) {
+              setMobileNavOpen(true);
+            }
+            resetTapState();
+            return;
+          }
+        }
+      }
+
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) {
+        clearSelection();
+        return;
+      }
+
+      if (selection.isCollapsed) {
+        clearSelection();
+        return;
+      }
+
+      anchorRef.current = null;
+      finalizeRange(selection.getRangeAt(0));
+    },
+    [clearSelection, finalizeRange, handleTouchDoubleTap, menuState, resetTapState, clearTapTimer]
+  );
 
   const handlePointerUp = useCallback(() => {
     const selection = window.getSelection();
@@ -1131,17 +1255,6 @@ export default function ReaderClient({
       if (!isMobile) {
         return;
       }
-      if (event.detail >= 3) {
-        if (menuState) {
-          return;
-        }
-        const selection = window.getSelection();
-        if (selection && !selection.isCollapsed) {
-          return;
-        }
-        setMobileNavOpen(true);
-        return;
-      }
       if (!mobileNavOpen) {
         return;
       }
@@ -1152,7 +1265,7 @@ export default function ReaderClient({
       setMobileNavOpen(false);
       setMobilePanel(null);
     },
-    [isMobile, menuState, mobileNavOpen]
+    [isMobile, mobileNavOpen]
   );
 
   const handleJumpToSelection = useCallback(
@@ -1240,7 +1353,7 @@ export default function ReaderClient({
             className="reader-scroll"
             ref={containerRef}
             onMouseUp={handlePointerUp}
-            onTouchEnd={handlePointerUp}
+            onTouchEnd={handleTouchEnd}
             onDoubleClick={handleDoubleClick}
             onPointerDown={handleLongPressPointerDown}
             onPointerMove={handleLongPressPointerMove}
