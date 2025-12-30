@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 
@@ -22,7 +23,204 @@ const LONG_PRESS_DELAY = 500;
 const LONG_PRESS_MOVE_THRESHOLD = 12;
 const LONG_PRESS_MULTIWORD_LENGTH = 12;
 const TAP_WINDOW_MS = 450;
-const TAP_DISTANCE_PX = 40;
+
+function normalizeBannerText(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function isWordChar(value: string) {
+  return /[A-Za-z0-9']/u.test(value);
+}
+
+type CaretPoint = { node: Node; offset: number };
+
+function getWordAtOffset(text: string, offset: number): string | null {
+  if (!text) {
+    return null;
+  }
+  let index = Math.min(Math.max(offset, 0), text.length - 1);
+  if (!isWordChar(text[index]) && index > 0 && isWordChar(text[index - 1])) {
+    index -= 1;
+  }
+  if (!isWordChar(text[index]) && index + 1 < text.length && isWordChar(text[index + 1])) {
+    index += 1;
+  }
+  if (!isWordChar(text[index])) {
+    return null;
+  }
+  let start = index;
+  let end = index + 1;
+  while (start > 0 && isWordChar(text[start - 1])) {
+    start -= 1;
+  }
+  while (end < text.length && isWordChar(text[end])) {
+    end += 1;
+  }
+  return normalizeBannerText(text.slice(start, end));
+}
+
+function getCaretPoint(x: number, y: number): CaretPoint | null {
+  const caretPositionFromPoint = (
+    document as unknown as {
+      caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+    }
+  ).caretPositionFromPoint;
+  if (caretPositionFromPoint) {
+    const position = caretPositionFromPoint.call(document, x, y);
+    if (position) {
+      return { node: position.offsetNode, offset: position.offset };
+    }
+  }
+  const caretRangeFromPoint = (
+    document as unknown as { caretRangeFromPoint?: (x: number, y: number) => Range | null }
+  ).caretRangeFromPoint;
+  if (caretRangeFromPoint) {
+    const range = caretRangeFromPoint.call(document, x, y);
+    if (range) {
+      return { node: range.startContainer, offset: range.startOffset };
+    }
+  }
+  return null;
+}
+
+function resolveTextNode(node: Node, offset: number): { node: Text; offset: number } | null {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return { node: node as Text, offset };
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return null;
+  }
+  const element = node as Element;
+  const childNodes = element.childNodes;
+  const candidateIndex =
+    childNodes.length === 0 ? -1 : Math.min(Math.max(offset, 0), childNodes.length - 1);
+  const candidate = candidateIndex >= 0 ? childNodes[candidateIndex] : null;
+
+  const findTextNode = (root: Node | null) => {
+    if (!root) {
+      return null;
+    }
+    if (root.nodeType === Node.TEXT_NODE) {
+      return root as Text;
+    }
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    return walker.nextNode() as Text | null;
+  };
+
+  const directText = findTextNode(candidate);
+  if (directText) {
+    return { node: directText, offset: 0 };
+  }
+
+  const fallbackText = findTextNode(element);
+  if (fallbackText) {
+    return { node: fallbackText, offset: 0 };
+  }
+  return null;
+}
+
+function getWordFromNode(node: Node, offset: number): string | null {
+  const resolved = resolveTextNode(node, offset);
+  if (!resolved) {
+    return null;
+  }
+  const textNode = resolved.node;
+  const text = textNode.data ?? "";
+  if (!text) {
+    return null;
+  }
+
+  return getWordAtOffset(text, resolved.offset);
+}
+
+function getWordFromTextNodeAtPoint(textNode: Text, x: number, y: number): string | null {
+  const text = textNode.data ?? "";
+  if (!text) {
+    return null;
+  }
+  const containerRange = document.createRange();
+  containerRange.selectNodeContents(textNode);
+  const containerRects = containerRange.getClientRects();
+  let inContainer = false;
+  for (const rect of Array.from(containerRects)) {
+    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+      inContainer = true;
+      break;
+    }
+  }
+  if (!inContainer) {
+    return null;
+  }
+  const wordRegex = /\S+/g;
+  let match: RegExpExecArray | null;
+  while ((match = wordRegex.exec(text)) !== null) {
+    const start = match.index;
+    const end = start + match[0].length;
+    const range = document.createRange();
+    range.setStart(textNode, start);
+    range.setEnd(textNode, end);
+    const rects = range.getClientRects();
+    for (const rect of Array.from(rects)) {
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        return normalizeBannerText(match[0]);
+      }
+    }
+  }
+  return null;
+}
+
+function getWordAtPoint(x: number, y: number): string | null {
+  const caretRange = getCaretRangeFromPoint(x, y);
+  const selection = window.getSelection();
+  if (caretRange && selection) {
+    selection.removeAllRanges();
+    selection.addRange(caretRange);
+    if (typeof selection.modify === "function") {
+      selection.modify("move", "backward", "word");
+      selection.modify("extend", "forward", "word");
+      const word = normalizeBannerText(selection.toString());
+      selection.removeAllRanges();
+      if (word) {
+        return word;
+      }
+    } else {
+      selection.removeAllRanges();
+    }
+  }
+
+  const caretPoint = getCaretPoint(x, y);
+  const candidates: Text[] = [];
+  if (caretPoint) {
+    const resolved = resolveTextNode(caretPoint.node, caretPoint.offset);
+    if (resolved?.node) {
+      candidates.push(resolved.node);
+    }
+  }
+
+  const element = document.elementFromPoint(x, y);
+  if (element) {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    let current = walker.nextNode();
+    let count = 0;
+    while (current && count < 200) {
+      candidates.push(current as Text);
+      current = walker.nextNode();
+      count += 1;
+    }
+  }
+
+  for (const candidate of candidates) {
+    const wordAtPoint = getWordFromTextNodeAtPoint(candidate, x, y);
+    if (wordAtPoint) {
+      return wordAtPoint;
+    }
+  }
+
+  if (caretPoint) {
+    return getWordFromNode(caretPoint.node, caretPoint.offset);
+  }
+  return null;
+}
 
 type ReaderSection = {
   id: number;
@@ -234,6 +432,13 @@ export default function ReaderClient({
   const [mobilePanel, setMobilePanel] = useState<"chapters" | "highlights" | null>(null);
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
   const [debugTapInfo, setDebugTapInfo] = useState("");
+  const [isMounted, setIsMounted] = useState(false);
+  const [firstTapWord, setFirstTapWordState] = useState("");
+  const [secondTapWord, setSecondTapWordState] = useState("");
+  const firstTapWordRef = useRef("");
+  const secondTapWordRef = useRef("");
+  const doubleClickStepRef = useRef<0 | 1>(0);
+  const doubleClickResetTimerRef = useRef<number | null>(null);
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -256,13 +461,99 @@ export default function ReaderClient({
     clearTapTimer();
   }, [clearTapTimer]);
 
-  const clearLongPressAnchor = useCallback(() => {
-    longPressAnchorRef.current = null;
-  }, []);
-
   const sectionById = useMemo(() => {
     return new Map(sections.map((section) => [section.id, section]));
   }, [sections]);
+
+  const getSectionElementFromNode = useCallback((node: Node | null): HTMLElement | null => {
+    if (!node) {
+      return null;
+    }
+    if (node instanceof HTMLElement) {
+      return node.closest("[data-section-id]") as HTMLElement | null;
+    }
+    if (node.parentElement) {
+      return node.parentElement.closest("[data-section-id]") as HTMLElement | null;
+    }
+    return null;
+  }, []);
+
+  const setFirstTapWord = useCallback((word: string) => {
+    firstTapWordRef.current = word;
+    setFirstTapWordState(word);
+  }, []);
+
+  const setSecondTapWord = useCallback((word: string) => {
+    secondTapWordRef.current = word;
+    setSecondTapWordState(word);
+  }, []);
+
+  const clearDoubleClickTimer = useCallback(() => {
+    if (doubleClickResetTimerRef.current !== null) {
+      window.clearTimeout(doubleClickResetTimerRef.current);
+      doubleClickResetTimerRef.current = null;
+    }
+  }, []);
+
+  const resetDoubleClickSequence = useCallback(() => {
+    doubleClickStepRef.current = 0;
+    clearDoubleClickTimer();
+  }, [clearDoubleClickTimer]);
+
+  const registerDoubleClickWord = useCallback(
+    (word: string) => {
+      if (doubleClickStepRef.current === 0) {
+        setFirstTapWord(word);
+        setSecondTapWordState("");
+        secondTapWordRef.current = "";
+        doubleClickStepRef.current = 1;
+        clearDoubleClickTimer();
+        doubleClickResetTimerRef.current = window.setTimeout(() => {
+          resetDoubleClickSequence();
+        }, 2000);
+      } else {
+        setSecondTapWord(word);
+        resetDoubleClickSequence();
+      }
+    },
+    [clearDoubleClickTimer, resetDoubleClickSequence, setFirstTapWord, setSecondTapWord]
+  );
+
+  const clearTapWords = useCallback(() => {
+    firstTapWordRef.current = "";
+    secondTapWordRef.current = "";
+    setFirstTapWordState("");
+    setSecondTapWordState("");
+    resetDoubleClickSequence();
+  }, [resetDoubleClickSequence]);
+
+  const getWordFromRangeInSection = useCallback(
+    (range: Range): string | null => {
+      const sectionElement = getSectionElementFromNode(range.startContainer);
+      if (!sectionElement) {
+        return null;
+      }
+      const sectionId = Number(sectionElement.dataset.sectionId ?? "");
+      if (!sectionId || Number.isNaN(sectionId)) {
+        return null;
+      }
+      const offsets = getSelectionOffsets(range, sectionElement);
+      if (!offsets) {
+        return null;
+      }
+      const section = sectionById.get(sectionId);
+      const usesParagraphOffsets = Boolean(sectionElement.querySelector("[data-paragraph]"));
+      const currentText = usesParagraphOffsets
+        ? section?.content_text ?? ""
+        : sectionElement.textContent ?? section?.content_text ?? "";
+      return getWordAtOffset(currentText, offsets.start);
+    },
+    [getSectionElementFromNode, sectionById]
+  );
+
+  const clearLongPressAnchor = useCallback(() => {
+    longPressAnchorRef.current = null;
+  }, []);
 
   const activeSelection = selections.find((selection) => selection.id === activeSelectionId) ?? null;
   const grammarSelectionText =
@@ -353,22 +644,33 @@ export default function ReaderClient({
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 900px)");
-    const handleChange = (event: MediaQueryListEvent) => {
-      setIsMobile(event.matches);
+    const computeIsMobile = () => {
+      const touchCapable = navigator.maxTouchPoints > 0;
+      const widthMatch = window.innerWidth <= 1024;
+      setIsMobile(media.matches || (touchCapable && widthMatch));
     };
-    setIsMobile(media.matches);
+    const handleChange = () => {
+      computeIsMobile();
+    };
+    computeIsMobile();
     if (media.addEventListener) {
       media.addEventListener("change", handleChange);
     } else {
       media.addListener(handleChange);
     }
+    window.addEventListener("resize", handleChange);
     return () => {
       if (media.addEventListener) {
         media.removeEventListener("change", handleChange);
       } else {
         media.removeListener(handleChange);
       }
+      window.removeEventListener("resize", handleChange);
     };
+  }, []);
+
+  useEffect(() => {
+    setIsMounted(true);
   }, []);
 
   useEffect(() => {
@@ -421,7 +723,8 @@ export default function ReaderClient({
     anchorRef.current = null;
     clearLongPressTimer();
     resetTapState();
-  }, [clearLongPressTimer, resetTapState]);
+    clearTapWords();
+  }, [clearLongPressTimer, resetTapState, clearTapWords]);
 
   const discardDraftSelection = useCallback(() => {
     if (!activeSelectionId && !isCommitted) {
@@ -493,19 +796,6 @@ export default function ReaderClient({
     if (created.length) {
       setMarkers(created);
     }
-  }, []);
-
-  const getSectionElementFromNode = useCallback((node: Node | null): HTMLElement | null => {
-    if (!node) {
-      return null;
-    }
-    if (node instanceof HTMLElement) {
-      return node.closest("[data-section-id]") as HTMLElement | null;
-    }
-    if (node.parentElement) {
-      return node.parentElement.closest("[data-section-id]") as HTMLElement | null;
-    }
-    return null;
   }, []);
 
   const getSectionElementForSelection = useCallback(
@@ -742,6 +1032,10 @@ export default function ReaderClient({
 
   const handleTouchDoubleTap = useCallback(
     (x: number, y: number) => {
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+      }
       const container = containerRef.current;
       if (!container) {
         return;
@@ -754,44 +1048,34 @@ export default function ReaderClient({
         return;
       }
 
-      if (!anchorRef.current) {
-        anchorRef.current = pointRange;
-        return;
-      }
-
-      const combined = buildRange(anchorRef.current, pointRange);
-      anchorRef.current = null;
-
-      const selection = window.getSelection();
-      if (selection) {
-        selection.removeAllRanges();
-        selection.addRange(combined);
-      }
-
-      finalizeRange(combined);
+      const word =
+        getWordFromRangeInSection(pointRange) ?? getWordAtPoint(x, y) ?? "(no word)";
+      registerDoubleClickWord(word);
     },
-    [finalizeRange]
+    [getWordFromRangeInSection, registerDoubleClickWord]
   );
 
   const processTapSequence = useCallback(
     (x: number, y: number) => {
-      setDebugTapInfo(
-        `tap ${new Date().toLocaleTimeString()} (${Math.round(x)},${Math.round(y)}) count=${
-          tapCountRef.current
-        } eligible=${tapEligibleRef.current}`
-      );
       if (!tapEligibleRef.current) {
         return false;
       }
       const now = Date.now();
       const last = lastTapRef.current;
+      const deltaMs = last ? now - last.time : null;
+      const distance = last ? Math.hypot(x - last.x, y - last.y) : null;
       const withinWindow = last ? now - last.time < TAP_WINDOW_MS : false;
-      const withinDistance = last ? Math.hypot(x - last.x, y - last.y) < TAP_DISTANCE_PX : false;
-      const count = withinWindow && withinDistance ? tapCountRef.current + 1 : 1;
-      tapCountRef.current = count;
+      const nextCount = withinWindow ? tapCountRef.current + 1 : 1;
+      tapCountRef.current = nextCount;
       lastTapRef.current = { time: now, x, y };
 
-      if (count === 1) {
+      setDebugTapInfo(
+        `tap ${new Date().toLocaleTimeString()} (${Math.round(x)},${Math.round(
+          y
+        )}) count=${nextCount} dt=${deltaMs ?? "-"}ms dist=${distance ? Math.round(distance) : "-"}`
+      );
+
+      if (nextCount === 1) {
         clearTapTimer();
         tapTimerRef.current = window.setTimeout(() => {
           resetTapState();
@@ -799,7 +1083,11 @@ export default function ReaderClient({
         return true;
       }
 
-      if (count === 2) {
+      if (nextCount === 2) {
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+        }
         clearTapTimer();
         pendingDoubleTapRef.current = { x, y };
         tapTimerRef.current = window.setTimeout(() => {
@@ -812,7 +1100,7 @@ export default function ReaderClient({
         return true;
       }
 
-      if (count >= 3) {
+      if (nextCount >= 3) {
         const selection = window.getSelection();
         if (!menuState && (!selection || selection.isCollapsed)) {
           setMobileNavOpen(true);
@@ -838,10 +1126,30 @@ export default function ReaderClient({
         pointerTouchSessionRef.current = false;
         return;
       }
-      processTapSequence(event.clientX, event.clientY);
+      const consumed = processTapSequence(event.clientX, event.clientY);
+      if (consumed) {
+        pointerTouchSessionRef.current = false;
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) {
+        clearSelection();
+        pointerTouchSessionRef.current = false;
+        return;
+      }
+
+      if (selection.isCollapsed) {
+        clearSelection();
+        pointerTouchSessionRef.current = false;
+        return;
+      }
+
+      anchorRef.current = null;
+      finalizeRange(selection.getRangeAt(0));
       pointerTouchSessionRef.current = false;
     },
-    [endLongPress, processTapSequence]
+    [clearSelection, endLongPress, finalizeRange, processTapSequence]
   );
 
   const handleLongPressPointerCancel = useCallback(() => {
@@ -940,6 +1248,7 @@ export default function ReaderClient({
         setDebugTapInfo(`touchend ${new Date().toLocaleTimeString()} no-touch`);
         return;
       }
+      lastPointerTouchUpRef.current = Date.now();
       handleTapPoint(touch.clientX, touch.clientY, "touchend");
     },
     [handleTapPoint]
@@ -1015,6 +1324,7 @@ export default function ReaderClient({
       if (moved || duration > 350) {
         return;
       }
+      lastPointerTouchUpRef.current = Date.now();
       handleTapPoint(touch.clientX, touch.clientY, "doc-touchend");
     };
 
@@ -1041,6 +1351,9 @@ export default function ReaderClient({
       return;
     }
     const handleDocClick = (event: MouseEvent) => {
+      if (Date.now() - lastPointerTouchUpRef.current < 400) {
+        return;
+      }
       const container = containerRef.current;
       if (!container) {
         return;
@@ -1064,6 +1377,9 @@ export default function ReaderClient({
   }, [handleTapPoint, isMobile]);
 
   const handlePointerUp = useCallback(() => {
+    if (Date.now() - lastPointerTouchUpRef.current < 400) {
+      return;
+    }
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) {
       clearSelection();
@@ -1085,6 +1401,10 @@ export default function ReaderClient({
       if (!container) {
         return;
       }
+      const nativeSelection = window.getSelection();
+      if (nativeSelection) {
+        nativeSelection.removeAllRanges();
+      }
       const pointRange = getCaretRangeFromPoint(event.clientX, event.clientY);
       if (!pointRange) {
         return;
@@ -1095,23 +1415,18 @@ export default function ReaderClient({
 
       event.preventDefault();
 
-      if (!anchorRef.current) {
-        anchorRef.current = pointRange;
-        return;
-      }
-
-      const combined = buildRange(anchorRef.current, pointRange);
-      anchorRef.current = null;
+      const word =
+        getWordFromRangeInSection(pointRange) ??
+        getWordAtPoint(event.clientX, event.clientY) ??
+        "(no word)";
+      registerDoubleClickWord(word);
 
       const selection = window.getSelection();
       if (selection) {
         selection.removeAllRanges();
-        selection.addRange(combined);
       }
-
-      finalizeRange(combined);
     },
-    [finalizeRange]
+    [getWordFromRangeInSection, registerDoubleClickWord]
   );
 
   const handleSelectHighlight = useCallback((selection: Selection) => {
@@ -1574,8 +1889,41 @@ export default function ReaderClient({
   const actionMenuMarkerKinds = isCommitted ? selectionMarkerKinds : pendingMarkerKinds;
   const actionMenuToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
 
+  const debugBanner =
+    isMounted
+      ? createPortal(
+          <div className="mobile-debug-banner">
+            <span>tap debug: {debugTapInfo || "waiting"}</span>
+          </div>,
+          document.body
+        )
+      : null;
+
+  const firstWordBanner =
+    isMounted && firstTapWord
+      ? createPortal(
+          <div className="double-tap-banner double-tap-banner--first">
+            <span>1st: {firstTapWord}</span>
+          </div>,
+          document.body
+        )
+      : null;
+
+  const secondWordBanner =
+    isMounted && secondTapWord
+      ? createPortal(
+          <div className="double-tap-banner double-tap-banner--second">
+            <span>2nd: {secondTapWord}</span>
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
     <div className="reader-layout reader-layout--columns">
+      {debugBanner}
+      {firstWordBanner}
+      {secondWordBanner}
       <aside className="reader-sidebar">
         <div className="reader-sidebar__header">
           <div className="reader-kicker">{sourceType}</div>
@@ -1605,11 +1953,6 @@ export default function ReaderClient({
       </aside>
       <div className="reader-body" onClick={handleBodyClick}>
         <div className="reader-shell">
-          {isMobile ? (
-            <div className="mobile-debug-banner">
-              <span>tap debug: {debugTapInfo || "waiting"}</span>
-            </div>
-          ) : null}
           <div
             className="reader-scroll"
             ref={containerRef}
