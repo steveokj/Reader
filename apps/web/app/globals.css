@@ -396,6 +396,14 @@ a {
   min-width: 0;
 }
 
+.reader-body {
+  touch-action: manipulation;
+}
+
+.reader-scroll {
+  touch-action: manipulation;
+}
+
 .reader-shell {
   position: relative;
 }
@@ -516,6 +524,22 @@ a {
 .side-panel__tab.is-active {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.mobile-debug-banner {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 16px;
+  right: 16px;
+  z-index: 80;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(31, 28, 22, 0.08);
+  font-size: 11px;
+  color: rgba(31, 28, 22, 0.7);
+  text-align: center;
+  pointer-events: none;
 }
 
 .highlights-panel .card-stack {

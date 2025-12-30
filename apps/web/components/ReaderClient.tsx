@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import ActionMenu from "@/components/ActionMenu";
@@ -19,8 +19,10 @@ import { getSelectionOffsets } from "@/lib/selection/getSelectionOffsets";
 import { rangeFromOffsets } from "@/lib/selection/rangeFromOffsets";
 
 const LONG_PRESS_DELAY = 500;
-const LONG_PRESS_MOVE_THRESHOLD = 10;
+const LONG_PRESS_MOVE_THRESHOLD = 12;
 const LONG_PRESS_MULTIWORD_LENGTH = 12;
+const TAP_WINDOW_MS = 450;
+const TAP_DISTANCE_PX = 40;
 
 type ReaderSection = {
   id: number;
@@ -199,6 +201,18 @@ export default function ReaderClient({
   const longPressPointerRef = useRef<number | null>(null);
   const longPressActiveRef = useRef(false);
   const longPressAnchorRef = useRef<Range | null>(null);
+  const pointerTouchSessionRef = useRef(false);
+  const lastPointerTouchUpRef = useRef(0);
+  const suppressTouchFinalizeRef = useRef(false);
+  const tapEligibleRef = useRef(false);
+  const tapCountRef = useRef(0);
+  const tapTimerRef = useRef<number | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const pendingDoubleTapRef = useRef<{ x: number; y: number } | null>(null);
+  const lastHandledTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const docTapStartRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const docTapMovedRef = useRef(false);
+  const docTapInScopeRef = useRef(false);
 
   const [menuState, setMenuState] = useState<MenuState | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -219,6 +233,7 @@ export default function ReaderClient({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<"chapters" | "highlights" | null>(null);
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
+  const [debugTapInfo, setDebugTapInfo] = useState("");
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -226,6 +241,20 @@ export default function ReaderClient({
       longPressTimerRef.current = null;
     }
   }, []);
+
+  const clearTapTimer = useCallback(() => {
+    if (tapTimerRef.current !== null) {
+      window.clearTimeout(tapTimerRef.current);
+      tapTimerRef.current = null;
+    }
+  }, []);
+
+  const resetTapState = useCallback(() => {
+    tapCountRef.current = 0;
+    lastTapRef.current = null;
+    pendingDoubleTapRef.current = null;
+    clearTapTimer();
+  }, [clearTapTimer]);
 
   const clearLongPressAnchor = useCallback(() => {
     longPressAnchorRef.current = null;
@@ -320,7 +349,7 @@ export default function ReaderClient({
     };
 
     loadSelections();
-  }, [documentId]);
+  }, [apiBase, documentId]);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 900px)");
@@ -391,7 +420,8 @@ export default function ReaderClient({
     setDraftSelection(null);
     anchorRef.current = null;
     clearLongPressTimer();
-  }, [clearLongPressTimer]);
+    resetTapState();
+  }, [clearLongPressTimer, resetTapState]);
 
   const discardDraftSelection = useCallback(() => {
     if (!activeSelectionId && !isCommitted) {
@@ -585,17 +615,15 @@ export default function ReaderClient({
     [clearLongPressAnchor, clearSelection, getSectionElementFromNode, sectionById, selections]
   );
 
-  const handleLongPressPointerDown = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.pointerType !== "touch") {
-        return;
-      }
+  const startLongPress = useCallback(
+    (x: number, y: number, pointerId: number | null) => {
       clearLongPressTimer();
+      tapEligibleRef.current = true;
       longPressActiveRef.current = true;
-      longPressPointerRef.current = event.pointerId;
-      longPressStartRef.current = { x: event.clientX, y: event.clientY };
-      const pressX = event.clientX;
-      const pressY = event.clientY;
+      longPressPointerRef.current = pointerId;
+      longPressStartRef.current = { x, y };
+      const pressX = x;
+      const pressY = y;
 
       longPressTimerRef.current = window.setTimeout(() => {
         if (!longPressActiveRef.current) {
@@ -605,6 +633,7 @@ export default function ReaderClient({
         const selectionText = selection?.toString() ?? "";
         const normalized = selectionText.replace(/\s+/g, " ").trim();
         if (normalized.length > LONG_PRESS_MULTIWORD_LENGTH || normalized.includes(" ")) {
+          tapEligibleRef.current = false;
           return;
         }
 
@@ -624,11 +653,14 @@ export default function ReaderClient({
             selection.removeAllRanges();
             selection.addRange(combined);
           }
+          suppressTouchFinalizeRef.current = true;
           finalizeRange(combined);
         } else {
           if (selection) {
             selection.removeAllRanges();
           }
+          suppressTouchFinalizeRef.current = true;
+          tapEligibleRef.current = false;
           longPressAnchorRef.current = range;
         }
       }, LONG_PRESS_DELAY);
@@ -636,23 +668,21 @@ export default function ReaderClient({
     [clearLongPressAnchor, clearLongPressTimer, finalizeRange, getSectionElementFromNode]
   );
 
-  const handleLongPressPointerMove = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.pointerType !== "touch") {
-        return;
-      }
-      if (longPressPointerRef.current !== event.pointerId) {
+  const moveLongPress = useCallback(
+    (x: number, y: number, pointerId: number | null) => {
+      if (pointerId !== null && longPressPointerRef.current !== pointerId) {
         return;
       }
       const start = longPressStartRef.current;
       if (!start) {
         return;
       }
-      const dx = event.clientX - start.x;
-      const dy = event.clientY - start.y;
+      const dx = x - start.x;
+      const dy = y - start.y;
       if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_THRESHOLD) {
         clearLongPressTimer();
         longPressActiveRef.current = false;
+        tapEligibleRef.current = false;
         if (longPressAnchorRef.current) {
           clearLongPressAnchor();
         }
@@ -661,27 +691,400 @@ export default function ReaderClient({
     [clearLongPressAnchor, clearLongPressTimer]
   );
 
-  const handleLongPressPointerUp = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.pointerType !== "touch") {
+  const endLongPress = useCallback(
+    (pointerId: number | null) => {
+      if (
+        pointerId !== null &&
+        longPressPointerRef.current !== null &&
+        longPressPointerRef.current !== pointerId
+      ) {
         return;
       }
-      if (longPressPointerRef.current === event.pointerId) {
-        longPressActiveRef.current = false;
-        longPressPointerRef.current = null;
-        longPressStartRef.current = null;
-        clearLongPressTimer();
-      }
+      longPressActiveRef.current = false;
+      longPressPointerRef.current = null;
+      longPressStartRef.current = null;
+      clearLongPressTimer();
     },
     [clearLongPressTimer]
   );
 
-  const handleLongPressPointerCancel = useCallback(() => {
+  const cancelLongPress = useCallback(() => {
     longPressActiveRef.current = false;
     longPressPointerRef.current = null;
     longPressStartRef.current = null;
     clearLongPressTimer();
   }, [clearLongPressTimer]);
+
+  const handleLongPressPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== "touch") {
+        return;
+      }
+      if (longPressActiveRef.current && longPressPointerRef.current === null) {
+        pointerTouchSessionRef.current = true;
+        return;
+      }
+      pointerTouchSessionRef.current = true;
+      startLongPress(event.clientX, event.clientY, event.pointerId);
+    },
+    [startLongPress]
+  );
+
+  const handleLongPressPointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== "touch") {
+        return;
+      }
+      moveLongPress(event.clientX, event.clientY, event.pointerId);
+    },
+    [moveLongPress]
+  );
+
+  const handleTouchDoubleTap = useCallback(
+    (x: number, y: number) => {
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+      const pointRange = getCaretRangeFromPoint(x, y);
+      if (!pointRange) {
+        return;
+      }
+      if (!container.contains(pointRange.startContainer)) {
+        return;
+      }
+
+      if (!anchorRef.current) {
+        anchorRef.current = pointRange;
+        return;
+      }
+
+      const combined = buildRange(anchorRef.current, pointRange);
+      anchorRef.current = null;
+
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(combined);
+      }
+
+      finalizeRange(combined);
+    },
+    [finalizeRange]
+  );
+
+  const processTapSequence = useCallback(
+    (x: number, y: number) => {
+      setDebugTapInfo(
+        `tap ${new Date().toLocaleTimeString()} (${Math.round(x)},${Math.round(y)}) count=${
+          tapCountRef.current
+        } eligible=${tapEligibleRef.current}`
+      );
+      if (!tapEligibleRef.current) {
+        return false;
+      }
+      const now = Date.now();
+      const last = lastTapRef.current;
+      const withinWindow = last ? now - last.time < TAP_WINDOW_MS : false;
+      const withinDistance = last ? Math.hypot(x - last.x, y - last.y) < TAP_DISTANCE_PX : false;
+      const count = withinWindow && withinDistance ? tapCountRef.current + 1 : 1;
+      tapCountRef.current = count;
+      lastTapRef.current = { time: now, x, y };
+
+      if (count === 1) {
+        clearTapTimer();
+        tapTimerRef.current = window.setTimeout(() => {
+          resetTapState();
+        }, TAP_WINDOW_MS);
+        return true;
+      }
+
+      if (count === 2) {
+        clearTapTimer();
+        pendingDoubleTapRef.current = { x, y };
+        tapTimerRef.current = window.setTimeout(() => {
+          const pending = pendingDoubleTapRef.current;
+          resetTapState();
+          if (pending) {
+            handleTouchDoubleTap(pending.x, pending.y);
+          }
+        }, 260);
+        return true;
+      }
+
+      if (count >= 3) {
+        const selection = window.getSelection();
+        if (!menuState && (!selection || selection.isCollapsed)) {
+          setMobileNavOpen(true);
+        }
+        resetTapState();
+        return true;
+      }
+
+      return false;
+    },
+    [clearTapTimer, handleTouchDoubleTap, menuState, resetTapState]
+  );
+
+  const handleLongPressPointerUp = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== "touch") {
+        return;
+      }
+      endLongPress(event.pointerId);
+      lastPointerTouchUpRef.current = Date.now();
+      if (suppressTouchFinalizeRef.current) {
+        suppressTouchFinalizeRef.current = false;
+        pointerTouchSessionRef.current = false;
+        return;
+      }
+      const consumed = processTapSequence(event.clientX, event.clientY);
+      if (consumed) {
+        pointerTouchSessionRef.current = false;
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) {
+        clearSelection();
+        pointerTouchSessionRef.current = false;
+        return;
+      }
+
+      if (selection.isCollapsed) {
+        clearSelection();
+        pointerTouchSessionRef.current = false;
+        return;
+      }
+
+      anchorRef.current = null;
+      finalizeRange(selection.getRangeAt(0));
+      pointerTouchSessionRef.current = false;
+    },
+    [clearSelection, endLongPress, finalizeRange, processTapSequence]
+  );
+
+  const handleLongPressPointerCancel = useCallback(() => {
+    cancelLongPress();
+    pointerTouchSessionRef.current = false;
+  }, [cancelLongPress]);
+
+  const handleTouchStart = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      if (pointerTouchSessionRef.current) {
+        return;
+      }
+      const touch = event.touches[0];
+      if (!touch) {
+        return;
+      }
+      startLongPress(touch.clientX, touch.clientY, null);
+    },
+    [startLongPress]
+  );
+
+  const handleTouchMove = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      if (pointerTouchSessionRef.current) {
+        return;
+      }
+      const touch = event.touches[0];
+      if (!touch) {
+        return;
+      }
+      moveLongPress(touch.clientX, touch.clientY, null);
+    },
+    [moveLongPress]
+  );
+
+  const handleTouchCancel = useCallback(() => {
+    if (pointerTouchSessionRef.current) {
+      return;
+    }
+    cancelLongPress();
+    resetTapState();
+  }, [cancelLongPress, resetTapState]);
+
+  const handleTapPoint = useCallback(
+    (x: number, y: number, source: string) => {
+      const now = Date.now();
+      const lastHandled = lastHandledTapRef.current;
+      if (
+        lastHandled &&
+        now - lastHandled.time < 60 &&
+        Math.hypot(x - lastHandled.x, y - lastHandled.y) < 8
+      ) {
+        return;
+      }
+      lastHandledTapRef.current = { time: now, x, y };
+      endLongPress(null);
+      setDebugTapInfo(
+        `${source} ${new Date().toLocaleTimeString()} (${Math.round(x)},${Math.round(y)})`
+      );
+      if (suppressTouchFinalizeRef.current) {
+        suppressTouchFinalizeRef.current = false;
+        return;
+      }
+
+      if (tapEligibleRef.current) {
+        const consumed = processTapSequence(x, y);
+        if (consumed) {
+          return;
+        }
+      }
+
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) {
+        clearSelection();
+        return;
+      }
+
+      if (selection.isCollapsed) {
+        clearSelection();
+        return;
+      }
+
+      anchorRef.current = null;
+      finalizeRange(selection.getRangeAt(0));
+    },
+    [clearSelection, endLongPress, finalizeRange, processTapSequence]
+  );
+
+  const handleTouchEnd = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      if (Date.now() - lastPointerTouchUpRef.current < 400) {
+        return;
+      }
+      const touch = event.changedTouches[0];
+      if (!touch) {
+        setDebugTapInfo(`touchend ${new Date().toLocaleTimeString()} no-touch`);
+        return;
+      }
+      handleTapPoint(touch.clientX, touch.clientY, "touchend");
+    },
+    [handleTapPoint]
+  );
+
+  useEffect(() => {
+    if (!isMobile) {
+      return;
+    }
+    const handleDocTouchStart = (event: TouchEvent) => {
+      if (event.touches.length > 1) {
+        return;
+      }
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+      const touch = event.touches[0];
+      if (!touch) {
+        return;
+      }
+      const elementAtPoint = document.elementFromPoint(touch.clientX, touch.clientY);
+      const inContainer = elementAtPoint ? container.contains(elementAtPoint) : false;
+      docTapInScopeRef.current = inContainer;
+      if (!inContainer) {
+        return;
+      }
+      docTapStartRef.current = { time: Date.now(), x: touch.clientX, y: touch.clientY };
+      docTapMovedRef.current = false;
+      setDebugTapInfo(
+        `doc-touchstart ${new Date().toLocaleTimeString()} (${Math.round(touch.clientX)},${Math.round(
+          touch.clientY
+        )})`
+      );
+    };
+
+    const handleDocTouchMove = (event: TouchEvent) => {
+      if (!docTapStartRef.current || !docTapInScopeRef.current) {
+        return;
+      }
+      const touch = event.touches[0];
+      if (!touch) {
+        return;
+      }
+      const start = docTapStartRef.current;
+      const distance = Math.hypot(touch.clientX - start.x, touch.clientY - start.y);
+      if (distance > LONG_PRESS_MOVE_THRESHOLD) {
+        docTapMovedRef.current = true;
+      }
+    };
+
+    const handleDocTouchEnd = (event: TouchEvent) => {
+      if (Date.now() - lastPointerTouchUpRef.current < 400) {
+        return;
+      }
+      if (event.changedTouches.length > 1) {
+        return;
+      }
+      const touch = event.changedTouches[0];
+      if (!touch) {
+        return;
+      }
+      const start = docTapStartRef.current;
+      const inScope = docTapInScopeRef.current;
+      docTapStartRef.current = null;
+      docTapInScopeRef.current = false;
+      const moved = docTapMovedRef.current;
+      docTapMovedRef.current = false;
+      if (!start || !inScope) {
+        return;
+      }
+      const duration = Date.now() - start.time;
+      if (moved || duration > 350) {
+        return;
+      }
+      handleTapPoint(touch.clientX, touch.clientY, "doc-touchend");
+    };
+
+    const handleDocTouchCancel = () => {
+      docTapStartRef.current = null;
+      docTapInScopeRef.current = false;
+      docTapMovedRef.current = false;
+    };
+    const options = { passive: true, capture: true };
+    document.addEventListener("touchstart", handleDocTouchStart, options);
+    document.addEventListener("touchmove", handleDocTouchMove, options);
+    document.addEventListener("touchend", handleDocTouchEnd, options);
+    document.addEventListener("touchcancel", handleDocTouchCancel, options);
+    return () => {
+      document.removeEventListener("touchstart", handleDocTouchStart, options);
+      document.removeEventListener("touchmove", handleDocTouchMove, options);
+      document.removeEventListener("touchend", handleDocTouchEnd, options);
+      document.removeEventListener("touchcancel", handleDocTouchCancel, options);
+    };
+  }, [handleTapPoint, isMobile]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      return;
+    }
+    const handleDocClick = (event: MouseEvent) => {
+      if (Date.now() - lastPointerTouchUpRef.current < 400) {
+        return;
+      }
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+      const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+      const target = event.target as Node | null;
+      const inContainer = path.length
+        ? path.includes(container)
+        : target
+        ? container.contains(target)
+        : false;
+      if (!inContainer) {
+        return;
+      }
+      handleTapPoint(event.clientX, event.clientY, "doc-click");
+    };
+    document.addEventListener("click", handleDocClick, true);
+    return () => {
+      document.removeEventListener("click", handleDocClick, true);
+    };
+  }, [handleTapPoint, isMobile]);
 
   const handlePointerUp = useCallback(() => {
     const selection = window.getSelection();
@@ -700,7 +1103,7 @@ export default function ReaderClient({
   }, [clearSelection, finalizeRange]);
 
   const handleDoubleClick = useCallback(
-    (event: MouseEvent<HTMLDivElement>) => {
+    (event: ReactMouseEvent<HTMLDivElement>) => {
       const container = containerRef.current;
       if (!container) {
         return;
@@ -1127,19 +1530,8 @@ export default function ReaderClient({
   }, [activeSelectionId]);
 
   const handleBodyClick = useCallback(
-    (event: MouseEvent<HTMLDivElement>) => {
+    (event: ReactMouseEvent<HTMLDivElement>) => {
       if (!isMobile) {
-        return;
-      }
-      if (event.detail >= 3) {
-        if (menuState) {
-          return;
-        }
-        const selection = window.getSelection();
-        if (selection && !selection.isCollapsed) {
-          return;
-        }
-        setMobileNavOpen(true);
         return;
       }
       if (!mobileNavOpen) {
@@ -1152,7 +1544,7 @@ export default function ReaderClient({
       setMobileNavOpen(false);
       setMobilePanel(null);
     },
-    [isMobile, menuState, mobileNavOpen]
+    [isMobile, mobileNavOpen]
   );
 
   const handleJumpToSelection = useCallback(
@@ -1236,16 +1628,24 @@ export default function ReaderClient({
       </aside>
       <div className="reader-body" onClick={handleBodyClick}>
         <div className="reader-shell">
+          {isMobile ? (
+            <div className="mobile-debug-banner">
+              <span>tap debug: {debugTapInfo || "waiting"}</span>
+            </div>
+          ) : null}
           <div
             className="reader-scroll"
             ref={containerRef}
             onMouseUp={handlePointerUp}
-            onTouchEnd={handlePointerUp}
-            onDoubleClick={handleDoubleClick}
             onPointerDown={handleLongPressPointerDown}
             onPointerMove={handleLongPressPointerMove}
             onPointerUp={handleLongPressPointerUp}
             onPointerCancel={handleLongPressPointerCancel}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchCancel}
+            onDoubleClick={handleDoubleClick}
           >
             {sections.map((section) => (
               <section
