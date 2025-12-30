@@ -1868,7 +1868,20 @@ export default function ReaderClient({
   const wordBannerStack =
     isMounted && wordBanners.length
       ? createPortal(
-          <>
+          <div
+            className="double-tap-banner-stack"
+            style={{
+              position: "fixed",
+              top: "calc(env(safe-area-inset-top, 0px) + 48px)",
+              left: 16,
+              right: 16,
+              zIndex: 81,
+              display: "flex",
+              flexDirection: "column",
+              gap: 0,
+              pointerEvents: "none",
+            }}
+          >
             {wordBanners.map((banner, index) => {
               const label =
                 index === 0 ? "1st" : index === 1 ? "2nd" : index === 2 ? "3rd" : `${index + 1}th`;
@@ -1876,6 +1889,10 @@ export default function ReaderClient({
                 <div
                   key={banner.id}
                   className={`double-tap-banner double-tap-banner--slot-${index + 1}`}
+                  style={{
+                    marginTop: index === 0 ? 0 : 10,
+                    position: "relative",
+                  }}
                 >
                   <span>
                     {label}: {banner.word}
@@ -1883,7 +1900,7 @@ export default function ReaderClient({
                 </div>
               );
             })}
-          </>,
+          </div>,
           document.body
         )
       : null;
