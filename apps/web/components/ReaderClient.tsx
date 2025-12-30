@@ -443,7 +443,6 @@ export default function ReaderClient({
   const tapCountRef = useRef(0);
   const tapTimerRef = useRef<number | null>(null);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
-  const pendingDoubleTapRef = useRef<{ x: number; y: number } | null>(null);
   const lastHandledTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const docTapStartRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const docTapMovedRef = useRef(false);
@@ -491,7 +490,6 @@ export default function ReaderClient({
   const resetTapState = useCallback(() => {
     tapCountRef.current = 0;
     lastTapRef.current = null;
-    pendingDoubleTapRef.current = null;
     clearTapTimer();
   }, [clearTapTimer]);
 
@@ -1167,14 +1165,10 @@ export default function ReaderClient({
           selection.removeAllRanges();
         }
         clearTapTimer();
-        pendingDoubleTapRef.current = { x, y };
+        handleTouchDoubleTap(x, y);
         tapTimerRef.current = window.setTimeout(() => {
-          const pending = pendingDoubleTapRef.current;
           resetTapState();
-          if (pending) {
-            handleTouchDoubleTap(pending.x, pending.y);
-          }
-        }, 260);
+        }, TAP_WINDOW_MS);
         return true;
       }
 
