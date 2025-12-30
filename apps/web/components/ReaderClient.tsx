@@ -585,6 +585,18 @@ export default function ReaderClient({
       selection.removeAllRanges();
       selection.addRange(range);
     }
+    if (process.env.NODE_ENV !== "production") {
+      console.debug(
+        "[double-tap] selected range",
+        {
+          sectionId: first.sectionId,
+          start,
+          end,
+          first: first.word,
+          second: second.word,
+        }
+      );
+    }
   }, []);
 
   const addWordBanner = useCallback(
@@ -1126,9 +1138,17 @@ export default function ReaderClient({
           start: null,
           end: null,
         };
+      setDebugTapInfo(
+        `doubletap "${banner.word}" section=${banner.sectionId ?? "-"} range=${
+          banner.start ?? "-"
+        }-${banner.end ?? "-"}`
+      );
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[double-tap] banner", banner);
+      }
       addWordBanner(banner);
     },
-    [addWordBanner, getWordBannerFromRange]
+    [addWordBanner, getWordBannerFromRange, setDebugTapInfo]
   );
 
   const processTapSequence = useCallback(
