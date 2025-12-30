@@ -88,6 +88,38 @@ function getWordBoundsAtOffset(
   return word ? { word, start, end } : null;
 }
 
+function getWordRangeFromPointRange(pointRange: Range): Range | null {
+  const resolved = resolveTextNode(pointRange.startContainer, pointRange.startOffset);
+  if (!resolved) {
+    return null;
+  }
+  const text = resolved.node.data ?? "";
+  if (!text) {
+    return null;
+  }
+  const info = getWordBoundsAtOffset(text, resolved.offset);
+  if (!info) {
+    return null;
+  }
+  const range = document.createRange();
+  range.setStart(resolved.node, info.start);
+  range.setEnd(resolved.node, info.end);
+  return range;
+}
+
+function buildSpanRange(first: Range, second: Range): Range {
+  const range = document.createRange();
+  const comparison = first.compareBoundaryPoints(Range.START_TO_START, second);
+  if (comparison <= 0) {
+    range.setStart(first.startContainer, first.startOffset);
+    range.setEnd(second.endContainer, second.endOffset);
+  } else {
+    range.setStart(second.startContainer, second.startOffset);
+    range.setEnd(first.endContainer, first.endOffset);
+  }
+  return range;
+}
+
 function getCaretPoint(x: number, y: number): CaretPoint | null {
   const caretPositionFromPoint = (
     document as unknown as {
@@ -319,6 +351,10 @@ type WordBanner = {
   end: number | null;
 };
 
+type WordSelectionTap = WordBanner & {
+  range: Range | null;
+};
+
 type MarkerKind = "like" | "highlight" | "todo";
 
 type DraftSelection = {
@@ -471,7 +507,7 @@ export default function ReaderClient({
   const [isMounted, setIsMounted] = useState(false);
   const [wordBanners, setWordBanners] = useState<WordBanner[]>([]);
   const nextWordBannerIdRef = useRef(0);
-  const lastSelectableWordRef = useRef<WordBanner | null>(null);
+  const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -599,8 +635,43 @@ export default function ReaderClient({
     }
   }, []);
 
+  const selectWordRangeFromTap = useCallback((previous: WordSelectionTap, current: WordSelectionTap) => {
+    if (previous.range && current.range) {
+      const spanRange = buildSpanRange(previous.range, current.range);
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(spanRange);
+      }
+      setDebugTapInfo(`select span "${previous.word}" -> "${current.word}"`);
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[double-tap] selected span range", {
+          first: previous.word,
+          second: current.word,
+        });
+      }
+      return true;
+    }
+
+    if (
+      previous.sectionId !== null &&
+      current.sectionId !== null &&
+      previous.start !== null &&
+      previous.end !== null &&
+      current.start !== null &&
+      current.end !== null
+    ) {
+      selectWordRange(previous, current);
+      setDebugTapInfo(`select offsets "${previous.word}" -> "${current.word}"`);
+      return true;
+    }
+
+    setDebugTapInfo(`select failed "${previous.word}" -> "${current.word}"`);
+    return false;
+  }, [selectWordRange, setDebugTapInfo]);
+
   const addWordBanner = useCallback(
-    (tap: Omit<WordBanner, "id">) => {
+    (tap: Omit<WordSelectionTap, "id">) => {
       const banner: WordBanner = {
         id: nextWordBannerIdRef.current++,
         word: tap.word,
@@ -608,25 +679,26 @@ export default function ReaderClient({
         start: tap.start,
         end: tap.end,
       };
+      const selectionTap: WordSelectionTap = {
+        ...banner,
+        range: tap.range ?? null,
+      };
       setWordBanners((prev) => {
         const next = [...prev, banner];
         return next.slice(Math.max(0, next.length - 3));
       });
       const previous = lastSelectableWordRef.current;
-      const bannerSelectable =
-        banner.sectionId !== null && banner.start !== null && banner.end !== null;
-      if (
-        previous &&
-        bannerSelectable &&
-        normalizeWordKey(previous.word) !== normalizeWordKey(banner.word)
-      ) {
-        selectWordRange(previous, banner);
+      if (previous && normalizeWordKey(previous.word) !== normalizeWordKey(selectionTap.word)) {
+        selectWordRangeFromTap(previous, selectionTap);
       }
-      if (bannerSelectable) {
-        lastSelectableWordRef.current = banner;
+      const hasSelectableRange =
+        selectionTap.range !== null ||
+        (selectionTap.sectionId !== null && selectionTap.start !== null && selectionTap.end !== null);
+      if (hasSelectableRange) {
+        lastSelectableWordRef.current = selectionTap;
       }
     },
-    [normalizeWordKey, selectWordRange]
+    [normalizeWordKey, selectWordRangeFromTap]
   );
 
   const clearWordBanners = useCallback(() => {
@@ -1131,6 +1203,8 @@ export default function ReaderClient({
         return;
       }
 
+      const wordRange = getWordRangeFromPointRange(pointRange);
+      const safeWordRange = wordRange ? wordRange.cloneRange() : null;
       const banner =
         getWordBannerFromRange(pointRange) ?? {
           word: getWordAtPoint(x, y) ?? "(no word)",
@@ -1146,7 +1220,7 @@ export default function ReaderClient({
       if (process.env.NODE_ENV !== "production") {
         console.debug("[double-tap] banner", banner);
       }
-      addWordBanner(banner);
+      addWordBanner({ ...banner, range: safeWordRange });
     },
     [addWordBanner, getWordBannerFromRange, setDebugTapInfo]
   );
@@ -1515,6 +1589,8 @@ export default function ReaderClient({
       event.preventDefault();
       event.stopPropagation();
 
+      const wordRange = getWordRangeFromPointRange(pointRange);
+      const safeWordRange = wordRange ? wordRange.cloneRange() : null;
       const banner =
         getWordBannerFromRange(pointRange) ?? {
           word: getWordAtPoint(event.clientX, event.clientY) ?? "(no word)",
@@ -1522,7 +1598,7 @@ export default function ReaderClient({
           start: null,
           end: null,
         };
-      addWordBanner(banner);
+      addWordBanner({ ...banner, range: safeWordRange });
 
     },
     [addWordBanner, getWordBannerFromRange]
