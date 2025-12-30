@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { getClientApiBase } from "@/lib/apiBase";
 
 type Selection = {
   id: number;
@@ -84,6 +84,7 @@ export default function ReaderHighlightsPanel({
   isActive,
   onJumpToSelection,
 }: ReaderHighlightsPanelProps) {
+  const apiBase = getClientApiBase();
   const [activeTab, setActiveTab] = useState<TabKey>("selections");
   const [bundles, setBundles] = useState<SelectionBundle[]>([]);
   const [sectionsById, setSectionsById] = useState<Map<number, string>>(new Map());
@@ -98,7 +99,7 @@ export default function ReaderHighlightsPanel({
     const load = async () => {
       setLoading(true);
       try {
-        const documentRes = await fetch(`${API_BASE}/books/${documentId}`, {
+        const documentRes = await fetch(`${apiBase}/books/${documentId}`, {
           cache: "no-store",
         });
         if (!documentRes.ok) {
@@ -114,7 +115,7 @@ export default function ReaderHighlightsPanel({
         });
 
         const selectionsRes = await fetch(
-          `${API_BASE}/selections?document_id=${documentId}`,
+          `${apiBase}/selections?document_id=${documentId}`,
           { cache: "no-store" }
         );
         if (!selectionsRes.ok) {
@@ -128,8 +129,8 @@ export default function ReaderHighlightsPanel({
         const nextBundles = await Promise.all(
           selections.map(async (selection) => {
             const [additionsRes, markersRes] = await Promise.all([
-              fetch(`${API_BASE}/additions?selection_id=${selection.id}`, { cache: "no-store" }),
-              fetch(`${API_BASE}/markers?target_type=selection&target_id=${selection.id}`, {
+              fetch(`${apiBase}/additions?selection_id=${selection.id}`, { cache: "no-store" }),
+              fetch(`${apiBase}/markers?target_type=selection&target_id=${selection.id}`, {
                 cache: "no-store",
               }),
             ]);
@@ -144,7 +145,7 @@ export default function ReaderHighlightsPanel({
             const additionMarkersEntries = await Promise.all(
               additions.map(async (addition) => {
                 const response = await fetch(
-                  `${API_BASE}/markers?target_type=addition&target_id=${addition.id}`,
+                  `${apiBase}/markers?target_type=addition&target_id=${addition.id}`,
                   { cache: "no-store" }
                 );
                 if (!response.ok) {
@@ -185,7 +186,7 @@ export default function ReaderHighlightsPanel({
     return () => {
       cancelled = true;
     };
-  }, [documentId, refreshKey, isActive]);
+  }, [apiBase, documentId, refreshKey, isActive]);
 
   const additions = useMemo(() => {
     return bundles.flatMap((bundle) =>

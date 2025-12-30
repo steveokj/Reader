@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
@@ -13,11 +13,14 @@ import SidePanel from "@/components/SidePanel";
 import AudioRecorderModal from "@/components/modals/AudioRecorderModal";
 import GrammarModal from "@/components/modals/GrammarModal";
 import NoteModal from "@/components/modals/NoteModal";
+import { getClientApiBase } from "@/lib/apiBase";
 import { buildQuoteSelector } from "@/lib/selection/buildQuoteSelector";
 import { getSelectionOffsets } from "@/lib/selection/getSelectionOffsets";
 import { rangeFromOffsets } from "@/lib/selection/rangeFromOffsets";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const LONG_PRESS_DELAY = 500;
+const LONG_PRESS_MOVE_THRESHOLD = 10;
+const LONG_PRESS_MULTIWORD_LENGTH = 12;
 
 type ReaderSection = {
   id: number;
@@ -184,12 +187,18 @@ export default function ReaderClient({
   sections,
   initialSectionKey,
 }: ReaderClientProps) {
+  const apiBase = getClientApiBase();
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<Range | null>(null);
   const audioSelectionRef = useRef<number | null>(null);
   const mobileNavRef = useRef<HTMLDivElement>(null);
   const mobilePanelRef = useRef<HTMLDivElement>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const longPressPointerRef = useRef<number | null>(null);
+  const longPressActiveRef = useRef(false);
+  const longPressAnchorRef = useRef<Range | null>(null);
 
   const [menuState, setMenuState] = useState<MenuState | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -211,6 +220,17 @@ export default function ReaderClient({
   const [mobilePanel, setMobilePanel] = useState<"chapters" | "highlights" | null>(null);
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
 
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const clearLongPressAnchor = useCallback(() => {
+    longPressAnchorRef.current = null;
+  }, []);
+
   const sectionById = useMemo(() => {
     return new Map(sections.map((section) => [section.id, section]));
   }, [sections]);
@@ -231,7 +251,7 @@ export default function ReaderClient({
       const entries = await Promise.all(
         items.map(async (item) => {
           const response = await fetch(
-            `${API_BASE}/markers?target_type=addition&target_id=${item.id}`,
+            `${apiBase}/markers?target_type=addition&target_id=${item.id}`,
             { cache: "no-store" }
           );
           if (!response.ok) {
@@ -250,7 +270,7 @@ export default function ReaderClient({
   const refreshAdditions = useCallback(
     async (selectionId: number) => {
       try {
-        const response = await fetch(`${API_BASE}/additions?selection_id=${selectionId}`, {
+        const response = await fetch(`${apiBase}/additions?selection_id=${selectionId}`, {
           cache: "no-store",
         });
         if (!response.ok) {
@@ -270,7 +290,7 @@ export default function ReaderClient({
   const refreshMarkers = useCallback(async (selectionId: number) => {
     try {
       const response = await fetch(
-        `${API_BASE}/markers?target_type=selection&target_id=${selectionId}`,
+        `${apiBase}/markers?target_type=selection&target_id=${selectionId}`,
         { cache: "no-store" }
       );
       if (!response.ok) {
@@ -286,7 +306,7 @@ export default function ReaderClient({
   useEffect(() => {
     const loadSelections = async () => {
       try {
-        const response = await fetch(`${API_BASE}/selections?document_id=${documentId}`, {
+        const response = await fetch(`${apiBase}/selections?document_id=${documentId}`, {
           cache: "no-store",
         });
         if (!response.ok) {
@@ -370,7 +390,8 @@ export default function ReaderClient({
     setPendingMarkerKinds([]);
     setDraftSelection(null);
     anchorRef.current = null;
-  }, []);
+    clearLongPressTimer();
+  }, [clearLongPressTimer]);
 
   const discardDraftSelection = useCallback(() => {
     if (!activeSelectionId && !isCommitted) {
@@ -384,7 +405,7 @@ export default function ReaderClient({
     async (selector: MenuState["selector"], sectionId: number): Promise<Selection | null> => {
       setIsSaving(true);
       try {
-        const response = await fetch(`${API_BASE}/selections`, {
+        const response = await fetch(`${apiBase}/selections`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -421,7 +442,7 @@ export default function ReaderClient({
   const persistSelectionMarkers = useCallback(async (selectionId: number, kinds: MarkerKind[]) => {
     const created: Marker[] = [];
     for (const kind of kinds) {
-      const response = await fetch(`${API_BASE}/markers`, {
+      const response = await fetch(`${apiBase}/markers`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -495,6 +516,7 @@ export default function ReaderClient({
 
   const finalizeRange = useCallback(
     (range: Range) => {
+      clearLongPressAnchor();
       const container = containerRef.current;
       if (!container) {
         return;
@@ -560,8 +582,106 @@ export default function ReaderClient({
       }
       setPendingMarkerKinds([]);
     },
-    [clearSelection, getSectionElementFromNode, sectionById, selections]
+    [clearLongPressAnchor, clearSelection, getSectionElementFromNode, sectionById, selections]
   );
+
+  const handleLongPressPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== "touch") {
+        return;
+      }
+      clearLongPressTimer();
+      longPressActiveRef.current = true;
+      longPressPointerRef.current = event.pointerId;
+      longPressStartRef.current = { x: event.clientX, y: event.clientY };
+      const pressX = event.clientX;
+      const pressY = event.clientY;
+
+      longPressTimerRef.current = window.setTimeout(() => {
+        if (!longPressActiveRef.current) {
+          return;
+        }
+        const selection = window.getSelection();
+        const selectionText = selection?.toString() ?? "";
+        const normalized = selectionText.replace(/\s+/g, " ").trim();
+        if (normalized.length > LONG_PRESS_MULTIWORD_LENGTH || normalized.includes(" ")) {
+          return;
+        }
+
+        const range = getCaretRangeFromPoint(pressX, pressY);
+        if (!range) {
+          return;
+        }
+        const sectionElement = getSectionElementFromNode(range.startContainer);
+        if (!sectionElement) {
+          return;
+        }
+
+        if (longPressAnchorRef.current) {
+          const combined = buildRange(longPressAnchorRef.current, range);
+          clearLongPressAnchor();
+          if (selection) {
+            selection.removeAllRanges();
+            selection.addRange(combined);
+          }
+          finalizeRange(combined);
+        } else {
+          if (selection) {
+            selection.removeAllRanges();
+          }
+          longPressAnchorRef.current = range;
+        }
+      }, LONG_PRESS_DELAY);
+    },
+    [clearLongPressAnchor, clearLongPressTimer, finalizeRange, getSectionElementFromNode]
+  );
+
+  const handleLongPressPointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== "touch") {
+        return;
+      }
+      if (longPressPointerRef.current !== event.pointerId) {
+        return;
+      }
+      const start = longPressStartRef.current;
+      if (!start) {
+        return;
+      }
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
+      if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_THRESHOLD) {
+        clearLongPressTimer();
+        longPressActiveRef.current = false;
+        if (longPressAnchorRef.current) {
+          clearLongPressAnchor();
+        }
+      }
+    },
+    [clearLongPressAnchor, clearLongPressTimer]
+  );
+
+  const handleLongPressPointerUp = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== "touch") {
+        return;
+      }
+      if (longPressPointerRef.current === event.pointerId) {
+        longPressActiveRef.current = false;
+        longPressPointerRef.current = null;
+        longPressStartRef.current = null;
+        clearLongPressTimer();
+      }
+    },
+    [clearLongPressTimer]
+  );
+
+  const handleLongPressPointerCancel = useCallback(() => {
+    longPressActiveRef.current = false;
+    longPressPointerRef.current = null;
+    longPressStartRef.current = null;
+    clearLongPressTimer();
+  }, [clearLongPressTimer]);
 
   const handlePointerUp = useCallback(() => {
     const selection = window.getSelection();
@@ -729,7 +849,7 @@ export default function ReaderClient({
     }
 
     try {
-      const response = await fetch(`${API_BASE}/selections/${selectionId}`, {
+      const response = await fetch(`${apiBase}/selections/${selectionId}`, {
         method: "DELETE",
       });
       if (response.ok) {
@@ -765,7 +885,7 @@ export default function ReaderClient({
       }
 
       if (editingNote) {
-        const response = await fetch(`${API_BASE}/additions/${editingNote.id}`, {
+        const response = await fetch(`${apiBase}/additions/${editingNote.id}`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
@@ -785,7 +905,7 @@ export default function ReaderClient({
           }
         }
       } else {
-        const response = await fetch(`${API_BASE}/additions`, {
+        const response = await fetch(`${apiBase}/additions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -823,7 +943,7 @@ export default function ReaderClient({
       const textContent =
         payload.kind === "word" || payload.kind === "bars" ? payload.text ?? null : null;
 
-      const response = await fetch(`${API_BASE}/additions`, {
+      const response = await fetch(`${apiBase}/additions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -860,7 +980,7 @@ export default function ReaderClient({
         return;
       }
 
-      const response = await fetch(`${API_BASE}/additions`, {
+      const response = await fetch(`${apiBase}/additions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -903,7 +1023,7 @@ export default function ReaderClient({
       }
       const existing = markers.find((marker) => marker.kind === kind);
       if (existing) {
-        const response = await fetch(`${API_BASE}/markers/${existing.id}`, {
+        const response = await fetch(`${apiBase}/markers/${existing.id}`, {
           method: "DELETE",
         });
         if (response.ok) {
@@ -911,7 +1031,7 @@ export default function ReaderClient({
         }
         return;
       }
-      const response = await fetch(`${API_BASE}/markers`, {
+      const response = await fetch(`${apiBase}/markers`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -936,7 +1056,7 @@ export default function ReaderClient({
     async (additionId: number, kind: MarkerKind) => {
       const existing = (additionMarkers[additionId] ?? []).find((marker) => marker.kind === kind);
       if (existing) {
-        const response = await fetch(`${API_BASE}/markers/${existing.id}`, {
+        const response = await fetch(`${apiBase}/markers/${existing.id}`, {
           method: "DELETE",
         });
         if (response.ok) {
@@ -947,7 +1067,7 @@ export default function ReaderClient({
         }
         return;
       }
-      const response = await fetch(`${API_BASE}/markers`, {
+      const response = await fetch(`${apiBase}/markers`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -977,7 +1097,7 @@ export default function ReaderClient({
     }
     const selectionId = activeSelectionId;
     try {
-      const response = await fetch(`${API_BASE}/selections/${selectionId}`, {
+      const response = await fetch(`${apiBase}/selections/${selectionId}`, {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -1012,6 +1132,13 @@ export default function ReaderClient({
         return;
       }
       if (event.detail >= 3) {
+        if (menuState) {
+          return;
+        }
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed) {
+          return;
+        }
         setMobileNavOpen(true);
         return;
       }
@@ -1025,7 +1152,7 @@ export default function ReaderClient({
       setMobileNavOpen(false);
       setMobilePanel(null);
     },
-    [isMobile, mobileNavOpen]
+    [isMobile, menuState, mobileNavOpen]
   );
 
   const handleJumpToSelection = useCallback(
@@ -1115,6 +1242,10 @@ export default function ReaderClient({
             onMouseUp={handlePointerUp}
             onTouchEnd={handlePointerUp}
             onDoubleClick={handleDoubleClick}
+            onPointerDown={handleLongPressPointerDown}
+            onPointerMove={handleLongPressPointerMove}
+            onPointerUp={handleLongPressPointerUp}
+            onPointerCancel={handleLongPressPointerCancel}
           >
             {sections.map((section) => (
               <section
@@ -1129,7 +1260,7 @@ export default function ReaderClient({
                 <ReaderDocument
                   contentText={section.content_text}
                   contentHtml={section.content_html}
-                  mediaBase={API_BASE}
+                  mediaBase={apiBase}
                 />
               </section>
             ))}
@@ -1234,7 +1365,7 @@ export default function ReaderClient({
             additions={additions}
             markers={markers}
             additionMarkers={additionMarkers}
-            mediaBase={API_BASE}
+            mediaBase={apiBase}
             documentId={documentId}
             highlightsRefreshKey={selections.length + additions.length + markers.length}
             initialTab="highlights"
@@ -1278,7 +1409,7 @@ export default function ReaderClient({
       />
       <AudioRecorderModal
         isOpen={audioModalOpen}
-        apiBase={API_BASE}
+        apiBase={apiBase}
         markerKinds={modalMarkerKinds}
         onToggleMarker={modalToggle}
         onSave={handleSaveAudio}

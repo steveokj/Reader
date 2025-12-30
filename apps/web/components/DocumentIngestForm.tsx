@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import { useState } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+import { getClientApiBase } from "@/lib/apiBase";
 
 export default function DocumentIngestForm() {
+  const apiBase = getClientApiBase();
   const router = useRouter();
   const [epubTitle, setEpubTitle] = useState("");
   const [epubFile, setEpubFile] = useState<File | null>(null);
@@ -30,7 +31,7 @@ export default function DocumentIngestForm() {
       formData.append("title", epubTitle.trim());
     }
     try {
-      const response = await fetch(`${API_BASE}/books/ingest/epub`, {
+      const response = await fetch(`${apiBase}/books/ingest/epub`, {
         method: "POST",
         body: formData,
       });
@@ -58,7 +59,7 @@ export default function DocumentIngestForm() {
     setIsSubmitting(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/books/ingest/article`, {
+      const response = await fetch(`${apiBase}/books/ingest/article`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
