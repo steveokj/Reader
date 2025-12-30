@@ -59,6 +59,35 @@ function getWordAtOffset(text: string, offset: number): string | null {
   return normalizeBannerText(text.slice(start, end));
 }
 
+function getWordBoundsAtOffset(
+  text: string,
+  offset: number
+): { word: string; start: number; end: number } | null {
+  if (!text) {
+    return null;
+  }
+  let index = Math.min(Math.max(offset, 0), text.length - 1);
+  if (!isWordChar(text[index]) && index > 0 && isWordChar(text[index - 1])) {
+    index -= 1;
+  }
+  if (!isWordChar(text[index]) && index + 1 < text.length && isWordChar(text[index + 1])) {
+    index += 1;
+  }
+  if (!isWordChar(text[index])) {
+    return null;
+  }
+  let start = index;
+  let end = index + 1;
+  while (start > 0 && isWordChar(text[start - 1])) {
+    start -= 1;
+  }
+  while (end < text.length && isWordChar(text[end])) {
+    end += 1;
+  }
+  const word = normalizeBannerText(text.slice(start, end));
+  return word ? { word, start, end } : null;
+}
+
 function getCaretPoint(x: number, y: number): CaretPoint | null {
   const caretPositionFromPoint = (
     document as unknown as {
@@ -282,6 +311,14 @@ type Marker = {
   kind: "like" | "highlight" | "todo";
 };
 
+type WordBanner = {
+  id: number;
+  word: string;
+  sectionId: number | null;
+  start: number | null;
+  end: number | null;
+};
+
 type MarkerKind = "like" | "highlight" | "todo";
 
 type DraftSelection = {
@@ -433,8 +470,9 @@ export default function ReaderClient({
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
   const [debugTapInfo, setDebugTapInfo] = useState("");
   const [isMounted, setIsMounted] = useState(false);
-  const [wordBanners, setWordBanners] = useState<Array<{ id: number; word: string }>>([]);
+  const [wordBanners, setWordBanners] = useState<WordBanner[]>([]);
   const nextWordBannerIdRef = useRef(0);
+  const lastWordTapRef = useRef<WordBanner | null>(null);
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -474,19 +512,12 @@ export default function ReaderClient({
     return null;
   }, []);
 
-  const addWordBanner = useCallback((word: string) => {
-    setWordBanners((prev) => {
-      const next = [...prev, { id: nextWordBannerIdRef.current++, word }];
-      return next.slice(Math.max(0, next.length - 3));
-    });
+  const normalizeWordKey = useCallback((value: string) => {
+    return normalizeBannerText(value).toLowerCase();
   }, []);
 
-  const clearWordBanners = useCallback(() => {
-    setWordBanners([]);
-  }, []);
-
-  const getWordFromRangeInSection = useCallback(
-    (range: Range): string | null => {
+  const getWordBannerFromRange = useCallback(
+    (range: Range): Omit<WordBanner, "id"> | null => {
       const sectionElement = getSectionElementFromNode(range.startContainer);
       if (!sectionElement) {
         return null;
@@ -504,10 +535,86 @@ export default function ReaderClient({
       const currentText = usesParagraphOffsets
         ? section?.content_text ?? ""
         : sectionElement.textContent ?? section?.content_text ?? "";
-      return getWordAtOffset(currentText, offsets.start);
+      const wordInfo = getWordBoundsAtOffset(currentText, offsets.start);
+      if (!wordInfo) {
+        return null;
+      }
+      return {
+        word: wordInfo.word,
+        sectionId,
+        start: wordInfo.start,
+        end: wordInfo.end,
+      };
     },
     [getSectionElementFromNode, sectionById]
   );
+
+  const selectWordRange = useCallback((first: WordBanner, second: WordBanner) => {
+    if (
+      first.sectionId === null ||
+      second.sectionId === null ||
+      first.start === null ||
+      first.end === null ||
+      second.start === null ||
+      second.end === null
+    ) {
+      return;
+    }
+    if (first.sectionId !== second.sectionId) {
+      return;
+    }
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+    const sectionElement = container.querySelector<HTMLElement>(
+      `[data-section-id="${first.sectionId}"]`
+    );
+    if (!sectionElement) {
+      return;
+    }
+    const start = Math.min(first.start, second.start);
+    const end = Math.max(first.end, second.end);
+    if (start === end) {
+      return;
+    }
+    const range = rangeFromOffsets(sectionElement, start, end);
+    if (!range) {
+      return;
+    }
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  }, []);
+
+  const addWordBanner = useCallback(
+    (tap: Omit<WordBanner, "id">) => {
+      const banner: WordBanner = {
+        id: nextWordBannerIdRef.current++,
+        word: tap.word,
+        sectionId: tap.sectionId,
+        start: tap.start,
+        end: tap.end,
+      };
+      setWordBanners((prev) => {
+        const next = [...prev, banner];
+        return next.slice(Math.max(0, next.length - 3));
+      });
+      const previous = lastWordTapRef.current;
+      if (previous && normalizeWordKey(previous.word) !== normalizeWordKey(banner.word)) {
+        selectWordRange(previous, banner);
+      }
+      lastWordTapRef.current = banner;
+    },
+    [normalizeWordKey, selectWordRange]
+  );
+
+  const clearWordBanners = useCallback(() => {
+    setWordBanners([]);
+    lastWordTapRef.current = null;
+  }, []);
 
   const clearLongPressAnchor = useCallback(() => {
     longPressAnchorRef.current = null;
@@ -1006,11 +1113,16 @@ export default function ReaderClient({
         return;
       }
 
-      const word =
-        getWordFromRangeInSection(pointRange) ?? getWordAtPoint(x, y) ?? "(no word)";
-      addWordBanner(word);
+      const banner =
+        getWordBannerFromRange(pointRange) ?? {
+          word: getWordAtPoint(x, y) ?? "(no word)",
+          sectionId: null,
+          start: null,
+          end: null,
+        };
+      addWordBanner(banner);
     },
-    [addWordBanner, getWordFromRangeInSection]
+    [addWordBanner, getWordBannerFromRange]
   );
 
   const processTapSequence = useCallback(
@@ -1381,18 +1493,21 @@ export default function ReaderClient({
       event.preventDefault();
       event.stopPropagation();
 
-      const word =
-        getWordFromRangeInSection(pointRange) ??
-        getWordAtPoint(event.clientX, event.clientY) ??
-        "(no word)";
-      addWordBanner(word);
+      const banner =
+        getWordBannerFromRange(pointRange) ?? {
+          word: getWordAtPoint(event.clientX, event.clientY) ?? "(no word)",
+          sectionId: null,
+          start: null,
+          end: null,
+        };
+      addWordBanner(banner);
 
       const selection = window.getSelection();
       if (selection) {
         selection.removeAllRanges();
       }
     },
-    [addWordBanner, getWordFromRangeInSection]
+    [addWordBanner, getWordBannerFromRange]
   );
 
   const handleSelectHighlight = useCallback((selection: Selection) => {
