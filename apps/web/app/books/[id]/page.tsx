@@ -1,5 +1,4 @@
 import ReaderClient from "@/components/ReaderClient";
-import ReaderSectionPicker from "@/components/ReaderSectionPicker";
 import { stripDocumentTitleFromHtml } from "@/lib/reader/stripDocumentTitle";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -71,18 +70,11 @@ export default async function BookReaderRoute({ params, searchParams }: ReaderRo
 
   return (
     <main className="reader-main">
-      <header className="reader-header">
-        <div className="reader-kicker">{data.document.source_type}</div>
-        <h1 className="reader-title">{data.document.title}</h1>
-      </header>
-      <ReaderSectionPicker
-        documentId={data.document.id}
-        sections={sections}
-        activeKey={requestedSectionKey}
-      />
       {sections.length ? (
         <ReaderClient
           documentId={data.document.id}
+          documentTitle={data.document.title}
+          sourceType={data.document.source_type}
           sections={sections}
           initialSectionKey={requestedSectionKey}
         />

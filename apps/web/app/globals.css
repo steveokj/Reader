@@ -456,6 +456,7 @@ a {
   min-width: 0;
   height: 100vh;
   overflow: hidden;
+  touch-action: manipulation;
 }
 
 .reader-shell {
@@ -1221,6 +1222,20 @@ a {
 
 .mobile-nav button.is-active {
   color: var(--accent);
+}
+
+.mobile-debug-banner {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  margin: 0 16px 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(31, 28, 22, 0.08);
+  font-size: 11px;
+  color: rgba(31, 28, 22, 0.7);
+  text-align: center;
+  pointer-events: none;
 }
 
 @media (max-width: 900px) {
