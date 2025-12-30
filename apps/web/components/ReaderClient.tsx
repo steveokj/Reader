@@ -472,7 +472,7 @@ export default function ReaderClient({
   const [isMounted, setIsMounted] = useState(false);
   const [wordBanners, setWordBanners] = useState<WordBanner[]>([]);
   const nextWordBannerIdRef = useRef(0);
-  const lastWordTapRef = useRef<WordBanner | null>(null);
+  const lastSelectableWordRef = useRef<WordBanner | null>(null);
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -602,18 +602,26 @@ export default function ReaderClient({
         const next = [...prev, banner];
         return next.slice(Math.max(0, next.length - 3));
       });
-      const previous = lastWordTapRef.current;
-      if (previous && normalizeWordKey(previous.word) !== normalizeWordKey(banner.word)) {
+      const previous = lastSelectableWordRef.current;
+      const bannerSelectable =
+        banner.sectionId !== null && banner.start !== null && banner.end !== null;
+      if (
+        previous &&
+        bannerSelectable &&
+        normalizeWordKey(previous.word) !== normalizeWordKey(banner.word)
+      ) {
         selectWordRange(previous, banner);
       }
-      lastWordTapRef.current = banner;
+      if (bannerSelectable) {
+        lastSelectableWordRef.current = banner;
+      }
     },
     [normalizeWordKey, selectWordRange]
   );
 
   const clearWordBanners = useCallback(() => {
     setWordBanners([]);
-    lastWordTapRef.current = null;
+    lastSelectableWordRef.current = null;
   }, []);
 
   const clearLongPressAnchor = useCallback(() => {
@@ -1502,10 +1510,6 @@ export default function ReaderClient({
         };
       addWordBanner(banner);
 
-      const selection = window.getSelection();
-      if (selection) {
-        selection.removeAllRanges();
-      }
     },
     [addWordBanner, getWordBannerFromRange]
   );
