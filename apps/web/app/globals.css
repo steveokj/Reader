@@ -1259,14 +1259,20 @@ a {
   pointer-events: none;
 }
 
-.double-tap-banner--first {
-  top: calc(env(safe-area-inset-top, 0px) + 80px);
+.double-tap-banner--slot-1 {
+  top: calc(env(safe-area-inset-top, 0px) + 48px);
 }
 
-.double-tap-banner--second {
-  top: calc(env(safe-area-inset-top, 0px) + 44px);
+.double-tap-banner--slot-2 {
+  top: calc(env(safe-area-inset-top, 0px) + 84px);
   background: rgba(31, 28, 22, 0.08);
   border-color: rgba(31, 28, 22, 0.2);
+}
+
+.double-tap-banner--slot-3 {
+  top: calc(env(safe-area-inset-top, 0px) + 120px);
+  background: rgba(31, 28, 22, 0.06);
+  border-color: rgba(31, 28, 22, 0.18);
 }
 
 @media (max-width: 900px) {

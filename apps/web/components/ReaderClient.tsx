@@ -433,12 +433,8 @@ export default function ReaderClient({
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
   const [debugTapInfo, setDebugTapInfo] = useState("");
   const [isMounted, setIsMounted] = useState(false);
-  const [firstTapWord, setFirstTapWordState] = useState("");
-  const [secondTapWord, setSecondTapWordState] = useState("");
-  const firstTapWordRef = useRef("");
-  const secondTapWordRef = useRef("");
-  const doubleClickStepRef = useRef<0 | 1>(0);
-  const doubleClickResetTimerRef = useRef<number | null>(null);
+  const [wordBanners, setWordBanners] = useState<Array<{ id: number; word: string }>>([]);
+  const nextWordBannerIdRef = useRef(0);
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -478,54 +474,16 @@ export default function ReaderClient({
     return null;
   }, []);
 
-  const setFirstTapWord = useCallback((word: string) => {
-    firstTapWordRef.current = word;
-    setFirstTapWordState(word);
+  const addWordBanner = useCallback((word: string) => {
+    setWordBanners((prev) => {
+      const next = [...prev, { id: nextWordBannerIdRef.current++, word }];
+      return next.slice(Math.max(0, next.length - 3));
+    });
   }, []);
 
-  const setSecondTapWord = useCallback((word: string) => {
-    secondTapWordRef.current = word;
-    setSecondTapWordState(word);
+  const clearWordBanners = useCallback(() => {
+    setWordBanners([]);
   }, []);
-
-  const clearDoubleClickTimer = useCallback(() => {
-    if (doubleClickResetTimerRef.current !== null) {
-      window.clearTimeout(doubleClickResetTimerRef.current);
-      doubleClickResetTimerRef.current = null;
-    }
-  }, []);
-
-  const resetDoubleClickSequence = useCallback(() => {
-    doubleClickStepRef.current = 0;
-    clearDoubleClickTimer();
-  }, [clearDoubleClickTimer]);
-
-  const registerDoubleClickWord = useCallback(
-    (word: string) => {
-      if (doubleClickStepRef.current === 0) {
-        setFirstTapWord(word);
-        setSecondTapWordState("");
-        secondTapWordRef.current = "";
-        doubleClickStepRef.current = 1;
-        clearDoubleClickTimer();
-        doubleClickResetTimerRef.current = window.setTimeout(() => {
-          resetDoubleClickSequence();
-        }, 2000);
-      } else {
-        setSecondTapWord(word);
-        resetDoubleClickSequence();
-      }
-    },
-    [clearDoubleClickTimer, resetDoubleClickSequence, setFirstTapWord, setSecondTapWord]
-  );
-
-  const clearTapWords = useCallback(() => {
-    firstTapWordRef.current = "";
-    secondTapWordRef.current = "";
-    setFirstTapWordState("");
-    setSecondTapWordState("");
-    resetDoubleClickSequence();
-  }, [resetDoubleClickSequence]);
 
   const getWordFromRangeInSection = useCallback(
     (range: Range): string | null => {
@@ -723,8 +681,8 @@ export default function ReaderClient({
     anchorRef.current = null;
     clearLongPressTimer();
     resetTapState();
-    clearTapWords();
-  }, [clearLongPressTimer, resetTapState, clearTapWords]);
+    clearWordBanners();
+  }, [clearLongPressTimer, resetTapState, clearWordBanners]);
 
   const discardDraftSelection = useCallback(() => {
     if (!activeSelectionId && !isCommitted) {
@@ -1050,9 +1008,9 @@ export default function ReaderClient({
 
       const word =
         getWordFromRangeInSection(pointRange) ?? getWordAtPoint(x, y) ?? "(no word)";
-      registerDoubleClickWord(word);
+      addWordBanner(word);
     },
-    [getWordFromRangeInSection, registerDoubleClickWord]
+    [addWordBanner, getWordFromRangeInSection]
   );
 
   const processTapSequence = useCallback(
@@ -1376,8 +1334,15 @@ export default function ReaderClient({
     };
   }, [handleTapPoint, isMobile]);
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((event: MouseEvent<HTMLDivElement>) => {
     if (Date.now() - lastPointerTouchUpRef.current < 400) {
+      return;
+    }
+    if (event.detail > 1) {
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+      }
       return;
     }
     const selection = window.getSelection();
@@ -1414,19 +1379,20 @@ export default function ReaderClient({
       }
 
       event.preventDefault();
+      event.stopPropagation();
 
       const word =
         getWordFromRangeInSection(pointRange) ??
         getWordAtPoint(event.clientX, event.clientY) ??
         "(no word)";
-      registerDoubleClickWord(word);
+      addWordBanner(word);
 
       const selection = window.getSelection();
       if (selection) {
         selection.removeAllRanges();
       }
     },
-    [getWordFromRangeInSection, registerDoubleClickWord]
+    [addWordBanner, getWordFromRangeInSection]
   );
 
   const handleSelectHighlight = useCallback((selection: Selection) => {
@@ -1899,22 +1865,25 @@ export default function ReaderClient({
         )
       : null;
 
-  const firstWordBanner =
-    isMounted && firstTapWord
+  const wordBannerStack =
+    isMounted && wordBanners.length
       ? createPortal(
-          <div className="double-tap-banner double-tap-banner--first">
-            <span>1st: {firstTapWord}</span>
-          </div>,
-          document.body
-        )
-      : null;
-
-  const secondWordBanner =
-    isMounted && secondTapWord
-      ? createPortal(
-          <div className="double-tap-banner double-tap-banner--second">
-            <span>2nd: {secondTapWord}</span>
-          </div>,
+          <>
+            {wordBanners.map((banner, index) => {
+              const label =
+                index === 0 ? "1st" : index === 1 ? "2nd" : index === 2 ? "3rd" : `${index + 1}th`;
+              return (
+                <div
+                  key={banner.id}
+                  className={`double-tap-banner double-tap-banner--slot-${index + 1}`}
+                >
+                  <span>
+                    {label}: {banner.word}
+                  </span>
+                </div>
+              );
+            })}
+          </>,
           document.body
         )
       : null;
@@ -1922,8 +1891,7 @@ export default function ReaderClient({
   return (
     <div className="reader-layout reader-layout--columns">
       {debugBanner}
-      {firstWordBanner}
-      {secondWordBanner}
+      {wordBannerStack}
       <aside className="reader-sidebar">
         <div className="reader-sidebar__header">
           <div className="reader-kicker">{sourceType}</div>
