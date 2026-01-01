@@ -41,6 +41,7 @@ type SelectionOverlayProps = {
   activeSelectionId: number | null;
   onSelect: (selection: Selection) => void;
   getSectionElement?: (selection: Selection) => HTMLElement | null;
+  refreshKey?: string | number;
 };
 
 export default function SelectionOverlay({
@@ -49,6 +50,7 @@ export default function SelectionOverlay({
   activeSelectionId,
   onSelect,
   getSectionElement,
+  refreshKey,
 }: SelectionOverlayProps) {
   const [highlights, setHighlights] = useState<Highlight[]>([]);
 
@@ -89,7 +91,7 @@ export default function SelectionOverlay({
 
   useLayoutEffect(() => {
     computeHighlights();
-  }, [computeHighlights]);
+  }, [computeHighlights, refreshKey]);
 
   useEffect(() => {
     let frame: number | null = null;

@@ -10,6 +10,7 @@ from .routes.documents import router as documents_router
 from .routes.markers import router as markers_router
 from .routes.media import router as media_router
 from .routes.selections import router as selections_router
+from .routes.settings import router as settings_router
 
 app = FastAPI()
 
@@ -38,6 +39,7 @@ app.include_router(selections_router)
 app.include_router(additions_router)
 app.include_router(markers_router)
 app.include_router(media_router)
+app.include_router(settings_router)
 
 MEDIA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "media"))
 os.makedirs(MEDIA_DIR, exist_ok=True)

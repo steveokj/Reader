@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { MouseEvent } from "react";
+import type { CSSProperties, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import ActionMenu from "@/components/ActionMenu";
+import DocumentIngestForm from "@/components/DocumentIngestForm";
 import ReaderDocument from "@/components/ReaderDocument";
 import ReaderHighlightsPanel from "@/components/ReaderHighlightsPanel";
+import ReaderSettingsPanel from "@/components/ReaderSettingsPanel";
 import ReaderSectionPicker from "@/components/ReaderSectionPicker";
 import SelectionOverlay from "@/components/SelectionOverlay";
 import SidePanel from "@/components/SidePanel";
@@ -15,6 +17,14 @@ import AudioRecorderModal from "@/components/modals/AudioRecorderModal";
 import GrammarModal from "@/components/modals/GrammarModal";
 import NoteModal from "@/components/modals/NoteModal";
 import { getClientApiBase } from "@/lib/apiBase";
+import {
+  defaultReaderSettings,
+  getFontFamilyCss,
+  getThemeTokens,
+  getTextWidthStyles,
+  type ReaderSettings,
+  type ReaderSettingsUpdate,
+} from "@/lib/reader/settings";
 import { buildQuoteSelector } from "@/lib/selection/buildQuoteSelector";
 import { getSelectionOffsets } from "@/lib/selection/getSelectionOffsets";
 import { rangeFromOffsets } from "@/lib/selection/rangeFromOffsets";
@@ -501,13 +511,22 @@ export default function ReaderClient({
   const scrolledSectionRef = useRef<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState<"chapters" | "highlights" | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<
+    "chapters" | "highlights" | "new" | "settings" | null
+  >(null);
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
   const [debugTapInfo, setDebugTapInfo] = useState("");
   const [isMounted, setIsMounted] = useState(false);
   const [wordBanners, setWordBanners] = useState<WordBanner[]>([]);
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
+  const [readerSettings, setReaderSettings] = useState<ReaderSettings>(defaultReaderSettings);
+  const [settingsStatus, setSettingsStatus] = useState<"idle" | "loading" | "saving" | "error">(
+    "loading"
+  );
+  const settingsSaveTimerRef = useRef<number | null>(null);
+  const pendingSettingsRef = useRef<ReaderSettingsUpdate>({});
+  const settingsTouchedRef = useRef(false);
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -528,6 +547,152 @@ export default function ReaderClient({
     lastTapRef.current = null;
     clearTapTimer();
   }, [clearTapTimer]);
+
+  const queueSettingsUpdate = useCallback(
+    (update: ReaderSettingsUpdate) => {
+      settingsTouchedRef.current = true;
+      setReaderSettings((prev) => ({ ...prev, ...update }));
+      pendingSettingsRef.current = { ...pendingSettingsRef.current, ...update };
+
+      if (settingsSaveTimerRef.current !== null) {
+        window.clearTimeout(settingsSaveTimerRef.current);
+      }
+
+      settingsSaveTimerRef.current = window.setTimeout(async () => {
+        const payload = pendingSettingsRef.current;
+        pendingSettingsRef.current = {};
+        if (!Object.keys(payload).length) {
+          return;
+        }
+        setSettingsStatus("saving");
+        try {
+          const response = await fetch(`${apiBase}/settings`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) {
+            throw new Error("Failed to save settings.");
+          }
+          const data = (await response.json()) as { settings?: ReaderSettings };
+          if (data.settings) {
+            setReaderSettings((prev) => ({ ...prev, ...data.settings }));
+          }
+          setSettingsStatus("idle");
+        } catch (error) {
+          setSettingsStatus("error");
+        }
+      }, 320);
+    },
+    [apiBase]
+  );
+
+  const themeTokens = useMemo(
+    () => getThemeTokens(readerSettings.theme),
+    [readerSettings.theme]
+  );
+
+  const widthStyles = useMemo(
+    () => getTextWidthStyles(readerSettings.text_width),
+    [readerSettings.text_width]
+  );
+
+  const readerStyle = useMemo<CSSProperties>(() => {
+    return {
+      "--reader-font-size": `${readerSettings.font_size}px`,
+      "--reader-line-height": String(readerSettings.line_height),
+      "--reader-paragraph-spacing": `${readerSettings.paragraph_spacing}rem`,
+      "--reader-font-family": getFontFamilyCss(readerSettings.font_family),
+      "--reader-content-max-width": widthStyles.maxWidth,
+      "--reader-side-padding": widthStyles.sidePadding,
+      "--reader-ink": themeTokens.ink,
+      "--reader-paper": themeTokens.paper,
+      "--reader-panel": themeTokens.panel,
+      "--reader-border": themeTokens.border,
+      "--reader-shadow": themeTokens.shadow,
+      "--reader-accent": themeTokens.accent,
+      "--reader-highlight": themeTokens.highlight,
+      "--reader-highlight-active": themeTokens.highlightActive,
+      "--reader-ink-muted": themeTokens.inkMuted,
+      "--reader-ink-subtle": themeTokens.inkSubtle,
+      backgroundColor: themeTokens.paper,
+      color: themeTokens.ink,
+    } as CSSProperties;
+  }, [readerSettings, themeTokens, widthStyles]);
+
+  const readerScrollStyle = useMemo<CSSProperties>(
+    () => ({
+      paddingLeft: widthStyles.sidePadding,
+      paddingRight: widthStyles.sidePadding,
+    }),
+    [widthStyles.sidePadding]
+  );
+
+  const readerSectionStyle = useMemo<CSSProperties>(
+    () => ({
+      maxWidth: widthStyles.maxWidth,
+      width: "100%",
+      marginLeft: "auto",
+      marginRight: "auto",
+    }),
+    [widthStyles.maxWidth]
+  );
+
+  const readerArticleStyle = useMemo<CSSProperties>(
+    () => ({
+      fontSize: `${readerSettings.font_size}px`,
+      lineHeight: readerSettings.line_height,
+      fontFamily: getFontFamilyCss(readerSettings.font_family),
+    }),
+    [readerSettings.font_family, readerSettings.font_size, readerSettings.line_height]
+  );
+
+  const readerParagraphStyle = useMemo<CSSProperties>(
+    () => ({
+      marginBottom: `${readerSettings.paragraph_spacing}rem`,
+    }),
+    [readerSettings.paragraph_spacing]
+  );
+
+  const mobilePanelStyle = useMemo<CSSProperties>(
+    () => ({
+      backgroundColor: themeTokens.panel,
+      borderColor: themeTokens.border,
+      boxShadow: `0 16px 30px ${themeTokens.shadow}`,
+      color: themeTokens.ink,
+    }),
+    [themeTokens]
+  );
+
+  const mobileNavStyle = useMemo<CSSProperties>(
+    () => ({
+      backgroundColor: themeTokens.panel,
+      borderColor: themeTokens.border,
+      boxShadow: `0 18px 30px ${themeTokens.shadow}`,
+      color: themeTokens.ink,
+    }),
+    [themeTokens]
+  );
+
+  const navButtonStyle = useCallback(
+    (active: boolean): CSSProperties => ({
+      color: active ? themeTokens.accent : themeTokens.ink,
+      opacity: active ? 1 : 0.75,
+    }),
+    [themeTokens]
+  );
+
+  const highlightRefreshKey = useMemo(
+    () =>
+      [
+        readerSettings.font_size,
+        readerSettings.line_height,
+        readerSettings.paragraph_spacing,
+        readerSettings.text_width,
+        readerSettings.font_family,
+      ].join("|"),
+    [readerSettings]
+  );
 
   const sectionById = useMemo(() => {
     return new Map(sections.map((section) => [section.id, section]));
@@ -829,6 +994,74 @@ export default function ReaderClient({
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadSettings = async () => {
+      setSettingsStatus("loading");
+      try {
+        const response = await fetch(`${apiBase}/settings`, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Failed to load settings.");
+        }
+        const data = (await response.json()) as { settings?: ReaderSettings };
+        if (cancelled) {
+          return;
+        }
+        if (data.settings) {
+          setReaderSettings((prev) =>
+            settingsTouchedRef.current ? { ...data.settings, ...prev } : { ...prev, ...data.settings }
+          );
+        }
+        setSettingsStatus("idle");
+      } catch (error) {
+        if (!cancelled) {
+          setSettingsStatus("error");
+        }
+      }
+    };
+
+    loadSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase]);
+
+  useEffect(() => {
+    return () => {
+      if (settingsSaveTimerRef.current !== null) {
+        window.clearTimeout(settingsSaveTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const bodyStyle = document.body.style;
+    const previous = {
+      backgroundColor: bodyStyle.backgroundColor,
+      backgroundImage: bodyStyle.backgroundImage,
+      color: bodyStyle.color,
+    };
+    bodyStyle.backgroundImage = "none";
+    bodyStyle.backgroundColor = themeTokens.paper;
+    bodyStyle.color = themeTokens.ink;
+    return () => {
+      bodyStyle.backgroundColor = previous.backgroundColor;
+      bodyStyle.backgroundImage = previous.backgroundImage;
+      bodyStyle.color = previous.color;
+    };
+  }, [themeTokens]);
+
+  useEffect(() => {
+    if (!readerSettings.gesture_two_point_long_press) {
+      clearLongPressAnchor();
+      clearLongPressTimer();
+      longPressActiveRef.current = false;
+      longPressPointerRef.current = null;
+      longPressStartRef.current = null;
+    }
+  }, [clearLongPressAnchor, clearLongPressTimer, readerSettings.gesture_two_point_long_press]);
+
+  useEffect(() => {
     if (!isMobile) {
       setMobileNavOpen(false);
       setMobilePanel(null);
@@ -1036,9 +1269,11 @@ export default function ReaderClient({
 
       const rects = range.getClientRects();
       const rect = rects.length > 0 ? rects[0] : range.getBoundingClientRect();
+      const menuTop =
+        readerSettings.ui_action_menu_placement === "below" ? rect.bottom + 12 : rect.top - 48;
 
       setMenuState({
-        top: Math.max(12, rect.top - 48),
+        top: Math.max(12, menuTop),
         left: Math.max(12, rect.left),
         selectionText: selectedText,
         sectionId,
@@ -1057,13 +1292,23 @@ export default function ReaderClient({
       }
       setPendingMarkerKinds([]);
     },
-    [clearLongPressAnchor, clearSelection, getSectionElementFromNode, sectionById, selections]
+    [
+      clearLongPressAnchor,
+      clearSelection,
+      getSectionElementFromNode,
+      readerSettings.ui_action_menu_placement,
+      sectionById,
+      selections,
+    ]
   );
 
   const startLongPress = useCallback(
     (x: number, y: number, pointerId: number | null) => {
       clearLongPressTimer();
       tapEligibleRef.current = true;
+      if (!readerSettings.gesture_two_point_long_press) {
+        return;
+      }
       longPressActiveRef.current = true;
       longPressPointerRef.current = pointerId;
       longPressStartRef.current = { x, y };
@@ -1110,7 +1355,13 @@ export default function ReaderClient({
         }
       }, LONG_PRESS_DELAY);
     },
-    [clearLongPressAnchor, clearLongPressTimer, finalizeRange, getSectionElementFromNode]
+    [
+      clearLongPressAnchor,
+      clearLongPressTimer,
+      finalizeRange,
+      getSectionElementFromNode,
+      readerSettings.gesture_two_point_long_press,
+    ]
   );
 
   const moveLongPress = useCallback(
@@ -1225,6 +1476,16 @@ export default function ReaderClient({
     [addWordBanner, getWordBannerFromRange, setDebugTapInfo]
   );
 
+  const isCenterTap = useCallback((x: number, y: number) => {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const xMin = width * 0.25;
+    const xMax = width * 0.75;
+    const yMin = height * 0.25;
+    const yMax = height * 0.75;
+    return x >= xMin && x <= xMax && y >= yMin && y <= yMax;
+  }, []);
+
   const processTapSequence = useCallback(
     (x: number, y: number) => {
       if (!tapEligibleRef.current) {
@@ -1247,7 +1508,25 @@ export default function ReaderClient({
 
       if (nextCount === 1) {
         clearTapTimer();
+        const tapX = x;
+        const tapY = y;
         tapTimerRef.current = window.setTimeout(() => {
+          if (tapCountRef.current === 1 && readerSettings.gesture_center_tap) {
+            const selection = window.getSelection();
+            if (
+              !menuState &&
+              (!selection || selection.isCollapsed) &&
+              isCenterTap(tapX, tapY)
+            ) {
+              setMobileNavOpen((prev) => {
+                const next = !prev;
+                if (!next) {
+                  setMobilePanel(null);
+                }
+                return next;
+              });
+            }
+          }
           resetTapState();
         }, TAP_WINDOW_MS);
         return true;
@@ -1268,7 +1547,11 @@ export default function ReaderClient({
 
       if (nextCount >= 3) {
         const selection = window.getSelection();
-        if (!menuState && (!selection || selection.isCollapsed)) {
+        if (
+          readerSettings.gesture_triple_click &&
+          !menuState &&
+          (!selection || selection.isCollapsed)
+        ) {
           setMobileNavOpen(true);
         }
         resetTapState();
@@ -1277,7 +1560,15 @@ export default function ReaderClient({
 
       return false;
     },
-    [clearTapTimer, handleTouchDoubleTap, menuState, resetTapState]
+    [
+      clearTapTimer,
+      handleTouchDoubleTap,
+      isCenterTap,
+      menuState,
+      readerSettings.gesture_center_tap,
+      readerSettings.gesture_triple_click,
+      resetTapState,
+    ]
   );
 
   const handleLongPressPointerUp = useCallback(
@@ -2115,7 +2406,11 @@ export default function ReaderClient({
       : null;
 
   return (
-    <div className="reader-layout reader-layout--columns">
+    <div
+      className={`reader-layout reader-layout--columns reader-theme--${readerSettings.theme}`}
+      data-highlight-style={readerSettings.ui_highlight_style}
+      style={readerStyle}
+    >
       {debugBanner}
       {wordBannerStack}
       <aside className="reader-sidebar">
@@ -2150,6 +2445,7 @@ export default function ReaderClient({
           <div
             className="reader-scroll"
             ref={containerRef}
+            style={readerScrollStyle}
             onMouseUp={handlePointerUp}
             onPointerDown={handleLongPressPointerDown}
             onPointerMove={handleLongPressPointerMove}
@@ -2167,6 +2463,7 @@ export default function ReaderClient({
                 className="reader-section"
                 data-section-id={section.id}
                 data-section-key={section.section_key}
+                style={readerSectionStyle}
               >
                 {!section.content_html && section.title ? (
                   <h2 className="reader-section__title">{section.title}</h2>
@@ -2175,6 +2472,8 @@ export default function ReaderClient({
                   contentText={section.content_text}
                   contentHtml={section.content_html}
                   mediaBase={apiBase}
+                  articleStyle={readerArticleStyle}
+                  paragraphStyle={readerParagraphStyle}
                 />
               </section>
             ))}
@@ -2184,6 +2483,7 @@ export default function ReaderClient({
               activeSelectionId={activeSelectionId}
               onSelect={handleSelectHighlight}
               getSectionElement={getSectionElementForSelection}
+              refreshKey={highlightRefreshKey}
             />
           </div>
           {menuState && !noteModalOpen && !grammarModalOpen && !audioModalOpen ? (
@@ -2205,8 +2505,15 @@ export default function ReaderClient({
           ) : null}
           {isMobile && mobilePanel ? (
             <div
-              className="mobile-panel"
+              className={`mobile-panel${
+                mobilePanel === "settings"
+                  ? " mobile-panel--settings"
+                  : mobilePanel === "new"
+                    ? " mobile-panel--new"
+                    : ""
+              }`}
               ref={mobilePanelRef}
+              style={mobilePanelStyle}
               onClick={(event) => event.stopPropagation()}
             >
               {mobilePanel === "chapters" ? (
@@ -2218,20 +2525,38 @@ export default function ReaderClient({
                     activeKey={initialSectionKey ?? null}
                   />
                 </div>
-              ) : (
+              ) : null}
+              {mobilePanel === "highlights" ? (
                 <ReaderHighlightsPanel
                   documentId={documentId}
                   refreshKey={selections.length + additions.length + markers.length}
                   isActive
                   onJumpToSelection={handleJumpToSelection}
                 />
-              )}
+              ) : null}
+              {mobilePanel === "new" ? (
+                <div className="mobile-panel__content">
+                  <div className="mobile-panel__title">New book</div>
+                  <DocumentIngestForm />
+                </div>
+              ) : null}
+              {mobilePanel === "settings" ? (
+                <div className="mobile-panel__content">
+                  <div className="mobile-panel__title">Settings</div>
+                  <ReaderSettingsPanel
+                    settings={readerSettings}
+                    onChange={queueSettingsUpdate}
+                    status={settingsStatus}
+                  />
+                </div>
+              ) : null}
             </div>
           ) : null}
           {isMobile && mobileNavOpen ? (
             <div
               className="mobile-nav"
               ref={mobileNavRef}
+              style={mobileNavStyle}
               onClick={(event) => event.stopPropagation()}
             >
               <button
@@ -2241,18 +2566,29 @@ export default function ReaderClient({
                 }
                 aria-label="Chapters"
                 className={mobilePanel === "chapters" ? "is-active" : undefined}
+                style={navButtonStyle(mobilePanel === "chapters")}
               >
                 <IconChapters />
                 <span>Chapters</span>
               </button>
-              <button type="button" onClick={() => router.push("/new")} aria-label="New">
+              <button
+                type="button"
+                onClick={() => setMobilePanel((prev) => (prev === "new" ? null : "new"))}
+                aria-label="New"
+                className={mobilePanel === "new" ? "is-active" : undefined}
+                style={navButtonStyle(mobilePanel === "new")}
+              >
                 <IconNew />
                 <span>New</span>
               </button>
               <button
                 type="button"
-                onClick={() => router.push("/settings")}
+                onClick={() =>
+                  setMobilePanel((prev) => (prev === "settings" ? null : "settings"))
+                }
                 aria-label="Settings"
+                className={mobilePanel === "settings" ? "is-active" : undefined}
+                style={navButtonStyle(mobilePanel === "settings")}
               >
                 <IconSettings />
                 <span>Settings</span>
@@ -2264,6 +2600,7 @@ export default function ReaderClient({
                 }
                 aria-label="Highlights"
                 className={mobilePanel === "highlights" ? "is-active" : undefined}
+                style={navButtonStyle(mobilePanel === "highlights")}
               >
                 <IconHighlights />
                 <span>Highlights</span>
@@ -2272,7 +2609,7 @@ export default function ReaderClient({
           ) : null}
         </div>
       </div>
-      {!isMobile ? (
+      {!isMobile && readerSettings.ui_show_side_panel ? (
         <aside className="reader-highlights">
           <SidePanel
             selection={activeSelection}

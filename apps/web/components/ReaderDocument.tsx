@@ -1,7 +1,11 @@
+import type { CSSProperties } from "react";
+
 type ReaderDocumentProps = {
   contentText: string;
   contentHtml?: string | null;
   mediaBase?: string | null;
+  articleStyle?: CSSProperties;
+  paragraphStyle?: CSSProperties;
 };
 
 type Paragraph = {
@@ -36,12 +40,19 @@ function normalizeMediaHtml(contentHtml: string, mediaBase?: string | null) {
   return contentHtml.replace(/src=(["'])\/media\//gi, `src=$1${base}/media/`);
 }
 
-export default function ReaderDocument({ contentText, contentHtml, mediaBase }: ReaderDocumentProps) {
+export default function ReaderDocument({
+  contentText,
+  contentHtml,
+  mediaBase,
+  articleStyle,
+  paragraphStyle,
+}: ReaderDocumentProps) {
   if (contentHtml && contentHtml.trim()) {
     const html = normalizeMediaHtml(contentHtml, mediaBase);
     return (
       <article
         className="reader-article reader-article--html"
+        style={articleStyle}
         dangerouslySetInnerHTML={{ __html: html }}
       />
     );
@@ -50,13 +61,14 @@ export default function ReaderDocument({ contentText, contentHtml, mediaBase }: 
   const paragraphs = splitParagraphs(contentText);
 
   return (
-    <article className="reader-article">
+    <article className="reader-article" style={articleStyle}>
       {paragraphs.map((paragraph, index) => (
         <p
           key={`${paragraph.start}-${index}`}
           className="reader-paragraph"
           data-paragraph
           data-start={paragraph.start}
+          style={paragraphStyle}
         >
           {paragraph.text}
         </p>

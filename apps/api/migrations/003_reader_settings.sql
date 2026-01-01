@@ -1,0 +1,62 @@
+﻿PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS reader_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  font_size REAL NOT NULL,
+  line_height REAL NOT NULL,
+  font_family TEXT NOT NULL,
+  text_width TEXT NOT NULL,
+  theme TEXT NOT NULL,
+  paragraph_spacing REAL NOT NULL,
+  selection_snapping TEXT NOT NULL,
+  gesture_center_tap INTEGER NOT NULL,
+  gesture_triple_click INTEGER NOT NULL,
+  gesture_two_point_long_press INTEGER NOT NULL,
+  gesture_swipe_sequences INTEGER NOT NULL,
+  gesture_edge_swipes INTEGER NOT NULL,
+  ui_show_side_panel INTEGER NOT NULL,
+  ui_action_menu_placement TEXT NOT NULL,
+  ui_highlight_style TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+INSERT OR IGNORE INTO reader_settings (
+  id,
+  font_size,
+  line_height,
+  font_family,
+  text_width,
+  theme,
+  paragraph_spacing,
+  selection_snapping,
+  gesture_center_tap,
+  gesture_triple_click,
+  gesture_two_point_long_press,
+  gesture_swipe_sequences,
+  gesture_edge_swipes,
+  ui_show_side_panel,
+  ui_action_menu_placement,
+  ui_highlight_style,
+  created_at,
+  updated_at
+) VALUES (
+  1,
+  18,
+  1.7,
+  'iowan',
+  'medium',
+  'light',
+  1.0,
+  'exact',
+  1,
+  1,
+  1,
+  0,
+  0,
+  1,
+  'above',
+  'soft',
+  datetime('now'),
+  datetime('now')
+);

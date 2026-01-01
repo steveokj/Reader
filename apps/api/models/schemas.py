@@ -143,3 +143,43 @@ class ArticleIngest(BaseModel):
     title: Optional[str] = None
     url: Optional[str] = None
     text: Optional[str] = None
+
+
+class ReaderSettings(BaseModel):
+    font_size: float
+    line_height: float
+    font_family: str
+    text_width: str
+    theme: str
+    paragraph_spacing: float
+    selection_snapping: str
+    gesture_center_tap: bool
+    gesture_triple_click: bool
+    gesture_two_point_long_press: bool
+    gesture_swipe_sequences: bool
+    gesture_edge_swipes: bool
+    ui_show_side_panel: bool
+    ui_action_menu_placement: str
+    ui_highlight_style: str
+
+
+class ReaderSettingsUpdate(BaseModel):
+    font_size: Optional[float] = None
+    line_height: Optional[float] = None
+    font_family: Optional[str] = None
+    text_width: Optional[str] = None
+    theme: Optional[str] = None
+    paragraph_spacing: Optional[float] = None
+    selection_snapping: Optional[str] = None
+    gesture_center_tap: Optional[bool] = None
+    gesture_triple_click: Optional[bool] = None
+    gesture_two_point_long_press: Optional[bool] = None
+    gesture_swipe_sequences: Optional[bool] = None
+    gesture_edge_swipes: Optional[bool] = None
+    ui_show_side_panel: Optional[bool] = None
+    ui_action_menu_placement: Optional[str] = None
+    ui_highlight_style: Optional[str] = None
+
+
+class ReaderSettingsResponse(BaseModel):
+    settings: ReaderSettings
