@@ -28,9 +28,9 @@ def build_prompt(payload: ExploreRequest) -> str:
     instruction = (payload.instruction or "").strip() or DEFAULT_INSTRUCTION
     selection = payload.selection_text.strip()
     context = (payload.context_text or "").strip()
-    parts = [instruction, "", "Selection:", selection]
+    parts = [instruction, "", "Selection (verbatim):", "<<<", selection, ">>>"]
     if context:
-        parts.extend(["", "Context:", context])
+        parts.extend(["", "Context (verbatim):", "<<<", context, ">>>"])
     return "\n".join(parts)
 
 
@@ -44,11 +44,12 @@ def run_codex_cli(prompt: str, timeout_seconds: int) -> str:
     root_dir = Path(__file__).resolve().parents[3]
     try:
         result = subprocess.run(
-            [codex_path, "exec", "--output-last-message", output_path, prompt],
+            [codex_path, "exec", "--output-last-message", output_path, "-"],
             capture_output=True,
             text=True,
             timeout=timeout_seconds,
             cwd=root_dir,
+            input=prompt,
         )
     except subprocess.TimeoutExpired as exc:
         raise HTTPException(status_code=504, detail="codex exec timed out.") from exc
