@@ -176,8 +176,9 @@ def explore_chat(payload: ExploreChatRequest):
             prompt = message
             resume_last = False
             session_id = thread.get("cli_session_id")
+            session_mode = thread.get("session_mode") or "pinned"
             if action == "resume" or (action == "" and payload.thread_id):
-                if session_id:
+                if session_mode == "pinned" and session_id:
                     response_text, session_id, _ = run_codex_cli(
                         prompt,
                         timeout_seconds,
@@ -236,15 +237,31 @@ def get_thread(thread_id: int):
 def update_thread(thread_id: int, payload: ExploreThreadUpdate):
     conn = get_conn()
     try:
+        if payload.session_mode and payload.session_mode not in {"pinned", "last"}:
+            raise HTTPException(status_code=400, detail="session_mode must be 'pinned' or 'last'.")
         thread = explore_chat_service.update_thread(
             conn,
             thread_id,
             title=payload.title,
             system_prompt=payload.system_prompt,
+            session_mode=payload.session_mode,
         )
         if not thread:
             raise HTTPException(status_code=404, detail="Thread not found.")
         messages = explore_chat_service.list_messages(conn, thread_id)
         return {"thread": thread, "messages": messages, "mode": "codex-cli"}
+    finally:
+        conn.close()
+
+
+@router.delete("/{thread_id}")
+def delete_thread(thread_id: int):
+    conn = get_conn()
+    try:
+        thread = explore_chat_service.get_thread(conn, thread_id)
+        if not thread:
+            raise HTTPException(status_code=404, detail="Thread not found.")
+        explore_chat_service.delete_thread(conn, thread_id)
+        return {"ok": True}
     finally:
         conn.close()

@@ -556,6 +556,11 @@ a {
   font-size: 12px;
 }
 
+.explore-secondary--danger {
+  border-color: rgba(226, 74, 59, 0.35);
+  color: #b0392f;
+}
+
 .explore-secondary:hover {
   border-color: var(--accent);
   color: var(--accent);
@@ -615,6 +620,98 @@ a {
 
 .explore-grid--chat {
   grid-template-columns: minmax(0, 0.55fr) minmax(0, 1.45fr);
+}
+
+.explore-chat-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.explore-panel--thread-list {
+  max-height: 58vh;
+}
+
+.explore-session-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.explore-session-badge--pinned {
+  background: rgba(63, 132, 217, 0.15);
+  color: #2b4f7d;
+  border: 1px solid rgba(63, 132, 217, 0.25);
+}
+
+.explore-session-badge--last {
+  background: rgba(217, 102, 63, 0.15);
+  color: #7a3c22;
+  border: 1px solid rgba(217, 102, 63, 0.3);
+}
+
+.explore-thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.explore-thread-item {
+  border: 1px solid rgba(31, 28, 22, 0.12);
+  background: white;
+  border-radius: 12px;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.explore-thread-item.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 6px 14px rgba(217, 102, 63, 0.18);
+}
+
+.explore-thread-item__title {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.explore-thread-item__meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(31, 28, 22, 0.55);
+}
+
+.explore-toggle-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.explore-toggle {
+  border: 1px solid rgba(31, 28, 22, 0.2);
+  background: white;
+  color: rgba(31, 28, 22, 0.7);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.explore-toggle.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .explore-history {

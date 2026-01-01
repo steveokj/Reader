@@ -10,12 +10,13 @@ def create_thread(
     conn, title: Optional[str], system_prompt: Optional[str], cli_session_id: Optional[str]
 ) -> Dict[str, Any]:
     now = _iso_now()
+    session_mode = "pinned"
     cur = conn.execute(
         """
-        INSERT INTO explore_threads (title, system_prompt, cli_session_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO explore_threads (title, system_prompt, cli_session_id, session_mode, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (title, system_prompt, cli_session_id, now, now),
+        (title, system_prompt, cli_session_id, session_mode, now, now),
     )
     conn.commit()
     return {
@@ -23,6 +24,7 @@ def create_thread(
         "title": title,
         "system_prompt": system_prompt,
         "cli_session_id": cli_session_id,
+        "session_mode": session_mode,
         "created_at": now,
         "updated_at": now,
     }
@@ -43,6 +45,7 @@ def update_thread(
     *,
     title: Optional[str],
     system_prompt: Optional[str],
+    session_mode: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     fields = []
     params: List[Any] = []
@@ -53,6 +56,9 @@ def update_thread(
     if system_prompt is not None:
         fields.append("system_prompt = ?")
         params.append(system_prompt)
+    if session_mode is not None:
+        fields.append("session_mode = ?")
+        params.append(session_mode)
 
     if not fields:
         return get_thread(conn, thread_id)
@@ -77,7 +83,7 @@ def touch_thread(conn, thread_id: int) -> None:
 def get_thread(conn, thread_id: int) -> Optional[Dict[str, Any]]:
     row = conn.execute(
         """
-        SELECT id, title, system_prompt, cli_session_id, created_at, updated_at
+        SELECT id, title, system_prompt, cli_session_id, session_mode, created_at, updated_at
         FROM explore_threads
         WHERE id = ?
         """,
@@ -90,6 +96,7 @@ def get_thread(conn, thread_id: int) -> Optional[Dict[str, Any]]:
         "title": row["title"],
         "system_prompt": row["system_prompt"],
         "cli_session_id": row["cli_session_id"],
+        "session_mode": row["session_mode"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -98,7 +105,7 @@ def get_thread(conn, thread_id: int) -> Optional[Dict[str, Any]]:
 def list_threads(conn) -> List[Dict[str, Any]]:
     rows = conn.execute(
         """
-        SELECT id, title, system_prompt, cli_session_id, created_at, updated_at
+        SELECT id, title, system_prompt, cli_session_id, session_mode, created_at, updated_at
         FROM explore_threads
         ORDER BY updated_at DESC
         """
@@ -109,11 +116,17 @@ def list_threads(conn) -> List[Dict[str, Any]]:
             "title": row["title"],
             "system_prompt": row["system_prompt"],
             "cli_session_id": row["cli_session_id"],
+            "session_mode": row["session_mode"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
         for row in rows
     ]
+
+
+def delete_thread(conn, thread_id: int) -> None:
+    conn.execute("DELETE FROM explore_threads WHERE id = ?", (thread_id,))
+    conn.commit()
 
 
 def add_message(conn, thread_id: int, role: str, content: str) -> Dict[str, Any]:

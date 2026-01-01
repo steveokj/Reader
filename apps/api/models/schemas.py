@@ -215,6 +215,7 @@ class ExploreThread(BaseModel):
     title: Optional[str] = None
     system_prompt: Optional[str] = None
     cli_session_id: Optional[str] = None
+    session_mode: str
     created_at: str
     updated_at: str
 
@@ -231,3 +232,4 @@ class ExploreChatResponse(BaseModel):
     thread: ExploreThread
     messages: List[ExploreChatMessage]
     mode: str
+    session_mode: Optional[str] = None

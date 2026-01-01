@@ -13,19 +13,29 @@ type ChatMessage = {
   content: string;
 };
 
+type ChatThread = {
+  id: number;
+  title?: string | null;
+  system_prompt?: string | null;
+  cli_session_id?: string | null;
+  session_mode?: "pinned" | "last";
+  created_at: string;
+  updated_at: string;
+};
+
 const DEFAULT_SYSTEM_PROMPT =
   "You are a helpful reading companion. Respond to the user's last message, keep continuity with the chat history, and be concise.";
 
 export default function ExploreChatPage() {
   const apiBase = getClientApiBase();
   const [mode, setMode] = useState<ExploreMode>("codex-cli");
-  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [draftMessage, setDraftMessage] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [threadId, setThreadId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState("");
+  const [promptDraft, setPromptDraft] = useState(DEFAULT_SYSTEM_PROMPT);
 
   const loadThreads = useCallback(async () => {
     try {
@@ -57,10 +67,8 @@ export default function ExploreChatPage() {
       if (data.thread) {
         setActiveThread(data.thread);
         setThreadId(data.thread.id);
-        if (data.thread.system_prompt) {
-          setSystemPrompt(data.thread.system_prompt);
-        }
         setTitleDraft(data.thread.title ?? "");
+        setPromptDraft(data.thread.system_prompt ?? DEFAULT_SYSTEM_PROMPT);
       }
       setMessages(data.messages ?? []);
     } catch (err) {
@@ -97,7 +105,7 @@ export default function ExploreChatPage() {
           thread_id: threadId,
           message: trimmed,
           action: threadId ? "resume" : "new",
-          system_prompt: systemPrompt.trim() || null,
+          system_prompt: promptDraft.trim() || null,
           mode,
         }),
       });
@@ -113,6 +121,7 @@ export default function ExploreChatPage() {
         setThreadId(data.thread.id);
         setActiveThread(data.thread as ChatThread);
         setTitleDraft(data.thread.title ?? "");
+        setPromptDraft(data.thread.system_prompt ?? DEFAULT_SYSTEM_PROMPT);
       }
       setMessages((prev) => [
         ...prev,
@@ -131,9 +140,10 @@ export default function ExploreChatPage() {
     setThreadId(null);
     setActiveThread(null);
     setTitleDraft("");
+    setPromptDraft(DEFAULT_SYSTEM_PROMPT);
   };
 
-  const handleSaveTitle = async () => {
+  const handleSaveThread = async () => {
     if (!threadId) {
       return;
     }
@@ -145,11 +155,61 @@ export default function ExploreChatPage() {
         },
         body: JSON.stringify({
           title: titleDraft.trim() || null,
+          system_prompt: promptDraft.trim() || null,
         }),
       });
       if (!response.ok) {
         const data = (await response.json()) as { detail?: string };
-        throw new Error(data.detail || "Failed to update title.");
+        throw new Error(data.detail || "Failed to update thread.");
+      }
+      const data = (await response.json()) as { thread?: ChatThread };
+      if (data.thread) {
+        setActiveThread(data.thread);
+        setPromptDraft(data.thread.system_prompt ?? DEFAULT_SYSTEM_PROMPT);
+      }
+      loadThreads();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update thread.");
+    }
+  };
+
+  const handleDeleteThread = async () => {
+    if (!threadId) {
+      return;
+    }
+    if (!window.confirm("Delete this thread and its messages?")) {
+      return;
+    }
+    try {
+      const response = await fetch(`${apiBase}/explore/chat/${threadId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const data = (await response.json()) as { detail?: string };
+        throw new Error(data.detail || "Failed to delete thread.");
+      }
+      handleClearChat();
+      loadThreads();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete thread.");
+    }
+  };
+
+  const handleSessionMode = async (session_mode: "pinned" | "last") => {
+    if (!threadId) {
+      return;
+    }
+    try {
+      const response = await fetch(`${apiBase}/explore/chat/${threadId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ session_mode }),
+      });
+      if (!response.ok) {
+        const data = (await response.json()) as { detail?: string };
+        throw new Error(data.detail || "Failed to update session mode.");
       }
       const data = (await response.json()) as { thread?: ChatThread };
       if (data.thread) {
@@ -157,7 +217,7 @@ export default function ExploreChatPage() {
       }
       loadThreads();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update title.");
+      setError(err instanceof Error ? err.message : "Failed to update session mode.");
     }
   };
 
@@ -185,20 +245,38 @@ export default function ExploreChatPage() {
               <button
                 type="button"
                 className="explore-secondary"
-                onClick={handleSaveTitle}
+                onClick={handleSaveThread}
                 disabled={!activeThread}
               >
-                Save title
+                Save thread
+              </button>
+              <button
+                type="button"
+                className="explore-secondary explore-secondary--danger"
+                onClick={handleDeleteThread}
+                disabled={!activeThread}
+              >
+                Delete
               </button>
             </div>
             <label className="explore-label">
               System prompt
               <textarea
                 className="explore-textarea explore-textarea--small"
-                value={systemPrompt}
-                onChange={(event) => setSystemPrompt(event.target.value)}
+                value={promptDraft}
+                onChange={(event) => setPromptDraft(event.target.value)}
               />
             </label>
+            <div className="explore-actions">
+              <button
+                type="button"
+                className="explore-secondary"
+                onClick={handleSaveThread}
+                disabled={!activeThread}
+              >
+                Save prompt
+              </button>
+            </div>
             <label className="explore-label">
               Mode
               <select
@@ -210,19 +288,44 @@ export default function ExploreChatPage() {
                 <option value="mock">Mock (no CLI)</option>
               </select>
             </label>
+            <label className="explore-label">
+              Session mode
+              <div className="explore-toggle-row">
+                <button
+                  type="button"
+                  className={`explore-toggle${activeThread?.session_mode !== "last" ? " is-active" : ""}`}
+                  onClick={() => handleSessionMode("pinned")}
+                  disabled={!activeThread}
+                >
+                  Pinned
+                </button>
+                <button
+                  type="button"
+                  className={`explore-toggle${activeThread?.session_mode === "last" ? " is-active" : ""}`}
+                  onClick={() => handleSessionMode("last")}
+                  disabled={!activeThread}
+                >
+                  Use --last
+                </button>
+              </div>
+            </label>
             <div className="explore-actions">
               <button type="button" className="explore-secondary" onClick={handleClearChat}>
                 New chat
               </button>
             </div>
             <div className="explore-hint">
-              {activeThread?.cli_session_id ? (
+              {activeThread?.session_mode === "last" ? (
+                <span className="explore-session-badge explore-session-badge--last">
+                  Using --last
+                </span>
+              ) : activeThread?.cli_session_id ? (
                 <span className="explore-session-badge explore-session-badge--pinned">
                   Session pinned
                 </span>
               ) : (
-                <span className="explore-session-badge explore-session-badge--last">
-                  Using --last
+                <span className="explore-session-badge explore-session-badge--pinned">
+                  Pinning pending
                 </span>
               )}
               <div className="explore-hint__line">New chat always starts fresh.</div>
@@ -248,7 +351,13 @@ export default function ExploreChatPage() {
                       </div>
                       <div className="explore-thread-item__meta">
                         <span>{new Date(thread.updated_at).toLocaleString()}</span>
-                        <span>{thread.cli_session_id ? "Pinned" : "--last"}</span>
+                        <span>
+                          {thread.session_mode === "last"
+                            ? "--last"
+                            : thread.cli_session_id
+                              ? "Pinned"
+                              : "Pending"}
+                        </span>
                       </div>
                     </button>
                   );
