@@ -14,6 +14,7 @@ class DocumentCreate(BaseModel):
     title: str
     source_type: str
     source_ref: Optional[str] = None
+    cover_url: Optional[str] = None
     sections: List[DocumentSectionCreate]
 
 
@@ -22,6 +23,7 @@ class Document(BaseModel):
     title: str
     source_type: str
     source_ref: Optional[str] = None
+    cover_url: Optional[str] = None
     created_at: str
 
 

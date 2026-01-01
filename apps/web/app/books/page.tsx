@@ -5,6 +5,7 @@ type Document = {
   title: string;
   source_type: string;
   source_ref?: string | null;
+  cover_url?: string | null;
   created_at: string;
 };
 
@@ -32,6 +33,23 @@ export default async function BooksPage() {
         ) : (
           books.map((doc) => (
             <a key={doc.id} href={`/books/${doc.id}`} className="document-card">
+              <div className="document-card__cover">
+                {doc.cover_url ? (
+                  <img
+                    src={
+                      doc.cover_url.startsWith("http")
+                        ? doc.cover_url
+                        : `${API_BASE}${doc.cover_url}`
+                    }
+                    alt={`Cover for ${doc.title}`}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="document-card__cover-placeholder">
+                    <span>{doc.source_type === "article" ? "Article" : "Book"}</span>
+                  </div>
+                )}
+              </div>
               <div className="document-card__meta">{doc.source_type}</div>
               <div className="document-card__title">{doc.title}</div>
               <div className="document-card__hint">

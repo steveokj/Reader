@@ -9,13 +9,26 @@ from html.parser import HTMLParser
 from typing import Any, Dict, List, Optional, Tuple, Set
 from urllib.request import urlopen
 from urllib.error import URLError
-from urllib.parse import unquote, quote, urljoin
+from urllib.parse import unquote, quote, urljoin, urlsplit
 import xml.etree.ElementTree as ET
 
 from .documents import create_document
 
 MEDIA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "media"))
 EPUB_MEDIA_DIR = os.path.join(MEDIA_ROOT, "epub")
+ARTICLE_MEDIA_DIR = os.path.join(MEDIA_ROOT, "article")
+
+_MAX_IMAGE_BYTES = 8 * 1024 * 1024
+_IMAGE_EXTENSION_MAP = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "image/svg+xml": ".svg",
+    "image/avif": ".avif",
+}
+_IMAGE_ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".avif"}
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -67,6 +80,51 @@ class _HTMLTextExtractor(HTMLParser):
     def get_text(self) -> str:
         self._flush()
         return "\n\n".join(self._paragraphs)
+
+
+class _MetaImageExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self._og_image: Optional[str] = None
+        self._twitter_image: Optional[str] = None
+        self._item_image: Optional[str] = None
+        self._link_image: Optional[str] = None
+
+    def _set_first(self, attr: str, value: Optional[str]) -> None:
+        if not value:
+            return
+        if getattr(self, attr) is None:
+            setattr(self, attr, value)
+
+    def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
+        tag = tag.lower()
+        if tag == "meta":
+            attrs_map = {key.lower(): (value or "").strip() for key, value in attrs if key}
+            content = attrs_map.get("content")
+            if not content:
+                return
+            key = (
+                attrs_map.get("property")
+                or attrs_map.get("name")
+                or attrs_map.get("itemprop")
+                or ""
+            ).lower()
+            if key in {"og:image", "og:image:url", "og:image:secure_url"}:
+                self._set_first("_og_image", content)
+            elif key in {"twitter:image", "twitter:image:src"}:
+                self._set_first("_twitter_image", content)
+            elif key == "image":
+                self._set_first("_item_image", content)
+        elif tag == "link":
+            attrs_map = {key.lower(): (value or "").strip() for key, value in attrs if key}
+            rel = attrs_map.get("rel", "").lower().split()
+            href = attrs_map.get("href")
+            if href and "image_src" in rel:
+                self._set_first("_link_image", href)
+
+    def get_image(self) -> Optional[str]:
+        return self._og_image or self._twitter_image or self._item_image or self._link_image
+
 
 _ALLOWED_TAGS = {
     "p",
@@ -294,6 +352,57 @@ def _sanitize_html(html: str, resolve_src) -> Tuple[str, str]:
     return sanitizer.get_html(), sanitizer.get_text()
 
 
+def _extract_cover_image_from_html(html: str) -> Optional[str]:
+    parser = _MetaImageExtractor()
+    parser.feed(html)
+    parser.close()
+    return parser.get_image()
+
+
+def _guess_image_extension(url: str, content_type: Optional[str]) -> str:
+    if content_type:
+        normalized = content_type.split(";", 1)[0].strip().lower()
+        if normalized in _IMAGE_EXTENSION_MAP:
+            return _IMAGE_EXTENSION_MAP[normalized]
+    ext = os.path.splitext(urlsplit(url).path)[1].lower()
+    if ext in _IMAGE_ALLOWED_EXTENSIONS:
+        return ext
+    return ".jpg"
+
+
+def _download_remote_image(url: str, target_dir: str, url_prefix: str, label: str) -> Optional[str]:
+    if not url or not re.match(r"^https?://", url, re.IGNORECASE):
+        return None
+
+    os.makedirs(target_dir, exist_ok=True)
+    asset_root = uuid.uuid4().hex
+    asset_dir = os.path.join(target_dir, asset_root)
+    os.makedirs(asset_dir, exist_ok=True)
+
+    try:
+        with urlopen(url) as response:
+            content_type = response.headers.get_content_type()
+            if content_type and not content_type.startswith("image/"):
+                return None
+            ext = _guess_image_extension(url, content_type)
+            filename = f"{label}{ext}"
+            path = os.path.join(asset_dir, filename)
+            size = 0
+            with open(path, "wb") as handle:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    if size > _MAX_IMAGE_BYTES:
+                        raise ValueError("Image exceeds size limit.")
+                    handle.write(chunk)
+    except Exception:
+        return None
+
+    return f"{url_prefix}/{asset_root}/{filename}"
+
+
 def _plain_text_to_html(text: str) -> str:
     paragraphs = [para.strip() for para in re.split(r"\n\s*\n", text) if para.strip()]
     html_paragraphs = []
@@ -436,7 +545,14 @@ def _local_name(tag: str) -> str:
 
 def _parse_opf(
     opf_bytes: bytes,
-) -> Tuple[Optional[str], Dict[str, Dict[str, str]], List[str], Optional[str], Optional[str]]:
+) -> Tuple[
+    Optional[str],
+    Dict[str, Dict[str, str]],
+    List[str],
+    Optional[str],
+    Optional[str],
+    Optional[str],
+]:
     root = ET.fromstring(opf_bytes)
     metadata = root.find(".//{*}metadata")
     title: Optional[str] = None
@@ -447,19 +563,34 @@ def _parse_opf(
                 if text:
                     title = text
                     break
+    cover_id: Optional[str] = None
+    if metadata is not None:
+        for meta in metadata.findall("{*}meta"):
+            if (meta.get("name") or "").lower() == "cover":
+                cover_id = meta.get("content")
+                if cover_id:
+                    break
 
     manifest: Dict[str, Dict[str, str]] = {}
     nav_href: Optional[str] = None
+    cover_href: Optional[str] = None
     manifest_el = root.find(".//{*}manifest")
     if manifest_el is not None:
         for item in manifest_el.findall("{*}item"):
             item_id = item.get("id")
             href = item.get("href")
             media_type = item.get("media-type")
+            properties = item.get("properties") or ""
             if item_id and href and media_type:
-                manifest[item_id] = {"href": href, "media_type": media_type}
-            if href and "nav" in (item.get("properties") or "").split():
+                manifest[item_id] = {
+                    "href": href,
+                    "media_type": media_type,
+                    "properties": properties,
+                }
+            if href and "nav" in properties.split():
                 nav_href = href
+            if href and "cover-image" in properties.split():
+                cover_href = href
 
     spine_ids: List[str] = []
     toc_id: Optional[str] = None
@@ -471,7 +602,12 @@ def _parse_opf(
             if idref:
                 spine_ids.append(idref)
 
-    return title, manifest, spine_ids, toc_id, nav_href
+    if cover_id and not cover_href:
+        cover_item = manifest.get(cover_id)
+        if cover_item:
+            cover_href = cover_item.get("href")
+
+    return title, manifest, spine_ids, toc_id, nav_href, cover_href
 
 
 def _normalize_epub_href(base_dir: str, href: str) -> Optional[str]:
@@ -566,7 +702,7 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
             raise ValueError("Invalid EPUB package path.")
 
         opf_bytes = zf.read(opf_path)
-        epub_title, manifest, spine_ids, toc_id, nav_href = _parse_opf(opf_bytes)
+        epub_title, manifest, spine_ids, toc_id, nav_href, cover_href = _parse_opf(opf_bytes)
 
         base_dir = posixpath.dirname(opf_path)
         os.makedirs(EPUB_MEDIA_DIR, exist_ok=True)
@@ -574,6 +710,11 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
         asset_dir = os.path.join(EPUB_MEDIA_DIR, asset_root)
         os.makedirs(asset_dir, exist_ok=True)
         asset_cache: Dict[str, str] = {}
+        cover_url = None
+        if cover_href:
+            cover_url = _resolve_epub_asset(
+                zf, asset_dir, asset_root, asset_cache, base_dir, cover_href
+            )
         toc_map: Dict[str, str] = {}
         if nav_href:
             nav_path = _normalize_epub_href(base_dir, nav_href)
@@ -638,6 +779,7 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
         "title": doc_title,
         "source_type": "epub",
         "source_ref": file.filename,
+        "cover_url": cover_url,
         "sections": sections,
     }
     return create_document(conn, payload)
@@ -654,6 +796,7 @@ def ingest_article(conn, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List[
     content_text = ""
     content_html: Optional[str] = None
     derived_title: Optional[str] = None
+    cover_url: Optional[str] = None
 
     if text:
         content_text = text.strip()
@@ -667,6 +810,10 @@ def ingest_article(conn, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List[
         except URLError as exc:
             raise ValueError("Unable to fetch article URL.") from exc
         derived_title = _extract_title_from_html(html)
+        cover_src = _extract_cover_image_from_html(html)
+        if cover_src:
+            resolved_cover = urljoin(url, cover_src)
+            cover_url = _download_remote_image(resolved_cover, ARTICLE_MEDIA_DIR, "/media/article", "cover")
 
         def resolve_article_src(src: str) -> Optional[str]:
             if not src:
@@ -687,6 +834,7 @@ def ingest_article(conn, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List[
         "title": doc_title,
         "source_type": "article",
         "source_ref": url,
+        "cover_url": cover_url,
         "sections": [
             {
                 "section_key": "0",

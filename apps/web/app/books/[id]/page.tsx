@@ -8,6 +8,7 @@ type Document = {
   title: string;
   source_type: string;
   source_ref?: string | null;
+  cover_url?: string | null;
   created_at: string;
 };
 

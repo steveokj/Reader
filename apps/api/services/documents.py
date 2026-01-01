@@ -22,8 +22,17 @@ def _iso_now() -> str:
 def create_document(conn, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     now = _iso_now()
     cur = conn.execute(
-        "INSERT INTO documents (title, source_type, source_ref, created_at) VALUES (?, ?, ?, ?)",
-        (payload["title"], payload["source_type"], payload.get("source_ref"), now),
+        """
+        INSERT INTO documents (title, source_type, source_ref, cover_url, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            payload["title"],
+            payload["source_type"],
+            payload.get("source_ref"),
+            payload.get("cover_url"),
+            now,
+        ),
     )
     document_id = cur.lastrowid
 
@@ -62,6 +71,7 @@ def create_document(conn, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List
         "title": payload["title"],
         "source_type": payload["source_type"],
         "source_ref": payload.get("source_ref"),
+        "cover_url": payload.get("cover_url"),
         "created_at": now,
     }
     return document, sections
@@ -69,14 +79,14 @@ def create_document(conn, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List
 
 def get_documents(conn) -> List[Dict[str, Any]]:
     rows = conn.execute(
-        "SELECT id, title, source_type, source_ref, created_at FROM documents ORDER BY id"
+        "SELECT id, title, source_type, source_ref, cover_url, created_at FROM documents ORDER BY id"
     ).fetchall()
     return [dict(row) for row in rows]
 
 
 def get_document(conn, document_id: int) -> Optional[Tuple[Dict[str, Any], List[Dict[str, Any]]]]:
     doc = conn.execute(
-        "SELECT id, title, source_type, source_ref, created_at FROM documents WHERE id = ?",
+        "SELECT id, title, source_type, source_ref, cover_url, created_at FROM documents WHERE id = ?",
         (document_id,),
     ).fetchone()
     if not doc:
