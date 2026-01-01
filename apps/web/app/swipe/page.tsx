@@ -6,7 +6,7 @@ const EDGE_PX = 80;
 const SWIPE_MIN_PX = 60;
 const SWIPE_MAX_MS = 900;
 
-type Zone = "top" | "middle" | "bottom" | "none";
+type Zone = "top" | "middle" | "bottom" | "left" | "right" | "none";
 
 type SwipeStart = {
   x: number;
@@ -29,11 +29,19 @@ export default function SwipeTestPage() {
     const rect = surface.getBoundingClientRect();
     const yFromTop = y - rect.top;
     const yFromBottom = rect.bottom - y;
+    const xFromLeft = x - rect.left;
+    const xFromRight = rect.right - x;
     if (yFromTop <= EDGE_PX) {
       return "top" as Zone;
     }
     if (yFromBottom <= EDGE_PX) {
       return "bottom" as Zone;
+    }
+    if (xFromLeft <= EDGE_PX) {
+      return "left" as Zone;
+    }
+    if (xFromRight <= EDGE_PX) {
+      return "right" as Zone;
     }
     const middleStart = rect.top + rect.height * 0.4;
     const middleEnd = rect.top + rect.height * 0.6;
@@ -78,13 +86,24 @@ export default function SwipeTestPage() {
       const dy = event.clientY - start.y;
       const distance = Math.hypot(dx, dy);
       const vertical = Math.abs(dy) >= Math.abs(dx) * 1.2;
+      const horizontal = Math.abs(dx) >= Math.abs(dy) * 1.2;
 
-      if (elapsed > SWIPE_MAX_MS || distance < SWIPE_MIN_PX || !vertical) {
-        setStatus("Swipe ignored (too short, slow, or horizontal).");
+      if (elapsed > SWIPE_MAX_MS || distance < SWIPE_MIN_PX) {
+        setStatus("Swipe ignored (too short or slow).");
         return;
       }
 
-      const direction = dy > 0 ? "down" : "up";
+      if (start.zone === "left" || start.zone === "right") {
+        if (!horizontal) {
+          setStatus("Swipe ignored (not horizontal).");
+          return;
+        }
+      } else if (!vertical) {
+        setStatus("Swipe ignored (not vertical).");
+        return;
+      }
+
+      const direction = vertical ? (dy > 0 ? "down" : "up") : dx > 0 ? "right" : "left";
       let label = "Swipe detected";
       if (start.zone === "top" && direction === "down") {
         label = "Top edge swipe down";
@@ -92,6 +111,10 @@ export default function SwipeTestPage() {
         label = "Bottom edge swipe up";
       } else if (start.zone === "middle") {
         label = `Middle zone swipe ${direction}`;
+      } else if (start.zone === "left" && direction === "right") {
+        label = "Left edge swipe right";
+      } else if (start.zone === "right" && direction === "left") {
+        label = "Right edge swipe left";
       } else if (start.zone !== "none") {
         label = `${start.zone} zone swipe ${direction} (no binding)`;
       } else {
@@ -125,8 +148,10 @@ export default function SwipeTestPage() {
           <div className="swipe-zone swipe-zone--top">Top zone</div>
           <div className="swipe-zone swipe-zone--middle">Middle zone</div>
           <div className="swipe-zone swipe-zone--bottom">Bottom zone</div>
+          <div className="swipe-zone swipe-zone--left">Left edge</div>
+          <div className="swipe-zone swipe-zone--right">Right edge</div>
           <div className="swipe-test__hint">
-            Swipe vertically from a zone to see it logged.
+            Swipe vertically from top/bottom/middle, or horizontally from left/right.
           </div>
         </div>
         <div className="swipe-test__events">
@@ -202,6 +227,18 @@ export default function SwipeTestPage() {
         .swipe-zone--middle {
           top: 40%;
           height: 20%;
+        }
+        .swipe-zone--left,
+        .swipe-zone--right {
+          top: ${EDGE_PX + 28}px;
+          bottom: ${EDGE_PX + 28}px;
+          width: ${EDGE_PX}px;
+          left: 12px;
+          right: auto;
+        }
+        .swipe-zone--right {
+          left: auto;
+          right: 12px;
         }
         .swipe-test__events {
           margin-top: 8px;
