@@ -37,6 +37,17 @@ export default function ExploreChatPage() {
   const [titleDraft, setTitleDraft] = useState("");
   const [promptDraft, setPromptDraft] = useState(DEFAULT_SYSTEM_PROMPT);
 
+  const normalizeError = (err: unknown) => {
+    if (err instanceof Error) {
+      const message = err.message.toLowerCase();
+      if (message.includes("failed to fetch") || message.includes("networkerror")) {
+        return "Server not reachable. Is the API running?";
+      }
+      return err.message;
+    }
+    return "Explore request failed.";
+  };
+
   const loadThreads = useCallback(async () => {
     try {
       const response = await fetch(`${apiBase}/explore/chat`);
@@ -72,7 +83,7 @@ export default function ExploreChatPage() {
       }
       setMessages(data.messages ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load thread.");
+      setError(normalizeError(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -128,7 +139,7 @@ export default function ExploreChatPage() {
         { id: now + 1, role: "assistant", content: responseText },
       ]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Explore request failed.");
+      setError(normalizeError(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -169,7 +180,7 @@ export default function ExploreChatPage() {
       }
       loadThreads();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update thread.");
+      setError(normalizeError(err));
     }
   };
 
@@ -191,7 +202,7 @@ export default function ExploreChatPage() {
       handleClearChat();
       loadThreads();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete thread.");
+      setError(normalizeError(err));
     }
   };
 
@@ -217,7 +228,7 @@ export default function ExploreChatPage() {
       }
       loadThreads();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update session mode.");
+      setError(normalizeError(err));
     }
   };
 
@@ -382,6 +393,12 @@ export default function ExploreChatPage() {
                 </div>
               ))
             )}
+            {isSubmitting ? (
+              <div className="chat-message chat-message--assistant chat-message--loading">
+                <span className="explore-spinner" aria-hidden="true" />
+                Thinking...
+              </div>
+            ) : null}
           </div>
           <form className="chat-input" onSubmit={handleSubmit}>
             <textarea

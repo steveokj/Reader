@@ -46,6 +46,17 @@ export default function ExploreSdkPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [runs, setRuns] = useState<ExploreRun[]>([]);
 
+  const normalizeError = (err: unknown) => {
+    if (err instanceof Error) {
+      const message = err.message.toLowerCase();
+      if (message.includes("failed to fetch") || message.includes("networkerror")) {
+        return "Server not reachable. Is the API running?";
+      }
+      return err.message;
+    }
+    return "Explore request failed.";
+  };
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const trimmedSelection = selectionText.trim();
@@ -91,7 +102,7 @@ export default function ExploreSdkPage() {
         ...prev,
       ]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Explore request failed.");
+      setError(normalizeError(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -185,6 +196,14 @@ export default function ExploreSdkPage() {
           <div className="explore-panel__title">Responses</div>
           {error ? <div className="explore-error">{error}</div> : null}
           <div className="explore-history">
+            {isSubmitting ? (
+              <article className="explore-history__card explore-history__card--loading">
+                <div className="explore-loading">
+                  <span className="explore-spinner" aria-hidden="true" />
+                  Waiting for response...
+                </div>
+              </article>
+            ) : null}
             {runs.length === 0 ? (
               <div className="explore-empty">No runs yet.</div>
             ) : (

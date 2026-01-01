@@ -588,6 +588,23 @@ a {
   white-space: pre-wrap;
 }
 
+.explore-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: rgba(31, 28, 22, 0.7);
+}
+
+.explore-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(31, 28, 22, 0.2);
+  border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+
 .explore-output--history {
   min-height: auto;
   background: white;
@@ -733,6 +750,11 @@ a {
   gap: 8px;
 }
 
+.explore-history__card--loading {
+  background: #fffaf5;
+  border-style: dashed;
+}
+
 .explore-history__meta {
   display: flex;
   justify-content: space-between;
@@ -802,6 +824,13 @@ a {
   align-self: flex-start;
   background: var(--paper-soft);
   border: 1px solid rgba(31, 28, 22, 0.1);
+}
+
+.chat-message--loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-style: italic;
 }
 
 .chat-input {
@@ -2006,5 +2035,11 @@ a {
   }
   100% {
     box-shadow: 0 0 0 0 rgba(226, 74, 59, 0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }

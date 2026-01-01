@@ -39,6 +39,17 @@ export default function ExploreLabPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const normalizeError = (err: unknown) => {
+    if (err instanceof Error) {
+      const message = err.message.toLowerCase();
+      if (message.includes("failed to fetch") || message.includes("networkerror")) {
+        return "Server not reachable. Is the API running?";
+      }
+      return err.message;
+    }
+    return "Explore request failed.";
+  };
+
   useEffect(() => {
     if (hydratedRef.current) {
       return;
@@ -87,7 +98,7 @@ export default function ExploreLabPage() {
       const data = (await response.json()) as { response_text?: string };
       setResponseText(data.response_text ?? "");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Explore request failed.");
+      setError(normalizeError(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -187,7 +198,16 @@ export default function ExploreLabPage() {
           <div className="explore-panel__title">Response</div>
           {error ? <div className="explore-error">{error}</div> : null}
           <div className="explore-output">
-            {responseText ? responseText : "Responses will appear here."}
+            {isSubmitting ? (
+              <div className="explore-loading">
+                <span className="explore-spinner" aria-hidden="true" />
+                Waiting for response...
+              </div>
+            ) : responseText ? (
+              responseText
+            ) : (
+              "Responses will appear here."
+            )}
           </div>
           <div className="explore-meta">
             Mode: <strong>{mode}</strong>
