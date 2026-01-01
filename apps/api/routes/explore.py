@@ -103,7 +103,7 @@ def explore(payload: ExploreRequest):
         )
         return {"mode": mode, "response_text": response}
 
-    timeout_seconds = payload.timeout_seconds or 45
+    timeout_seconds = payload.timeout_seconds or 120
     prompt = build_prompt(payload)
     response_text = run_codex_cli(prompt, timeout_seconds)
     return {"mode": mode, "response_text": response_text}

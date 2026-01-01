@@ -174,7 +174,7 @@ def explore_chat(payload: ExploreChatRequest):
             response_text = f"Mock reply: {message[:240]}"
             session_id = None
         else:
-            timeout_seconds = payload.timeout_seconds or 60
+            timeout_seconds = payload.timeout_seconds or 120
             prompt = message
             resume_last = False
             session_id = thread.get("cli_session_id")
