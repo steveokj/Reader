@@ -185,3 +185,16 @@ class ReaderSettingsUpdate(BaseModel):
 
 class ReaderSettingsResponse(BaseModel):
     settings: ReaderSettings
+
+
+class ExploreRequest(BaseModel):
+    selection_text: str
+    context_text: Optional[str] = None
+    instruction: Optional[str] = None
+    mode: Optional[str] = "mock"
+    timeout_seconds: Optional[int] = None
+
+
+class ExploreResponse(BaseModel):
+    mode: str
+    response_text: str
