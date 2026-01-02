@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { getClientApiBase } from "@/lib/apiBase";
 
@@ -16,32 +16,15 @@ type ChatMessage = {
 const DEFAULT_SYSTEM_PROMPT =
   "You are a helpful reading companion. Respond to the user's last message, keep continuity with the chat history, and be concise.";
 
-const MAX_CONTEXT_MESSAGES = 8;
-
-function buildChatContext(messages: ChatMessage[]): string {
-  const history = messages.slice(-MAX_CONTEXT_MESSAGES);
-  if (history.length === 0) {
-    return "";
-  }
-  return history
-    .map((message) =>
-      message.role === "user"
-        ? `User: ${message.content}`
-        : `Assistant: ${message.content}`
-    )
-    .join("\n");
-}
-
 export default function ExploreChatPage() {
   const apiBase = getClientApiBase();
   const [mode, setMode] = useState<ExploreMode>("codex-cli");
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
   const [draftMessage, setDraftMessage] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [threadId, setThreadId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const contextText = useMemo(() => buildChatContext(messages), [messages]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -61,15 +44,16 @@ export default function ExploreChatPage() {
     setError(null);
 
     try {
-      const response = await fetch(`${apiBase}/explore`, {
+      const response = await fetch(`${apiBase}/explore/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          selection_text: trimmed,
-          context_text: contextText,
-          instruction: systemPrompt.trim() || null,
+          thread_id: threadId,
+          message: trimmed,
+          action: threadId ? "resume" : "new",
+          system_prompt: systemPrompt.trim() || null,
           mode,
         }),
       });
@@ -79,8 +63,11 @@ export default function ExploreChatPage() {
         throw new Error(data.detail || "Explore request failed.");
       }
 
-      const data = (await response.json()) as { response_text?: string };
-      const responseText = data.response_text ?? "";
+      const data = (await response.json()) as { messages?: ChatMessage[]; thread?: { id: number } };
+      const responseText = data.messages?.[0]?.content ?? "";
+      if (!threadId && data.thread?.id) {
+        setThreadId(data.thread.id);
+      }
       setMessages((prev) => [
         ...prev,
         { id: now + 1, role: "assistant", content: responseText },
@@ -95,6 +82,7 @@ export default function ExploreChatPage() {
   const handleClearChat = () => {
     setMessages([]);
     setError(null);
+    setThreadId(null);
   };
 
   return (
@@ -131,7 +119,7 @@ export default function ExploreChatPage() {
             </button>
           </div>
           <div className="explore-hint">
-            Context includes the last {MAX_CONTEXT_MESSAGES} messages.
+            CLI sessions persist with <code>codex exec resume --last</code>.
           </div>
         </div>
         <section className="chat-card">

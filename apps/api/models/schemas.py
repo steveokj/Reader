@@ -198,3 +198,36 @@ class ExploreRequest(BaseModel):
 class ExploreResponse(BaseModel):
     mode: str
     response_text: str
+
+
+class ExploreChatRequest(BaseModel):
+    thread_id: Optional[int] = None
+    message: str
+    mode: Optional[str] = "codex-cli"
+    action: Optional[str] = None
+    system_prompt: Optional[str] = None
+    title: Optional[str] = None
+    timeout_seconds: Optional[int] = None
+
+
+class ExploreThread(BaseModel):
+    id: int
+    title: Optional[str] = None
+    system_prompt: Optional[str] = None
+    cli_session_id: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class ExploreChatMessage(BaseModel):
+    id: int
+    thread_id: int
+    role: str
+    content: str
+    created_at: str
+
+
+class ExploreChatResponse(BaseModel):
+    thread: ExploreThread
+    messages: List[ExploreChatMessage]
+    mode: str
