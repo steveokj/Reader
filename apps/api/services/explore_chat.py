@@ -37,6 +37,37 @@ def update_thread_session(conn, thread_id: int, cli_session_id: str) -> None:
     conn.commit()
 
 
+def update_thread(
+    conn,
+    thread_id: int,
+    *,
+    title: Optional[str],
+    system_prompt: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    fields = []
+    params: List[Any] = []
+
+    if title is not None:
+        fields.append("title = ?")
+        params.append(title)
+    if system_prompt is not None:
+        fields.append("system_prompt = ?")
+        params.append(system_prompt)
+
+    if not fields:
+        return get_thread(conn, thread_id)
+
+    now = _iso_now()
+    fields.append("updated_at = ?")
+    params.append(now)
+    params.append(thread_id)
+
+    conn.execute(f"UPDATE explore_threads SET {', '.join(fields)} WHERE id = ?", params)
+    conn.commit()
+
+    return get_thread(conn, thread_id)
+
+
 def touch_thread(conn, thread_id: int) -> None:
     now = _iso_now()
     conn.execute("UPDATE explore_threads SET updated_at = ? WHERE id = ?", (now, thread_id))

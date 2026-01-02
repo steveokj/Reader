@@ -566,6 +566,11 @@ a {
   color: rgba(31, 28, 22, 0.55);
 }
 
+.explore-hint__line {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
 .explore-output {
   min-height: 240px;
   border-radius: 14px;

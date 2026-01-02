@@ -9,7 +9,12 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException
 
 from ..db.conn import get_conn
-from ..models.schemas import ExploreChatRequest, ExploreChatResponse
+from ..models.schemas import (
+    ExploreChatRequest,
+    ExploreChatResponse,
+    ExploreThreadsResponse,
+    ExploreThreadUpdate,
+)
 from ..services import explore_chat as explore_chat_service
 
 router = APIRouter(prefix="/explore/chat", tags=["explore"])
@@ -223,5 +228,23 @@ def get_thread(thread_id: int):
             "messages": messages,
             "mode": "codex-cli",
         }
+    finally:
+        conn.close()
+
+
+@router.patch("/{thread_id}", response_model=ExploreChatResponse)
+def update_thread(thread_id: int, payload: ExploreThreadUpdate):
+    conn = get_conn()
+    try:
+        thread = explore_chat_service.update_thread(
+            conn,
+            thread_id,
+            title=payload.title,
+            system_prompt=payload.system_prompt,
+        )
+        if not thread:
+            raise HTTPException(status_code=404, detail="Thread not found.")
+        messages = explore_chat_service.list_messages(conn, thread_id)
+        return {"thread": thread, "messages": messages, "mode": "codex-cli"}
     finally:
         conn.close()

@@ -25,6 +25,50 @@ export default function ExploreChatPage() {
   const [threadId, setThreadId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState("");
+
+  const loadThreads = useCallback(async () => {
+    try {
+      const response = await fetch(`${apiBase}/explore/chat`);
+      if (!response.ok) {
+        return;
+      }
+      const data = (await response.json()) as { threads?: ChatThread[] };
+      setThreads(data.threads ?? []);
+    } catch {
+      // ignore load errors
+    }
+  }, [apiBase]);
+
+  useEffect(() => {
+    loadThreads();
+  }, [loadThreads]);
+
+  const handleSelectThread = async (thread: ChatThread) => {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`${apiBase}/explore/chat/${thread.id}`);
+      if (!response.ok) {
+        const data = (await response.json()) as { detail?: string };
+        throw new Error(data.detail || "Failed to load thread.");
+      }
+      const data = (await response.json()) as { thread?: ChatThread; messages?: ChatMessage[] };
+      if (data.thread) {
+        setActiveThread(data.thread);
+        setThreadId(data.thread.id);
+        if (data.thread.system_prompt) {
+          setSystemPrompt(data.thread.system_prompt);
+        }
+        setTitleDraft(data.thread.title ?? "");
+      }
+      setMessages(data.messages ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load thread.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -67,6 +111,8 @@ export default function ExploreChatPage() {
       const responseText = data.messages?.[0]?.content ?? "";
       if (!threadId && data.thread?.id) {
         setThreadId(data.thread.id);
+        setActiveThread(data.thread as ChatThread);
+        setTitleDraft(data.thread.title ?? "");
       }
       setMessages((prev) => [
         ...prev,
@@ -83,6 +129,36 @@ export default function ExploreChatPage() {
     setMessages([]);
     setError(null);
     setThreadId(null);
+    setActiveThread(null);
+    setTitleDraft("");
+  };
+
+  const handleSaveTitle = async () => {
+    if (!threadId) {
+      return;
+    }
+    try {
+      const response = await fetch(`${apiBase}/explore/chat/${threadId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: titleDraft.trim() || null,
+        }),
+      });
+      if (!response.ok) {
+        const data = (await response.json()) as { detail?: string };
+        throw new Error(data.detail || "Failed to update title.");
+      }
+      const data = (await response.json()) as { thread?: ChatThread };
+      if (data.thread) {
+        setActiveThread(data.thread);
+      }
+      loadThreads();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update title.");
+    }
   };
 
   return (
@@ -92,34 +168,93 @@ export default function ExploreChatPage() {
         <h1 className="reader-title">Explore Chat</h1>
       </header>
       <section className="explore-grid explore-grid--chat">
-        <div className="explore-panel explore-panel--chat-settings">
-          <div className="explore-panel__title">Chat Settings</div>
-          <label className="explore-label">
-            System prompt
-            <textarea
-              className="explore-textarea explore-textarea--small"
-              value={systemPrompt}
-              onChange={(event) => setSystemPrompt(event.target.value)}
-            />
-          </label>
-          <label className="explore-label">
-            Mode
-            <select
-              className="explore-select"
-              value={mode}
-              onChange={(event) => setMode(event.target.value as ExploreMode)}
-            >
-              <option value="codex-cli">Codex CLI</option>
-              <option value="mock">Mock (no CLI)</option>
-            </select>
-          </label>
-          <div className="explore-actions">
-            <button type="button" className="explore-secondary" onClick={handleClearChat}>
-              Clear chat
-            </button>
+        <div className="explore-chat-sidebar">
+          <div className="explore-panel explore-panel--chat-settings">
+            <div className="explore-panel__title">Chat Settings</div>
+            <label className="explore-label">
+              Thread title
+              <input
+                className="explore-input"
+                value={titleDraft}
+                onChange={(event) => setTitleDraft(event.target.value)}
+                placeholder={activeThread ? "Name this thread" : "Start a chat to name it"}
+                disabled={!activeThread}
+              />
+            </label>
+            <div className="explore-actions">
+              <button
+                type="button"
+                className="explore-secondary"
+                onClick={handleSaveTitle}
+                disabled={!activeThread}
+              >
+                Save title
+              </button>
+            </div>
+            <label className="explore-label">
+              System prompt
+              <textarea
+                className="explore-textarea explore-textarea--small"
+                value={systemPrompt}
+                onChange={(event) => setSystemPrompt(event.target.value)}
+              />
+            </label>
+            <label className="explore-label">
+              Mode
+              <select
+                className="explore-select"
+                value={mode}
+                onChange={(event) => setMode(event.target.value as ExploreMode)}
+              >
+                <option value="codex-cli">Codex CLI</option>
+                <option value="mock">Mock (no CLI)</option>
+              </select>
+            </label>
+            <div className="explore-actions">
+              <button type="button" className="explore-secondary" onClick={handleClearChat}>
+                New chat
+              </button>
+            </div>
+            <div className="explore-hint">
+              {activeThread?.cli_session_id ? (
+                <span className="explore-session-badge explore-session-badge--pinned">
+                  Session pinned
+                </span>
+              ) : (
+                <span className="explore-session-badge explore-session-badge--last">
+                  Using --last
+                </span>
+              )}
+              <div className="explore-hint__line">New chat always starts fresh.</div>
+            </div>
           </div>
-          <div className="explore-hint">
-            CLI sessions persist with <code>codex exec resume --last</code>.
+          <div className="explore-panel explore-panel--thread-list">
+            <div className="explore-panel__title">History</div>
+            <div className="explore-thread-list">
+              {threads.length === 0 ? (
+                <div className="explore-empty">No saved threads yet.</div>
+              ) : (
+                threads.map((thread) => {
+                  const isActive = thread.id === threadId;
+                  return (
+                    <button
+                      key={thread.id}
+                      type="button"
+                      className={`explore-thread-item${isActive ? " is-active" : ""}`}
+                      onClick={() => handleSelectThread(thread)}
+                    >
+                      <div className="explore-thread-item__title">
+                        {thread.title || `Thread ${thread.id}`}
+                      </div>
+                      <div className="explore-thread-item__meta">
+                        <span>{new Date(thread.updated_at).toLocaleString()}</span>
+                        <span>{thread.cli_session_id ? "Pinned" : "--last"}</span>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
         <section className="chat-card">
