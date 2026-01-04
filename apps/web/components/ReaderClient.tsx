@@ -903,6 +903,12 @@ export default function ReaderClient({
   }, [activeSelectionId, refreshAdditions, refreshMarkers]);
 
   const clearSelection = useCallback(() => {
+    // Don't clear selection/menu if we're in the middle of processing a double-tap
+    if (doubleTapInProgressRef.current) {
+      addDebugLog(`[CLEAR] BLOCKED - doubleTap in progress`);
+      return;
+    }
+    
     const selection = window.getSelection();
     if (selection) {
       selection.removeAllRanges();
@@ -916,7 +922,7 @@ export default function ReaderClient({
     clearLongPressTimer();
     resetTapState();
     clearWordBanners();
-  }, [clearLongPressTimer, resetTapState, clearWordBanners]);
+  }, [addDebugLog, clearLongPressTimer, resetTapState, clearWordBanners]);
 
   const discardDraftSelection = useCallback(() => {
     if (!activeSelectionId && !isCommitted) {
@@ -1051,8 +1057,9 @@ export default function ReaderClient({
 
       const selectedText = range.toString();
       if (!selectedText.trim()) {
-        addDebugLog(`[FIN] FAIL - empty text`);
-        clearSelection();
+        addDebugLog(`[FIN] FAIL - empty text (not clearing menu)`);
+        // Don't call clearSelection() here - we might have a valid menu already showing
+        // Just return without updating the menu state
         return;
       }
 
@@ -1298,6 +1305,10 @@ export default function ReaderClient({
           banner.start ?? "-"
         }-${banner.end ?? "-"}`
       );
+      
+      // IMPORTANT: Capture previousWord BEFORE addWordBanner updates lastSelectableWordRef
+      const previousWord = lastSelectableWordRef.current;
+      
       addDebugLog(`[WORD] "${wordText}" at section ${banner.sectionId}`);
       const wasAdded = addWordBanner({ ...banner, range: safeWordRange });
       
@@ -1307,29 +1318,56 @@ export default function ReaderClient({
         return;
       }
       
-      // If this is a single word tap (no previous word or same word), 
-      // add the word range to selection and show action menu
-      const previousWord = lastSelectableWordRef.current;
-      const isSingleWordTap = 
-        !previousWord || 
+      // Check if this is the same word tapped twice (show menu for single word)
+      // or a different word (multi-word selection)
+      const isSameWord = previousWord && 
         normalizeWordKey(previousWord.word) === normalizeWordKey(banner.word);
+      const isFirstWord = !previousWord;
       
-      addDebugLog(`[CHECK] single=${isSingleWordTap} prev="${previousWord?.word ?? 'none'}"`);
+      addDebugLog(`[CHECK] first=${isFirstWord} same=${isSameWord} prev="${previousWord?.word ?? 'none'}" curr="${banner.word}"`);
       
-      if (isSingleWordTap && safeWordRange) {
-        // Clear and set selection (for visual feedback on desktop)
+      if (isSameWord && safeWordRange) {
+        // Same word tapped twice: show menu for this single word
         const selection = window.getSelection();
         if (selection) {
           selection.removeAllRanges();
           selection.addRange(safeWordRange.cloneRange());
-          addDebugLog(`[SELECT] "${selection.toString()}" count=${selection.rangeCount}`);
+          addDebugLog(`[SELECT] same word "${selection.toString()}" count=${selection.rangeCount}`);
         }
         
         // Call finalizeRange SYNCHRONOUSLY with the cloned word range
-        // Don't use setTimeout because React re-renders can invalidate the selection
         const rangeText = safeWordRange.toString();
-        addDebugLog(`[FINALIZE] calling with "${rangeText}"`);
+        addDebugLog(`[FINALIZE] single word "${rangeText}"`);
         finalizeRangeRef.current?.(safeWordRange);
+        
+        // Clear so next tap starts fresh
+        lastSelectableWordRef.current = null;
+      } else if (isFirstWord) {
+        // First word: just show banner, don't show menu yet - wait for second word
+        addDebugLog(`[WAIT] first word "${banner.word}" - waiting for second word`);
+        // lastSelectableWordRef is already updated by addWordBanner
+      } else if (previousWord?.range && safeWordRange) {
+        // Multi-word: create selection from previous word to current word
+        addDebugLog(`[MULTI] from "${previousWord.word}" to "${banner.word}"`);
+        
+        // Create a range spanning from previous word start to current word end
+        const multiWordRange = document.createRange();
+        multiWordRange.setStart(previousWord.range.startContainer, previousWord.range.startOffset);
+        multiWordRange.setEnd(safeWordRange.endContainer, safeWordRange.endOffset);
+        
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+          selection.addRange(multiWordRange);
+          addDebugLog(`[SELECT] multi-word "${selection.toString()}" count=${selection.rangeCount}`);
+        }
+        
+        // Show menu for the multi-word selection
+        addDebugLog(`[FINALIZE] multi-word calling with "${multiWordRange.toString()}"`);
+        finalizeRangeRef.current?.(multiWordRange);
+        
+        // Clear the previous word ref so next tap starts fresh
+        lastSelectableWordRef.current = null;
       }
     },
     [addDebugLog, addWordBanner, getWordBannerFromRange, normalizeWordKey, setDebugTapInfo]
