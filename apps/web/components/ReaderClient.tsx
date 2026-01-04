@@ -480,6 +480,7 @@ export default function ReaderClient({
   const tapTimerRef = useRef<number | null>(null);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const lastHandledTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const doubleTapInProgressRef = useRef(false);
   const docTapStartRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const docTapMovedRef = useRef(false);
   const docTapInScopeRef = useRef(false);
@@ -1372,7 +1373,15 @@ export default function ReaderClient({
       }
 
       if (nextCount === 2) {
-      addDebugLog(`[TAP] count=2 at (${Math.round(x)},${Math.round(y)})`);
+        // Prevent duplicate double-tap processing from multiple event sources
+        if (doubleTapInProgressRef.current) {
+          addDebugLog(`[TAP] BLOCKED - double-tap already in progress`);
+          resetTapState();
+          return true;
+        }
+        doubleTapInProgressRef.current = true;
+        
+        addDebugLog(`[TAP] count=2 at (${Math.round(x)},${Math.round(y)})`);
         const selection = window.getSelection();
         if (selection) {
           selection.removeAllRanges();
@@ -1382,6 +1391,12 @@ export default function ReaderClient({
         // Immediately reset tap state to prevent duplicate double-tap handling
         // from other event sources (e.g., click event after touchend)
         resetTapState();
+        
+        // Clear the in-progress flag after a short delay to allow the finalize setTimeout to complete
+        setTimeout(() => {
+          doubleTapInProgressRef.current = false;
+        }, 50);
+        
         if (process.env.NODE_ENV !== "production") {
           console.log("[double-tap] tap state reset after handling");
         }
