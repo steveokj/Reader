@@ -1417,7 +1417,7 @@ a {
 .action-menu--mobile {
   position: static;
   max-width: none;
-  padding: 0;
+  padding: 16px;
   border: none;
   box-shadow: none;
   background: transparent;
@@ -1425,20 +1425,119 @@ a {
 
 .action-menu--mobile .action-menu__meta {
   margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.action-menu--mobile .action-menu__text {
-  background: rgba(31, 28, 22, 0.04);
-  padding: 10px 12px;
-  border-radius: 8px;
+.action-menu--mobile .action-menu__meta-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(31, 28, 22, 0.7);
+}
+
+.action-menu--mobile .action-menu__commit {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.action-menu--mobile .action-menu__commit svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  fill: none;
+}
+
+.action-menu--mobile .action-menu__commit:disabled {
+  opacity: 0.4;
+}
+
+.action-menu--mobile .action-menu__icon {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: rgba(31, 28, 22, 0.08);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.action-menu--mobile .action-menu__icon svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--ink);
+  stroke-width: 2;
+  fill: none;
+}
+
+.action-menu--mobile .action-menu__markers {
   margin-bottom: 12px;
 }
 
+.action-menu--mobile .action-menu__text {
+  background: rgba(31, 28, 22, 0.05);
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  font-style: italic;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
 .action-menu--mobile .action-menu__actions {
-  gap: 12px;
+  display: flex;
+  justify-content: space-around;
+  gap: 8px;
 }
 
 .action-menu--mobile .action-menu__actions button {
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(31, 28, 22, 0.1);
+  background: #fff;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.action-menu--mobile .action-menu__actions button:active {
+  transform: scale(0.94);
+  background: rgba(31, 28, 22, 0.05);
+}
+
+.action-menu--mobile .action-menu__actions button svg {
+  width: 24px;
+  height: 24px;
+  stroke: var(--ink);
+  stroke-width: 1.8;
+  fill: none;
+}
+
+.action-menu--mobile .action-menu__actions button svg circle {
+  fill: var(--ink);
+  stroke: none;
+}
+
+/* Selection highlight span - for mobile visual feedback */
+.selection-highlight {
+  background: rgba(217, 102, 63, 0.3);
+  border-radius: 2px;
 }

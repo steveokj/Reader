@@ -903,12 +903,59 @@ export default function ReaderClient({
     refreshMarkers(activeSelectionId);
   }, [activeSelectionId, refreshAdditions, refreshMarkers]);
 
+  // Clear any existing selection highlight spans
+  const clearSelectionHighlight = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    const highlights = container.querySelectorAll(".selection-highlight");
+    highlights.forEach((span) => {
+      const parent = span.parentNode;
+      if (parent) {
+        // Move all children out of the span
+        while (span.firstChild) {
+          parent.insertBefore(span.firstChild, span);
+        }
+        parent.removeChild(span);
+        // Normalize to merge adjacent text nodes
+        parent.normalize();
+      }
+    });
+  }, []);
+
+  // Highlight selection by wrapping text in a span
+  const highlightSelection = useCallback((range: Range) => {
+    try {
+      // First clear any existing highlights
+      clearSelectionHighlight();
+      
+      // Clone the range to avoid modifying the original
+      const clonedRange = range.cloneRange();
+      
+      // Create a highlight span
+      const highlightSpan = document.createElement("span");
+      highlightSpan.className = "selection-highlight";
+      
+      // Surround the range contents with our span
+      clonedRange.surroundContents(highlightSpan);
+      
+      addDebugLog(`[HIGHLIGHT] wrapped selection in span`);
+    } catch {
+      // surroundContents can fail if the range crosses element boundaries
+      // In that case, we just skip the visual highlight
+      addDebugLog(`[HIGHLIGHT] failed - range crosses boundaries`);
+    }
+  }, [addDebugLog, clearSelectionHighlight]);
+
   const clearSelection = useCallback(() => {
     // Don't clear selection/menu if we're in the middle of processing a double-tap
     if (doubleTapInProgressRef.current) {
       addDebugLog(`[CLEAR] BLOCKED - doubleTap in progress`);
       return;
     }
+    
+    // Clear the visual highlight
+    clearSelectionHighlight();
     
     const selection = window.getSelection();
     if (selection) {
@@ -923,7 +970,7 @@ export default function ReaderClient({
     clearLongPressTimer();
     resetTapState();
     clearWordBanners();
-  }, [addDebugLog, clearLongPressTimer, resetTapState, clearWordBanners]);
+  }, [addDebugLog, clearLongPressTimer, clearSelectionHighlight, resetTapState, clearWordBanners]);
 
   const discardDraftSelection = useCallback(() => {
     if (!activeSelectionId && !isCommitted) {
@@ -1072,6 +1119,9 @@ export default function ReaderClient({
       }
       
       addDebugLog(`[FIN] OK - "${selectedText}" section=${sectionId}`);
+      
+      // Highlight the selection visually using span wrapping
+      highlightSelection(range);
 
       const section = sectionById.get(sectionId);
       const usesParagraphOffsets = Boolean(sectionElement.querySelector("[data-paragraph]"));
@@ -1088,18 +1138,6 @@ export default function ReaderClient({
 
       const rects = range.getClientRects();
       const rect = rects.length > 0 ? rects[0] : range.getBoundingClientRect();
-
-      // Set custom highlight overlay for mobile (since native selection isn't visible)
-      const highlightRects: DOMRect[] = [];
-      for (let i = 0; i < rects.length; i++) {
-        highlightRects.push(rects[i]);
-      }
-      // Fall back to single bounding rect if no individual rects
-      if (highlightRects.length === 0) {
-        highlightRects.push(range.getBoundingClientRect());
-      }
-      setSelectionHighlightRects(highlightRects);
-      addDebugLog(`[FIN] highlight rects: ${highlightRects.length}`);
 
       setMenuState({
         top: Math.max(12, rect.top - 48),
@@ -1127,7 +1165,7 @@ export default function ReaderClient({
         setMobilePanel("selection");
       }
     },
-    [addDebugLog, clearLongPressAnchor, clearSelection, getSectionElementFromNode, isMobile, sectionById, selections]
+    [addDebugLog, clearLongPressAnchor, clearSelection, getSectionElementFromNode, highlightSelection, isMobile, sectionById, selections]
   );
 
   finalizeRangeRef.current = finalizeRange;
