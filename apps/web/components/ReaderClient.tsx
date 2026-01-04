@@ -1735,6 +1735,12 @@ export default function ReaderClient({
 
   const handleDoubleClick = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
+      // Skip if we're already handling a double-tap from touch events
+      if (doubleTapInProgressRef.current) {
+        addDebugLog(`[DBLCLICK] BLOCKED - doubleTap in progress`);
+        return;
+      }
+      
       const container = containerRef.current;
       if (!container) {
         return;
@@ -1766,7 +1772,7 @@ export default function ReaderClient({
       addWordBanner({ ...banner, range: safeWordRange });
 
     },
-    [addWordBanner, getWordBannerFromRange]
+    [addDebugLog, addWordBanner, getWordBannerFromRange]
   );
 
   const handleSelectHighlight = useCallback((selection: Selection) => {
