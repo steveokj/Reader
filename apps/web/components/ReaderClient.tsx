@@ -1316,26 +1316,20 @@ export default function ReaderClient({
       
       addDebugLog(`[CHECK] single=${isSingleWordTap} prev="${previousWord?.word ?? 'none'}"`);
       
-      if (isSingleWordTap && wordRange) {
-        // Clear and set selection
+      if (isSingleWordTap && safeWordRange) {
+        // Clear and set selection (for visual feedback on desktop)
         const selection = window.getSelection();
         if (selection) {
           selection.removeAllRanges();
-          selection.addRange(wordRange);
-          
+          selection.addRange(safeWordRange.cloneRange());
           addDebugLog(`[SELECT] "${selection.toString()}" count=${selection.rangeCount}`);
-          
-          // Call finalizeRange to show the action menu
-          setTimeout(() => {
-            const sel = window.getSelection();
-            if (sel && sel.rangeCount > 0) {
-            finalizeRangeRef.current?.(sel.getRangeAt(0));
-            addDebugLog(`[FINALIZE] "${sel.toString()}" → menu`);
-          } else {
-            addDebugLog(`[FINALIZE] FAILED - no range`);
-          }
-          }, 0);
         }
+        
+        // Call finalizeRange SYNCHRONOUSLY with the cloned word range
+        // Don't use setTimeout because React re-renders can invalidate the selection
+        const rangeText = safeWordRange.toString();
+        addDebugLog(`[FINALIZE] calling with "${rangeText}"`);
+        finalizeRangeRef.current?.(safeWordRange);
       }
     },
     [addDebugLog, addWordBanner, getWordBannerFromRange, normalizeWordKey, setDebugTapInfo]
