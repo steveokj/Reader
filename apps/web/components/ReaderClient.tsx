@@ -504,7 +504,16 @@ export default function ReaderClient({
   const [mobilePanel, setMobilePanel] = useState<"chapters" | "highlights" | null>(null);
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
   const [debugTapInfo, setDebugTapInfo] = useState("");
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  
+  // Add to debug log (for mobile visibility)
+  const addDebugLog = useCallback((msg: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setDebugLog(prev => [`${timestamp} ${msg}`, ...prev].slice(0, 15));
+    console.log(msg);
+  }, []);
   const [wordBanners, setWordBanners] = useState<WordBanner[]>([]);
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
@@ -624,7 +633,7 @@ export default function ReaderClient({
       selection.addRange(range);
     }
     if (process.env.NODE_ENV !== "production") {
-      console.debug(
+      console.log(
         "[double-tap] selected range",
         {
           sectionId: first.sectionId,
@@ -647,7 +656,7 @@ export default function ReaderClient({
       }
       setDebugTapInfo(`select span "${previous.word}" -> "${current.word}"`);
       if (process.env.NODE_ENV !== "production") {
-        console.debug("[double-tap] selected span range", {
+        console.log("[double-tap] selected span range", {
           first: previous.word,
           second: current.word,
         });
@@ -674,6 +683,16 @@ export default function ReaderClient({
 
   const addWordBanner = useCallback(
     (tap: Omit<WordSelectionTap, "id">) => {
+      // Prevent adding duplicate consecutive banners for the same word
+      const lastBanner = lastSelectableWordRef.current;
+      if (lastBanner && 
+          normalizeWordKey(lastBanner.word) === normalizeWordKey(tap.word) &&
+          lastBanner.sectionId === tap.sectionId &&
+          lastBanner.start === tap.start) {
+      addDebugLog(`[SKIP] duplicate: "${tap.word}"`);
+      return;
+      }
+      
       const banner: WordBanner = {
         id: nextWordBannerIdRef.current++,
         word: tap.word,
@@ -685,6 +704,7 @@ export default function ReaderClient({
         ...banner,
         range: tap.range ?? null,
       };
+      addDebugLog(`[BANNER] added: "${banner.word}" #${banner.id}`);
       setWordBanners((prev) => {
         const next = [...prev, banner];
         return next.slice(Math.max(0, next.length - 3));
@@ -711,7 +731,7 @@ export default function ReaderClient({
         lastSelectableWordRef.current = selectionTap;
       }
     },
-    [normalizeWordKey, selectWordRangeFromTap]  // 🔥 Add finalizeRange to dependencies
+    [addDebugLog, normalizeWordKey, selectWordRangeFromTap]
   );
 
   const clearWordBanners = useCallback(() => {
@@ -1077,6 +1097,9 @@ export default function ReaderClient({
 
   const startLongPress = useCallback(
     (x: number, y: number, pointerId: number | null) => {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[long-press] started", { x, y, pointerId });
+      }
       clearLongPressTimer();
       tapEligibleRef.current = true;
       longPressActiveRef.current = true;
@@ -1094,6 +1117,9 @@ export default function ReaderClient({
         const normalized = selectionText.replace(/\s+/g, " ").trim();
         if (normalized.length > LONG_PRESS_MULTIWORD_LENGTH || normalized.includes(" ")) {
           tapEligibleRef.current = false;
+          if (process.env.NODE_ENV !== "production") {
+            console.log("[long-press] tap ineligible - multi-word selection", { normalized });
+          }
           return;
         }
 
@@ -1202,10 +1228,6 @@ export default function ReaderClient({
 
   const handleTouchDoubleTap = useCallback(
     (x: number, y: number) => {
-      const selection = window.getSelection();
-      if (selection) {
-        selection.removeAllRanges();
-      }
       const container = containerRef.current;
       if (!container) {
         return;
@@ -1220,29 +1242,74 @@ export default function ReaderClient({
 
       const wordRange = getWordRangeFromPointRange(pointRange);
       const safeWordRange = wordRange ? wordRange.cloneRange() : null;
+      
+      // Get banner info from the word range, not the point range
       const banner =
-        getWordBannerFromRange(pointRange) ?? {
+        (wordRange ? getWordBannerFromRange(wordRange) : null) ?? {
           word: getWordAtPoint(x, y) ?? "(no word)",
           sectionId: null,
           start: null,
           end: null,
         };
+      
+      const wordRangeText = wordRange ? wordRange.toString() : null;
+      
       setDebugTapInfo(
         `doubletap "${banner.word}" section=${banner.sectionId ?? "-"} range=${
           banner.start ?? "-"
         }-${banner.end ?? "-"}`
       );
-      if (process.env.NODE_ENV !== "production") {
-        console.debug("[double-tap] banner", banner);
-      }
+      addDebugLog(`[WORD] "${wordRangeText}" at section ${banner.sectionId}`);
       addWordBanner({ ...banner, range: safeWordRange });
+      
+      // If this is a single word tap (no previous word or same word), 
+      // add the word range to selection and show action menu
+      const previousWord = lastSelectableWordRef.current;
+      const isSingleWordTap = 
+        !previousWord || 
+        normalizeWordKey(previousWord.word) === normalizeWordKey(banner.word);
+      
+      addDebugLog(`[CHECK] single=${isSingleWordTap} prev="${previousWord?.word ?? 'none'}"`);
+      
+      if (isSingleWordTap && wordRange) {
+        // Clear and set selection
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+          selection.addRange(wordRange);
+          
+          addDebugLog(`[SELECT] "${selection.toString()}" count=${selection.rangeCount}`);
+          
+          // Call finalizeRange to show the action menu
+          setTimeout(() => {
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0) {
+            finalizeRangeRef.current?.(sel.getRangeAt(0));
+            addDebugLog(`[FINALIZE] "${sel.toString()}" → menu`);
+          } else {
+            addDebugLog(`[FINALIZE] FAILED - no range`);
+          }
+          }, 0);
+        }
+      }
     },
-    [addWordBanner, getWordBannerFromRange, setDebugTapInfo]
+    [addDebugLog, addWordBanner, getWordBannerFromRange, normalizeWordKey, setDebugTapInfo]
   );
 
   const processTapSequence = useCallback(
     (x: number, y: number) => {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[tap-sequence] called", { 
+          x, 
+          y, 
+          tapEligible: tapEligibleRef.current,
+          currentTapCount: tapCountRef.current 
+        });
+      }
       if (!tapEligibleRef.current) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[tap-sequence] BLOCKED - tapEligible is false");
+        }
         return false;
       }
       const now = Date.now();
@@ -1269,15 +1336,19 @@ export default function ReaderClient({
       }
 
       if (nextCount === 2) {
+      addDebugLog(`[TAP] count=2 at (${Math.round(x)},${Math.round(y)})`);
         const selection = window.getSelection();
         if (selection) {
           selection.removeAllRanges();
         }
         clearTapTimer();
         handleTouchDoubleTap(x, y);
-        tapTimerRef.current = window.setTimeout(() => {
-          resetTapState();
-        }, TAP_WINDOW_MS);
+        // Immediately reset tap state to prevent duplicate double-tap handling
+        // from other event sources (e.g., click event after touchend)
+        resetTapState();
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[double-tap] tap state reset after handling");
+        }
         return true;
       }
 
@@ -1292,7 +1363,7 @@ export default function ReaderClient({
 
       return false;
     },
-    [clearTapTimer, handleTouchDoubleTap, menuState, resetTapState]
+    [addDebugLog, clearTapTimer, handleTouchDoubleTap, menuState, resetTapState]
   );
 
   const handleLongPressPointerUp = useCallback(
@@ -1383,6 +1454,9 @@ export default function ReaderClient({
         now - lastHandled.time < 60 &&
         Math.hypot(x - lastHandled.x, y - lastHandled.y) < 8
       ) {
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[tap-point] deduplicated (too close to last)", { source, dt: now - lastHandled.time });
+        }
         return;
       }
       lastHandledTapRef.current = { time: now, x, y };
@@ -1390,8 +1464,14 @@ export default function ReaderClient({
       setDebugTapInfo(
         `${source} ${new Date().toLocaleTimeString()} (${Math.round(x)},${Math.round(y)})`
       );
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[tap-point] received", { source, x, y, tapEligible: tapEligibleRef.current, suppress: suppressTouchFinalizeRef.current });
+      }
       if (suppressTouchFinalizeRef.current) {
         suppressTouchFinalizeRef.current = false;
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[tap-point] suppressed by suppressTouchFinalize");
+        }
         return;
       }
 
@@ -1399,6 +1479,10 @@ export default function ReaderClient({
         const consumed = processTapSequence(x, y);
         if (consumed) {
           return;
+        }
+      } else {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[tap-point] not eligible for tap sequence - tapEligibleRef is false");
         }
       }
 
@@ -2083,7 +2167,49 @@ export default function ReaderClient({
     isMounted
       ? createPortal(
           <div className="mobile-debug-banner">
-            <span>tap debug: {debugTapInfo || "waiting"}</span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ flex: 1 }}>{debugTapInfo || "waiting..."}</span>
+              <button 
+                onClick={() => setShowDebugPanel(p => !p)}
+                style={{ 
+                  padding: "4px 8px", 
+                  fontSize: "11px",
+                  background: showDebugPanel ? "#0066cc" : "#444",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px"
+                }}
+              >
+                {showDebugPanel ? "Hide Log" : "Show Log"}
+              </button>
+            </div>
+            {showDebugPanel && (
+              <div style={{ 
+                marginTop: "8px", 
+                maxHeight: "200px", 
+                overflowY: "auto",
+                fontSize: "10px",
+                fontFamily: "monospace",
+                background: "rgba(0,0,0,0.8)",
+                padding: "8px",
+                borderRadius: "4px"
+              }}>
+                {debugLog.length === 0 ? (
+                  <div style={{ color: "#888" }}>No logs yet. Double-tap a word.</div>
+                ) : (
+                  debugLog.map((log, i) => (
+                    <div key={i} style={{ 
+                      color: log.includes("SKIP") ? "#ff6666" : 
+                             log.includes("count=2") ? "#66ff66" : 
+                             log.includes("finalize") ? "#66ffff" : "#fff",
+                      marginBottom: "2px"
+                    }}>
+                      {log}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>,
           document.body
         )
