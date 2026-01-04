@@ -6,6 +6,7 @@ import type { MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import ActionMenu from "@/components/ActionMenu";
+import MarkerToggle from "@/components/MarkerToggle";
 import ReaderDocument from "@/components/ReaderDocument";
 import ReaderHighlightsPanel from "@/components/ReaderHighlightsPanel";
 import ReaderSectionPicker from "@/components/ReaderSectionPicker";
@@ -1482,20 +1483,16 @@ export default function ReaderClient({
         return true;
       }
 
+      // Triple-tap disabled for now - conflicts with double-tap selection
+      // Users can access nav by tapping outside text content
       if (nextCount >= 3) {
-        // Triple-tap: open nav menu only if we don't have a selection active
-        const selection = window.getSelection();
-        if (!menuState && !mobileNavOpen && (!selection || selection.isCollapsed)) {
-          setMobileNavOpen(true);
-          setMobilePanel(null); // Just show nav, not a panel
-        }
         resetTapState();
-        return true;
+        return false; // Don't consume, let it fall through
       }
 
       return false;
     },
-    [addDebugLog, clearTapTimer, handleTouchDoubleTap, menuState, mobileNavOpen, resetTapState]
+    [addDebugLog, clearTapTimer, handleTouchDoubleTap, resetTapState]
   );
 
   const handleLongPressPointerUp = useCallback(
@@ -2471,76 +2468,79 @@ export default function ReaderClient({
                   />
                 </div>
               ) : mobilePanel === "selection" && menuState ? (
-                <div className="mobile-panel__content mobile-panel__selection">
-                  <div className="mobile-panel__title">
-                    Selection
-                    <button 
-                      type="button" 
-                      className="mobile-panel__close"
+                <div className="action-menu action-menu--mobile">
+                  <div className="action-menu__meta">
+                    <div className="action-menu__meta-left">
+                      <button
+                        className="action-menu__commit"
+                        type="button"
+                        onClick={handleCommitSelection}
+                        disabled={isSaving || isCommitted}
+                        aria-label="Save selection"
+                        title="Save selection"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M5 12l4 4 10-10" />
+                        </svg>
+                      </button>
+                      <span>{isSaving ? "Saving..." : isCommitted ? "Saved" : "Not saved"}</span>
+                    </div>
+                    <button
+                      className="action-menu__icon"
                       onClick={() => {
                         setMobilePanel(null);
+                        setMobileNavOpen(false);
                         clearSelection();
                       }}
+                      type="button"
                       aria-label="Close"
+                      title="Close"
                     >
-                      ✕
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M6 6l12 12M18 6l-12 12" />
+                      </svg>
                     </button>
                   </div>
-                  <div className="mobile-panel__selection-text">
-                    &ldquo;{menuState.selectionText.length > 100 
-                      ? menuState.selectionText.slice(0, 100) + "..." 
-                      : menuState.selectionText}&rdquo;
+                  <div className="action-menu__markers">
+                    <MarkerToggle activeKinds={actionMenuMarkerKinds} onToggle={actionMenuToggle} compact />
                   </div>
-                  <div className="mobile-panel__actions">
-                    {(["highlight", "like", "todo"] as const).map((kind) => (
-                      <button
-                        key={kind}
-                        type="button"
-                        className={`action-btn action-btn--${kind}${actionMenuMarkerKinds.includes(kind) ? " is-active" : ""}`}
-                        onClick={() => actionMenuToggle(kind)}
-                        aria-label={kind}
-                      >
-                        {kind === "highlight" && "🖍️"}
-                        {kind === "like" && "❤️"}
-                        {kind === "todo" && "✓"}
-                        <span>{kind}</span>
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      className="action-btn action-btn--note"
-                      onClick={handleOpenNote}
-                      aria-label="Note"
-                    >
-                      📝 <span>Note</span>
+                  <div className="action-menu__text" title={menuState.selectionText.replace(/\s+/g, " ").trim()}>
+                    {menuState.selectionText.length > 160 
+                      ? menuState.selectionText.replace(/\s+/g, " ").trim().slice(0, 160) + "..." 
+                      : menuState.selectionText.replace(/\s+/g, " ").trim()}
+                  </div>
+                  <div className="action-menu__actions">
+                    <button type="button" onClick={handleOpenNote} aria-label="Note" title="Note">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 20h16M6 16l9-9 3 3-9 9H6v-3z" />
+                      </svg>
                     </button>
-                    <button
-                      type="button"
-                      className="action-btn action-btn--grammar"
-                      onClick={handleOpenGrammar}
-                      aria-label="Grammar"
-                    >
-                      📖 <span>Grammar</span>
+                    <button type="button" onClick={handleOpenAudio} aria-label="Audio" title="Audio">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 3v10" />
+                        <path d="M8 7v6" />
+                        <path d="M16 7v6" />
+                        <path d="M5 11a7 7 0 0014 0" />
+                      </svg>
                     </button>
-                    <button
-                      type="button"
-                      className="action-btn action-btn--audio"
-                      onClick={handleOpenAudio}
-                      aria-label="Audio"
-                    >
-                      🎤 <span>Audio</span>
+                    <button type="button" onClick={handleOpenGrammar} aria-label="Grammar" title="Grammar">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 6h16M4 10h10M4 14h16M4 18h8" />
+                      </svg>
                     </button>
-                    {!isCommitted && (
-                      <button
-                        type="button"
-                        className="action-btn action-btn--save"
-                        onClick={handleCommitSelection}
-                        disabled={isSaving}
-                        aria-label="Save"
-                      >
-                        💾 <span>{isSaving ? "Saving..." : "Save"}</span>
-                      </button>
-                    )}
+                    <button type="button" aria-label="Explore" title="Explore">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9" />
+                        <path d="M12 7l4 8-8-4 4-4z" />
+                      </svg>
+                    </button>
+                    <button type="button" aria-label="More" title="More">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <circle cx="5" cy="12" r="1.8" />
+                        <circle cx="12" cy="12" r="1.8" />
+                        <circle cx="19" cy="12" r="1.8" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               ) : mobilePanel === "highlights" ? (
@@ -2553,7 +2553,8 @@ export default function ReaderClient({
               ) : null}
             </div>
           ) : null}
-          {isMobile && mobileNavOpen ? (
+          {/* Hide nav bar when selection panel is showing */}
+          {isMobile && mobileNavOpen && mobilePanel !== "selection" ? (
             <div
               className="mobile-nav"
               ref={mobileNavRef}
