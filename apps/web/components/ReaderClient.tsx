@@ -1483,9 +1483,11 @@ export default function ReaderClient({
       }
 
       if (nextCount >= 3) {
+        // Triple-tap: open nav menu only if we don't have a selection active
         const selection = window.getSelection();
-        if (!menuState && (!selection || selection.isCollapsed)) {
+        if (!menuState && !mobileNavOpen && (!selection || selection.isCollapsed)) {
           setMobileNavOpen(true);
+          setMobilePanel(null); // Just show nav, not a panel
         }
         resetTapState();
         return true;
@@ -1493,7 +1495,7 @@ export default function ReaderClient({
 
       return false;
     },
-    [addDebugLog, clearTapTimer, handleTouchDoubleTap, menuState, resetTapState]
+    [addDebugLog, clearTapTimer, handleTouchDoubleTap, menuState, mobileNavOpen, resetTapState]
   );
 
   const handleLongPressPointerUp = useCallback(
@@ -2238,6 +2240,10 @@ export default function ReaderClient({
         return;
       }
       if (!mobileNavOpen) {
+        return;
+      }
+      // Don't close if we're in the middle of a double-tap (which just opened the nav)
+      if (doubleTapInProgressRef.current) {
         return;
       }
       const target = event.target as Node;
