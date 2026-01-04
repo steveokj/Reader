@@ -486,6 +486,8 @@ export default function ReaderClient({
   const docTapInScopeRef = useRef(false);
 
   const [menuState, setMenuState] = useState<MenuState | null>(null);
+  // Custom highlight overlay for mobile (since browsers don't show native selection visually)
+  const [selectionHighlightRects, setSelectionHighlightRects] = useState<DOMRect[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isCommitted, setIsCommitted] = useState(false);
   const [selections, setSelections] = useState<Selection[]>([]);
@@ -849,18 +851,11 @@ export default function ReaderClient({
       computeIsMobile();
     };
     computeIsMobile();
-    if (media.addEventListener) {
-      media.addEventListener("change", handleChange);
-    } else {
-      media.addListener(handleChange);
-    }
+    // Modern browsers all support addEventListener on MediaQueryList
+    media.addEventListener("change", handleChange);
     window.addEventListener("resize", handleChange);
     return () => {
-      if (media.addEventListener) {
-        media.removeEventListener("change", handleChange);
-      } else {
-        media.removeListener(handleChange);
-      }
+      media.removeEventListener("change", handleChange);
       window.removeEventListener("resize", handleChange);
     };
   }, []);
@@ -913,6 +908,7 @@ export default function ReaderClient({
       selection.removeAllRanges();
     }
     setMenuState(null);
+    setSelectionHighlightRects([]); // Clear custom highlight overlay
     setIsCommitted(false);
     setPendingMarkerKinds([]);
     setDraftSelection(null);
@@ -1084,6 +1080,18 @@ export default function ReaderClient({
 
       const rects = range.getClientRects();
       const rect = rects.length > 0 ? rects[0] : range.getBoundingClientRect();
+
+      // Set custom highlight overlay for mobile (since native selection isn't visible)
+      const highlightRects: DOMRect[] = [];
+      for (let i = 0; i < rects.length; i++) {
+        highlightRects.push(rects[i]);
+      }
+      // Fall back to single bounding rect if no individual rects
+      if (highlightRects.length === 0) {
+        highlightRects.push(range.getBoundingClientRect());
+      }
+      setSelectionHighlightRects(highlightRects);
+      addDebugLog(`[FIN] highlight rects: ${highlightRects.length}`);
 
       setMenuState({
         top: Math.max(12, rect.top - 48),
@@ -1335,6 +1343,9 @@ export default function ReaderClient({
 
   const processTapSequence = useCallback(
     (x: number, y: number) => {
+      // Debug: log every call to processTapSequence
+      addDebugLog(`[PROC] start count=${tapCountRef.current} inProg=${doubleTapInProgressRef.current}`);
+      
       if (process.env.NODE_ENV !== "production") {
         console.log("[tap-sequence] called", { 
           x, 
@@ -1374,12 +1385,15 @@ export default function ReaderClient({
 
       if (nextCount === 2) {
         // Prevent duplicate double-tap processing from multiple event sources
-        if (doubleTapInProgressRef.current) {
+        const wasBlocked = doubleTapInProgressRef.current;
+        addDebugLog(`[TAP2] inProgress=${wasBlocked} before check`);
+        if (wasBlocked) {
           addDebugLog(`[TAP] BLOCKED - double-tap already in progress`);
           resetTapState();
           return true;
         }
         doubleTapInProgressRef.current = true;
+        addDebugLog(`[TAP2] set inProgress=true`);
         
         addDebugLog(`[TAP] count=2 at (${Math.round(x)},${Math.round(y)})`);
         const selection = window.getSelection();
@@ -1666,7 +1680,8 @@ export default function ReaderClient({
     if (!isMobile) {
       return;
     }
-    const handleDocClick = (event: MouseEvent) => {
+    // Use globalThis.MouseEvent to avoid conflict with React's MouseEvent type
+    const handleDocClick = (event: globalThis.MouseEvent) => {
       if (Date.now() - lastPointerTouchUpRef.current < 400) {
         return;
       }
@@ -2340,6 +2355,27 @@ export default function ReaderClient({
               getSectionElement={getSectionElementForSelection}
             />
           </div>
+          {/* Custom selection highlight overlay for mobile (since native selection isn't visible) */}
+          {selectionHighlightRects.length > 0 && (
+            <>
+              {selectionHighlightRects.map((rect, index) => (
+                <div
+                  key={index}
+                  style={{
+                    position: "fixed",
+                    left: rect.left,
+                    top: rect.top,
+                    width: rect.width,
+                    height: rect.height,
+                    background: "rgba(59, 130, 246, 0.35)",
+                    borderRadius: "2px",
+                    pointerEvents: "none",
+                    zIndex: 9998,
+                  }}
+                />
+              ))}
+            </>
+          )}
           {menuState && !noteModalOpen && !grammarModalOpen && !audioModalOpen ? (
             <ActionMenu
               top={menuState.top}

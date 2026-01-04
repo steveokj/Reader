@@ -37,7 +37,7 @@ type Highlight = {
 
 type SelectionOverlayProps = {
   selections: Selection[];
-  containerRef: RefObject<HTMLDivElement>;
+  containerRef: RefObject<HTMLDivElement | null>;
   activeSelectionId: number | null;
   onSelect: (selection: Selection) => void;
   getSectionElement?: (selection: Selection) => HTMLElement | null;

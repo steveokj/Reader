@@ -25,6 +25,7 @@ type Selection = {
 
 type Addition = {
   id: number;
+  selection_id: number;
   type: string;
   title?: string | null;
   text_content?: string | null;
