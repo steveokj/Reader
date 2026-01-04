@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .db.init import init_db
 from .routes.additions import router as additions_router
+from .routes.debug import router as debug_router
 from .routes.documents import router as documents_router
 from .routes.markers import router as markers_router
 from .routes.media import router as media_router
@@ -37,6 +38,7 @@ def on_startup() -> None:
     init_db()
 
 
+app.include_router(debug_router)
 app.include_router(documents_router)
 app.include_router(selections_router)
 app.include_router(additions_router)

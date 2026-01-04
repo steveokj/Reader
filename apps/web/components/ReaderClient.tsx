@@ -504,16 +504,20 @@ export default function ReaderClient({
   const [mobilePanel, setMobilePanel] = useState<"chapters" | "highlights" | null>(null);
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
   const [debugTapInfo, setDebugTapInfo] = useState("");
-  const [debugLog, setDebugLog] = useState<string[]>([]);
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   
-  // Add to debug log (for mobile visibility)
+  // Send debug log to server console (visible on PC terminal)
   const addDebugLog = useCallback((msg: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setDebugLog(prev => [`${timestamp} ${msg}`, ...prev].slice(0, 15));
     console.log(msg);
-  }, []);
+    // Send to server for visibility in terminal
+    fetch(`${apiBase}/debug/log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: msg, source: "reader" })
+    }).catch(() => {
+      // Ignore errors - debug logging is best effort
+    });
+  }, [apiBase]);
   const [wordBanners, setWordBanners] = useState<WordBanner[]>([]);
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
@@ -2187,95 +2191,15 @@ export default function ReaderClient({
   const actionMenuMarkerKinds = isCommitted ? selectionMarkerKinds : pendingMarkerKinds;
   const actionMenuToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
 
-  // Stop ALL touch/pointer events from propagating out of the debug panel
-  const stopAllEvents = (e: React.SyntheticEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-  };
-
+  // Simple debug banner - just shows last action, logs go to server console
   const debugBanner =
     isMounted
       ? createPortal(
-          <div 
-            className="mobile-debug-banner"
-            onTouchStart={stopAllEvents}
-            onTouchMove={stopAllEvents}
-            onTouchEnd={stopAllEvents}
-            onPointerDown={stopAllEvents}
-            onPointerMove={stopAllEvents}
-            onPointerUp={stopAllEvents}
-            onClick={stopAllEvents}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ flex: 1 }}>{debugTapInfo || "waiting..."}</span>
-              <button 
-                onTouchStart={(e) => e.stopPropagation()}
-                onTouchEnd={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  setShowDebugPanel(p => !p);
-                }}
-                style={{ 
-                  padding: "10px 16px", 
-                  fontSize: "13px",
-                  fontWeight: "bold",
-                  background: showDebugPanel ? "#0066cc" : "#333",
-                  color: "white",
-                  border: "2px solid #666",
-                  borderRadius: "6px",
-                  touchAction: "manipulation",
-                  WebkitTapHighlightColor: "transparent"
-                }}
-              >
-                {showDebugPanel ? "HIDE" : "LOG"}
-              </button>
-            </div>
-            {showDebugPanel && (
-              <div style={{ 
-                marginTop: "8px", 
-                maxHeight: "200px", 
-                overflowY: "auto",
-                fontSize: "10px",
-                fontFamily: "monospace",
-                background: "rgba(0,0,0,0.9)",
-                padding: "8px",
-                borderRadius: "4px"
-              }}>
-                {debugLog.length === 0 ? (
-                  <div style={{ color: "#888" }}>No logs yet. Double-tap a word.</div>
-                ) : (
-                  debugLog.map((log, i) => (
-                    <div key={i} style={{ 
-                      color: log.includes("SKIP") ? "#ffaa00" : 
-                             log.includes("count=2") ? "#66ff66" : 
-                             log.includes("FIN] OK") ? "#66ffff" : 
-                             log.includes("FAIL") ? "#ff6666" : "#fff",
-                      marginBottom: "2px"
-                    }}>
-                      {log}
-                    </div>
-                  ))
-                )}
-                <button
-                  onTouchEnd={(e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    setDebugLog([]);
-                  }}
-                  style={{
-                    marginTop: "8px",
-                    padding: "6px 12px",
-                    fontSize: "11px",
-                    background: "#333",
-                    color: "#fff",
-                    border: "1px solid #666",
-                    borderRadius: "4px"
-                  }}
-                >
-                  Clear Log
-                </button>
-              </div>
-            )}
+          <div className="mobile-debug-banner">
+            <span>📱 {debugTapInfo || "waiting..."}</span>
+            <span style={{ marginLeft: "8px", fontSize: "10px", opacity: 0.7 }}>
+              (logs → terminal)
+            </span>
           </div>,
           document.body
         )
