@@ -923,27 +923,77 @@ export default function ReaderClient({
     });
   }, []);
 
-  // Highlight selection by wrapping text in a span
+  // Highlight selection by wrapping text nodes in spans
+  // This handles selections that cross element boundaries
   const highlightSelection = useCallback((range: Range) => {
+    // First clear any existing highlights
+    clearSelectionHighlight();
+    
     try {
-      // First clear any existing highlights
-      clearSelectionHighlight();
+      const container = containerRef.current;
+      if (!container) return;
       
-      // Clone the range to avoid modifying the original
-      const clonedRange = range.cloneRange();
+      // Get all text nodes within the range
+      const walker = document.createTreeWalker(
+        range.commonAncestorContainer.nodeType === Node.TEXT_NODE 
+          ? range.commonAncestorContainer.parentElement! 
+          : range.commonAncestorContainer,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
       
-      // Create a highlight span
-      const highlightSpan = document.createElement("span");
-      highlightSpan.className = "selection-highlight";
+      const textNodes: Text[] = [];
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        if (range.intersectsNode(node)) {
+          textNodes.push(node as Text);
+        }
+      }
       
-      // Surround the range contents with our span
-      clonedRange.surroundContents(highlightSpan);
+      // Wrap each text node (or part of it) in a highlight span
+      for (const textNode of textNodes) {
+        const text = textNode.textContent || "";
+        if (!text.trim()) continue;
+        
+        let startOffset = 0;
+        let endOffset = text.length;
+        
+        // Adjust offsets for first and last nodes
+        if (textNode === range.startContainer) {
+          startOffset = range.startOffset;
+        }
+        if (textNode === range.endContainer) {
+          endOffset = range.endOffset;
+        }
+        
+        // Only highlight if there's actual content
+        if (startOffset >= endOffset) continue;
+        
+        const parent = textNode.parentNode;
+        if (!parent) continue;
+        
+        // Create document fragment with: before + highlighted + after
+        const fragment = document.createDocumentFragment();
+        
+        if (startOffset > 0) {
+          fragment.appendChild(document.createTextNode(text.slice(0, startOffset)));
+        }
+        
+        const highlightSpan = document.createElement("span");
+        highlightSpan.className = "selection-highlight";
+        highlightSpan.textContent = text.slice(startOffset, endOffset);
+        fragment.appendChild(highlightSpan);
+        
+        if (endOffset < text.length) {
+          fragment.appendChild(document.createTextNode(text.slice(endOffset)));
+        }
+        
+        parent.replaceChild(fragment, textNode);
+      }
       
-      addDebugLog(`[HIGHLIGHT] wrapped selection in span`);
-    } catch {
-      // surroundContents can fail if the range crosses element boundaries
-      // In that case, we just skip the visual highlight
-      addDebugLog(`[HIGHLIGHT] failed - range crosses boundaries`);
+      addDebugLog(`[HIGHLIGHT] wrapped ${textNodes.length} text nodes`);
+    } catch (err) {
+      addDebugLog(`[HIGHLIGHT] failed: ${err}`);
     }
   }, [addDebugLog, clearSelectionHighlight]);
 

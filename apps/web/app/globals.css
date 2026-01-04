@@ -1182,7 +1182,7 @@ a {
   left: 16px;
   right: 16px;
   bottom: 86px;
-  max-height: 60vh;
+  max-height: 50vh;
   background: #fffaf5;
   border: 1px solid rgba(31, 28, 22, 0.12);
   border-radius: 16px;
@@ -1190,6 +1190,12 @@ a {
   box-shadow: 0 16px 30px var(--shadow);
   z-index: 55;
   overflow-y: auto;
+}
+
+/* Selection panel - positioned higher since nav is hidden */
+.mobile-panel:has(.action-menu--mobile) {
+  bottom: 24px;
+  max-height: 45vh;
 }
 
 .mobile-panel__title {
@@ -1537,7 +1543,14 @@ a {
 }
 
 /* Selection highlight span - for mobile visual feedback */
+/* Blue for unsaved/pending selections */
 .selection-highlight {
-  background: rgba(217, 102, 63, 0.3);
+  background: rgba(59, 130, 246, 0.35);
   border-radius: 2px;
+  transition: background 0.2s ease;
+}
+
+/* Orange/accent color for saved selections (shown by SelectionOverlay) */
+.selection-highlight--saved {
+  background: rgba(217, 102, 63, 0.35);
 }
