@@ -1192,10 +1192,10 @@ a {
   overflow-y: auto;
 }
 
-/* Selection panel - positioned higher since nav is hidden */
+/* Selection panel - positioned with margin from bottom so book text shows */
 .mobile-panel:has(.action-menu--mobile) {
-  bottom: 24px;
-  max-height: 45vh;
+  bottom: 40px;
+  max-height: 35vh;
 }
 
 .mobile-panel__title {
@@ -1542,12 +1542,13 @@ a {
   stroke: none;
 }
 
-/* Selection highlight span - for mobile visual feedback */
+/* Selection highlight - for mobile visual feedback */
 /* Blue for unsaved/pending selections */
-.selection-highlight {
-  background: rgba(59, 130, 246, 0.35);
+.selection-highlight,
+mark.selection-highlight {
+  background: rgba(59, 130, 246, 0.35) !important;
   border-radius: 2px;
-  transition: background 0.2s ease;
+  color: inherit;
 }
 
 /* Orange/accent color for saved selections (shown by SelectionOverlay) */

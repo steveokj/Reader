@@ -903,95 +903,76 @@ export default function ReaderClient({
     refreshMarkers(activeSelectionId);
   }, [activeSelectionId, refreshAdditions, refreshMarkers]);
 
-  // Clear any existing selection highlight spans
+  // Clear any existing selection highlight spans or marks
   const clearSelectionHighlight = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     
+    // Find all highlight elements (both span and mark)
     const highlights = container.querySelectorAll(".selection-highlight");
-    highlights.forEach((span) => {
-      const parent = span.parentNode;
+    highlights.forEach((el) => {
+      const parent = el.parentNode;
       if (parent) {
-        // Move all children out of the span
-        while (span.firstChild) {
-          parent.insertBefore(span.firstChild, span);
+        // Move all children out of the element
+        while (el.firstChild) {
+          parent.insertBefore(el.firstChild, el);
         }
-        parent.removeChild(span);
+        parent.removeChild(el);
         // Normalize to merge adjacent text nodes
         parent.normalize();
       }
     });
   }, []);
 
-  // Highlight selection by wrapping text nodes in spans
-  // This handles selections that cross element boundaries
+  // Highlight selection using CSS Highlight API or fallback to mark element
   const highlightSelection = useCallback((range: Range) => {
     // First clear any existing highlights
     clearSelectionHighlight();
     
     try {
       const container = containerRef.current;
-      if (!container) return;
+      if (!container) {
+        addDebugLog(`[HIGHLIGHT] no container`);
+        return;
+      }
       
-      // Get all text nodes within the range
-      const walker = document.createTreeWalker(
-        range.commonAncestorContainer.nodeType === Node.TEXT_NODE 
-          ? range.commonAncestorContainer.parentElement! 
-          : range.commonAncestorContainer,
-        NodeFilter.SHOW_TEXT,
-        null
-      );
+      const rangeText = range.toString();
+      if (!rangeText.trim()) {
+        addDebugLog(`[HIGHLIGHT] empty range text`);
+        return;
+      }
       
-      const textNodes: Text[] = [];
-      let node: Node | null;
-      while ((node = walker.nextNode())) {
-        if (range.intersectsNode(node)) {
-          textNodes.push(node as Text);
+      addDebugLog(`[HIGHLIGHT] attempting to highlight "${rangeText.slice(0, 30)}..."`);
+      
+      // Try to use surroundContents for simple single-element selections
+      const clonedRange = range.cloneRange();
+      
+      // Check if start and end are in the same parent
+      const startParent = range.startContainer.parentElement;
+      const endParent = range.endContainer.parentElement;
+      
+      if (startParent === endParent && startParent) {
+        // Simple case - selection within one element
+        try {
+          const mark = document.createElement("mark");
+          mark.className = "selection-highlight";
+          clonedRange.surroundContents(mark);
+          addDebugLog(`[HIGHLIGHT] simple wrap success`);
+          return;
+        } catch {
+          addDebugLog(`[HIGHLIGHT] simple wrap failed, trying complex`);
         }
       }
       
-      // Wrap each text node (or part of it) in a highlight span
-      for (const textNode of textNodes) {
-        const text = textNode.textContent || "";
-        if (!text.trim()) continue;
-        
-        let startOffset = 0;
-        let endOffset = text.length;
-        
-        // Adjust offsets for first and last nodes
-        if (textNode === range.startContainer) {
-          startOffset = range.startOffset;
-        }
-        if (textNode === range.endContainer) {
-          endOffset = range.endOffset;
-        }
-        
-        // Only highlight if there's actual content
-        if (startOffset >= endOffset) continue;
-        
-        const parent = textNode.parentNode;
-        if (!parent) continue;
-        
-        // Create document fragment with: before + highlighted + after
-        const fragment = document.createDocumentFragment();
-        
-        if (startOffset > 0) {
-          fragment.appendChild(document.createTextNode(text.slice(0, startOffset)));
-        }
-        
-        const highlightSpan = document.createElement("span");
-        highlightSpan.className = "selection-highlight";
-        highlightSpan.textContent = text.slice(startOffset, endOffset);
-        fragment.appendChild(highlightSpan);
-        
-        if (endOffset < text.length) {
-          fragment.appendChild(document.createTextNode(text.slice(endOffset)));
-        }
-        
-        parent.replaceChild(fragment, textNode);
-      }
+      // Complex case - selection crosses elements
+      // Extract contents and wrap in a mark
+      const contents = clonedRange.extractContents();
+      const mark = document.createElement("mark");
+      mark.className = "selection-highlight";
+      mark.appendChild(contents);
+      clonedRange.insertNode(mark);
       
-      addDebugLog(`[HIGHLIGHT] wrapped ${textNodes.length} text nodes`);
+      addDebugLog(`[HIGHLIGHT] complex wrap success`);
     } catch (err) {
       addDebugLog(`[HIGHLIGHT] failed: ${err}`);
     }
@@ -2405,8 +2386,9 @@ export default function ReaderClient({
         )
       : null;
 
+  // Hide word banners when selection panel is open
   const wordBannerStack =
-    isMounted && wordBanners.length
+    isMounted && wordBanners.length && mobilePanel !== "selection"
       ? createPortal(
           <div
             className="double-tap-banner-stack"
