@@ -504,7 +504,7 @@ export default function ReaderClient({
   const scrolledSectionRef = useRef<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [mobilePanel, setMobilePanel] = useState<"chapters" | "highlights" | null>(null);
+  const [mobilePanel, setMobilePanel] = useState<"chapters" | "highlights" | "selection" | null>(null);
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
   const [debugTapInfo, setDebugTapInfo] = useState("");
   const [isMounted, setIsMounted] = useState(false);
@@ -1119,8 +1119,14 @@ export default function ReaderClient({
         setIsCommitted(false);
       }
       setPendingMarkerKinds([]);
+      
+      // On mobile, show the action menu in the bottom panel instead of floating
+      if (isMobile) {
+        setMobileNavOpen(true);
+        setMobilePanel("selection");
+      }
     },
-    [addDebugLog, clearLongPressAnchor, clearSelection, getSectionElementFromNode, sectionById, selections]
+    [addDebugLog, clearLongPressAnchor, clearSelection, getSectionElementFromNode, isMobile, sectionById, selections]
   );
 
   finalizeRangeRef.current = finalizeRange;
@@ -2425,7 +2431,8 @@ export default function ReaderClient({
             position: fixed doesn't scroll with content.
             TODO: Use inline highlighting or absolute positioning relative to container
           */}
-          {menuState && !noteModalOpen && !grammarModalOpen && !audioModalOpen ? (
+          {/* Only show floating menu on desktop - mobile uses the bottom panel */}
+          {!isMobile && menuState && !noteModalOpen && !grammarModalOpen && !audioModalOpen ? (
             <ActionMenu
               top={menuState.top}
               left={menuState.left}
@@ -2457,14 +2464,87 @@ export default function ReaderClient({
                     activeKey={initialSectionKey ?? null}
                   />
                 </div>
-              ) : (
+              ) : mobilePanel === "selection" && menuState ? (
+                <div className="mobile-panel__content mobile-panel__selection">
+                  <div className="mobile-panel__title">
+                    Selection
+                    <button 
+                      type="button" 
+                      className="mobile-panel__close"
+                      onClick={() => {
+                        setMobilePanel(null);
+                        clearSelection();
+                      }}
+                      aria-label="Close"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="mobile-panel__selection-text">
+                    &ldquo;{menuState.selectionText.length > 100 
+                      ? menuState.selectionText.slice(0, 100) + "..." 
+                      : menuState.selectionText}&rdquo;
+                  </div>
+                  <div className="mobile-panel__actions">
+                    {(["highlight", "like", "todo"] as const).map((kind) => (
+                      <button
+                        key={kind}
+                        type="button"
+                        className={`action-btn action-btn--${kind}${actionMenuMarkerKinds.includes(kind) ? " is-active" : ""}`}
+                        onClick={() => actionMenuToggle(kind)}
+                        aria-label={kind}
+                      >
+                        {kind === "highlight" && "🖍️"}
+                        {kind === "like" && "❤️"}
+                        {kind === "todo" && "✓"}
+                        <span>{kind}</span>
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="action-btn action-btn--note"
+                      onClick={handleOpenNote}
+                      aria-label="Note"
+                    >
+                      📝 <span>Note</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="action-btn action-btn--grammar"
+                      onClick={handleOpenGrammar}
+                      aria-label="Grammar"
+                    >
+                      📖 <span>Grammar</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="action-btn action-btn--audio"
+                      onClick={handleOpenAudio}
+                      aria-label="Audio"
+                    >
+                      🎤 <span>Audio</span>
+                    </button>
+                    {!isCommitted && (
+                      <button
+                        type="button"
+                        className="action-btn action-btn--save"
+                        onClick={handleCommitSelection}
+                        disabled={isSaving}
+                        aria-label="Save"
+                      >
+                        💾 <span>{isSaving ? "Saving..." : "Save"}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : mobilePanel === "highlights" ? (
                 <ReaderHighlightsPanel
                   documentId={documentId}
                   refreshKey={selections.length + additions.length + markers.length}
                   isActive
                   onJumpToSelection={handleJumpToSelection}
                 />
-              )}
+              ) : null}
             </div>
           ) : null}
           {isMobile && mobileNavOpen ? (
