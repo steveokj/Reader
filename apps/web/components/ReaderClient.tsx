@@ -686,15 +686,16 @@ export default function ReaderClient({
   }, [selectWordRange, setDebugTapInfo]);
 
   const addWordBanner = useCallback(
-    (tap: Omit<WordSelectionTap, "id">) => {
+    (tap: Omit<WordSelectionTap, "id">): boolean => {
       // Prevent adding duplicate consecutive banners for the same word
+      // Returns true if banner was added, false if skipped
       const lastBanner = lastSelectableWordRef.current;
       if (lastBanner && 
           normalizeWordKey(lastBanner.word) === normalizeWordKey(tap.word) &&
           lastBanner.sectionId === tap.sectionId &&
           lastBanner.start === tap.start) {
-      addDebugLog(`[SKIP] duplicate: "${tap.word}"`);
-      return;
+        addDebugLog(`[SKIP] duplicate: "${tap.word}"`);
+        return false;
       }
       
       const banner: WordBanner = {
@@ -735,6 +736,7 @@ export default function ReaderClient({
       if (hasSelectableRange) {
         lastSelectableWordRef.current = selectionTap;
       }
+      return true;
     },
     [addDebugLog, normalizeWordKey, selectWordRangeFromTap]
   );
@@ -1288,7 +1290,13 @@ export default function ReaderClient({
         }-${banner.end ?? "-"}`
       );
       addDebugLog(`[WORD] "${wordText}" at section ${banner.sectionId}`);
-      addWordBanner({ ...banner, range: safeWordRange });
+      const wasAdded = addWordBanner({ ...banner, range: safeWordRange });
+      
+      // If this was a duplicate, skip the selection logic entirely
+      if (!wasAdded) {
+        addDebugLog(`[SKIP] duplicate event - not updating selection`);
+        return;
+      }
       
       // If this is a single word tap (no previous word or same word), 
       // add the word range to selection and show action menu
