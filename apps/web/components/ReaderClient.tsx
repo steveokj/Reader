@@ -707,7 +707,8 @@ export default function ReaderClient({
       addDebugLog(`[BANNER] added: "${banner.word}" #${banner.id}`);
       setWordBanners((prev) => {
         const next = [...prev, banner];
-        return next.slice(Math.max(0, next.length - 3));
+        // Only keep last 2 banners
+        return next.slice(Math.max(0, next.length - 2));
       });
       const previous = lastSelectableWordRef.current;
       if (previous && normalizeWordKey(previous.word) !== normalizeWordKey(selectionTap.word)) {
@@ -1027,32 +1028,39 @@ export default function ReaderClient({
       clearLongPressAnchor();
       const container = containerRef.current;
       if (!container) {
+        addDebugLog(`[FIN] FAIL - no container`);
         return;
       }
 
       const sectionElement = getSectionElementFromNode(range.startContainer);
       const endSectionElement = getSectionElementFromNode(range.endContainer);
       if (!sectionElement || !endSectionElement || sectionElement !== endSectionElement) {
+        addDebugLog(`[FIN] FAIL - section mismatch`);
         clearSelection();
         return;
       }
       const sectionId = Number(sectionElement.dataset.sectionId ?? "");
       if (!sectionId || Number.isNaN(sectionId)) {
+        addDebugLog(`[FIN] FAIL - invalid sectionId`);
         clearSelection();
         return;
       }
 
       const selectedText = range.toString();
       if (!selectedText.trim()) {
+        addDebugLog(`[FIN] FAIL - empty text`);
         clearSelection();
         return;
       }
 
       const offsets = getSelectionOffsets(range, sectionElement);
       if (!offsets) {
+        addDebugLog(`[FIN] FAIL - no offsets`);
         clearSelection();
         return;
       }
+      
+      addDebugLog(`[FIN] OK - "${selectedText}" section=${sectionId}`);
 
       const section = sectionById.get(sectionId);
       const usesParagraphOffsets = Boolean(sectionElement.querySelector("[data-paragraph]"));
@@ -1090,7 +1098,7 @@ export default function ReaderClient({
       }
       setPendingMarkerKinds([]);
     },
-    [clearLongPressAnchor, clearSelection, getSectionElementFromNode, sectionById, selections]
+    [addDebugLog, clearLongPressAnchor, clearSelection, getSectionElementFromNode, sectionById, selections]
   );
 
   finalizeRangeRef.current = finalizeRange;
@@ -1230,36 +1238,49 @@ export default function ReaderClient({
     (x: number, y: number) => {
       const container = containerRef.current;
       if (!container) {
+        addDebugLog(`[SKIP] no container`);
         return;
       }
       const pointRange = getCaretRangeFromPoint(x, y);
       if (!pointRange) {
+        addDebugLog(`[SKIP] no point range`);
         return;
       }
       if (!container.contains(pointRange.startContainer)) {
+        addDebugLog(`[SKIP] outside container`);
         return;
       }
 
       const wordRange = getWordRangeFromPointRange(pointRange);
-      const safeWordRange = wordRange ? wordRange.cloneRange() : null;
       
-      // Get banner info from the word range, not the point range
-      const banner =
-        (wordRange ? getWordBannerFromRange(wordRange) : null) ?? {
-          word: getWordAtPoint(x, y) ?? "(no word)",
-          sectionId: null,
-          start: null,
-          end: null,
-        };
+      // Skip if no word found (whitespace, empty area, etc.)
+      if (!wordRange) {
+        addDebugLog(`[SKIP] no word at tap position`);
+        return;
+      }
       
-      const wordRangeText = wordRange ? wordRange.toString() : null;
+      const wordText = wordRange.toString().trim();
+      if (!wordText || wordText.length === 0) {
+        addDebugLog(`[SKIP] empty word text`);
+        return;
+      }
+      
+      const safeWordRange = wordRange.cloneRange();
+      
+      // Get banner info from the word range
+      const banner = getWordBannerFromRange(wordRange) ?? {
+        word: wordText,
+        sectionId: null,
+        start: null,
+        end: null,
+      };
       
       setDebugTapInfo(
         `doubletap "${banner.word}" section=${banner.sectionId ?? "-"} range=${
           banner.start ?? "-"
         }-${banner.end ?? "-"}`
       );
-      addDebugLog(`[WORD] "${wordRangeText}" at section ${banner.sectionId}`);
+      addDebugLog(`[WORD] "${wordText}" at section ${banner.sectionId}`);
       addWordBanner({ ...banner, range: safeWordRange });
       
       // If this is a single word tap (no previous word or same word), 
@@ -2170,17 +2191,30 @@ export default function ReaderClient({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ flex: 1 }}>{debugTapInfo || "waiting..."}</span>
               <button 
-                onClick={() => setShowDebugPanel(p => !p)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setShowDebugPanel(p => !p);
+                }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setShowDebugPanel(p => !p);
+                }}
+                onPointerUp={(e) => {
+                  e.stopPropagation();
+                }}
                 style={{ 
-                  padding: "4px 8px", 
-                  fontSize: "11px",
+                  padding: "8px 12px", 
+                  fontSize: "12px",
                   background: showDebugPanel ? "#0066cc" : "#444",
                   color: "white",
                   border: "none",
-                  borderRadius: "4px"
+                  borderRadius: "4px",
+                  touchAction: "manipulation"
                 }}
               >
-                {showDebugPanel ? "Hide Log" : "Show Log"}
+                {showDebugPanel ? "Hide" : "Log"}
               </button>
             </div>
             {showDebugPanel && (
