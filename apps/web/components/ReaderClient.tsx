@@ -1254,14 +1254,17 @@ export default function ReaderClient({
       const wordRange = getWordRangeFromPointRange(pointRange);
       
       // Skip if no word found (whitespace, empty area, etc.)
+      // Don't clear existing banners - just ignore this tap
       if (!wordRange) {
-        addDebugLog(`[SKIP] no word at tap position`);
+        addDebugLog(`[WHITESPACE] tapped empty area - ignored`);
+        setDebugTapInfo(`whitespace - ignored`);
         return;
       }
       
       const wordText = wordRange.toString().trim();
       if (!wordText || wordText.length === 0) {
-        addDebugLog(`[SKIP] empty word text`);
+        addDebugLog(`[WHITESPACE] empty word - ignored`);
+        setDebugTapInfo(`empty - ignored`);
         return;
       }
       
@@ -2184,37 +2187,47 @@ export default function ReaderClient({
   const actionMenuMarkerKinds = isCommitted ? selectionMarkerKinds : pendingMarkerKinds;
   const actionMenuToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
 
+  // Stop ALL touch/pointer events from propagating out of the debug panel
+  const stopAllEvents = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+  };
+
   const debugBanner =
     isMounted
       ? createPortal(
-          <div className="mobile-debug-banner">
+          <div 
+            className="mobile-debug-banner"
+            onTouchStart={stopAllEvents}
+            onTouchMove={stopAllEvents}
+            onTouchEnd={stopAllEvents}
+            onPointerDown={stopAllEvents}
+            onPointerMove={stopAllEvents}
+            onPointerUp={stopAllEvents}
+            onClick={stopAllEvents}
+          >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ flex: 1 }}>{debugTapInfo || "waiting..."}</span>
               <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  setShowDebugPanel(p => !p);
-                }}
+                onTouchStart={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
                   setShowDebugPanel(p => !p);
                 }}
-                onPointerUp={(e) => {
-                  e.stopPropagation();
-                }}
                 style={{ 
-                  padding: "8px 12px", 
-                  fontSize: "12px",
-                  background: showDebugPanel ? "#0066cc" : "#444",
+                  padding: "10px 16px", 
+                  fontSize: "13px",
+                  fontWeight: "bold",
+                  background: showDebugPanel ? "#0066cc" : "#333",
                   color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  touchAction: "manipulation"
+                  border: "2px solid #666",
+                  borderRadius: "6px",
+                  touchAction: "manipulation",
+                  WebkitTapHighlightColor: "transparent"
                 }}
               >
-                {showDebugPanel ? "Hide" : "Log"}
+                {showDebugPanel ? "HIDE" : "LOG"}
               </button>
             </div>
             {showDebugPanel && (
@@ -2224,7 +2237,7 @@ export default function ReaderClient({
                 overflowY: "auto",
                 fontSize: "10px",
                 fontFamily: "monospace",
-                background: "rgba(0,0,0,0.8)",
+                background: "rgba(0,0,0,0.9)",
                 padding: "8px",
                 borderRadius: "4px"
               }}>
@@ -2233,15 +2246,34 @@ export default function ReaderClient({
                 ) : (
                   debugLog.map((log, i) => (
                     <div key={i} style={{ 
-                      color: log.includes("SKIP") ? "#ff6666" : 
+                      color: log.includes("SKIP") ? "#ffaa00" : 
                              log.includes("count=2") ? "#66ff66" : 
-                             log.includes("finalize") ? "#66ffff" : "#fff",
+                             log.includes("FIN] OK") ? "#66ffff" : 
+                             log.includes("FAIL") ? "#ff6666" : "#fff",
                       marginBottom: "2px"
                     }}>
                       {log}
                     </div>
                   ))
                 )}
+                <button
+                  onTouchEnd={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    setDebugLog([]);
+                  }}
+                  style={{
+                    marginTop: "8px",
+                    padding: "6px 12px",
+                    fontSize: "11px",
+                    background: "#333",
+                    color: "#fff",
+                    border: "1px solid #666",
+                    borderRadius: "4px"
+                  }}
+                >
+                  Clear Log
+                </button>
               </div>
             )}
           </div>,
