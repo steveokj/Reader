@@ -4,8 +4,8 @@ export function getClientApiBase() {
     return envBase;
   }
   if (typeof window === "undefined") {
-    return "http://localhost:8000";
+    return "http://localhost:8002";
   }
   const { protocol, hostname } = window.location;
-  return `${protocol}//${hostname}:8000`;
+  return `${protocol}//${hostname}:8002`;
 }

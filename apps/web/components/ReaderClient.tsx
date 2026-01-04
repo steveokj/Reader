@@ -509,6 +509,8 @@ export default function ReaderClient({
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
 
+  const finalizeRangeRef = useRef<((range: Range) => void) | null>(null);
+
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current);
@@ -689,7 +691,18 @@ export default function ReaderClient({
       });
       const previous = lastSelectableWordRef.current;
       if (previous && normalizeWordKey(previous.word) !== normalizeWordKey(selectionTap.word)) {
-        selectWordRangeFromTap(previous, selectionTap);
+        const didSelect = selectWordRangeFromTap(previous, selectionTap);
+
+        // 🔥 NEW: Call finalizeRange after selection is created
+        if (didSelect) {
+          // Small delay to ensure DOM selection is updated
+          setTimeout(() => {
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+              finalizeRangeRef.current?.(selection.getRangeAt(0));
+            }
+          }, 0);
+        }
       }
       const hasSelectableRange =
         selectionTap.range !== null ||
@@ -698,7 +711,7 @@ export default function ReaderClient({
         lastSelectableWordRef.current = selectionTap;
       }
     },
-    [normalizeWordKey, selectWordRangeFromTap]
+    [normalizeWordKey, selectWordRangeFromTap]  // 🔥 Add finalizeRange to dependencies
   );
 
   const clearWordBanners = useCallback(() => {
@@ -1059,6 +1072,8 @@ export default function ReaderClient({
     },
     [clearLongPressAnchor, clearSelection, getSectionElementFromNode, sectionById, selections]
   );
+
+  finalizeRangeRef.current = finalizeRange;
 
   const startLongPress = useCallback(
     (x: number, y: number, pointerId: number | null) => {

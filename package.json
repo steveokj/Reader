@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "concurrently -k -n web,api -c blue,green \"npm run dev:web\" \"npm run dev:api\"",
-    "dev:web": "npm --prefix apps/web run dev",
-    "dev:api": ".\\\\.venv\\\\Scripts\\\\python -m uvicorn apps.api.main:app --reload --port 8000 --host 0.0.0.0"
+    "dev:web": "npm --prefix apps/web run dev -- --port 3002",
+    "dev:api": ".\\\\.venv\\\\Scripts\\\\python -m uvicorn apps.api.main:app --reload --port 8002 --host 0.0.0.0"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

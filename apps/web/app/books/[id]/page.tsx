@@ -1,7 +1,9 @@
 import ReaderClient from "@/components/ReaderClient";
 import { stripDocumentTitleFromHtml } from "@/lib/reader/stripDocumentTitle";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8002";
+
+console.log("PUBLIC API URL is:", process.env.NEXT_PUBLIC_API_URL);
 
 type Document = {
   id: number;

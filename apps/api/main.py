@@ -11,17 +11,21 @@ from .routes.markers import router as markers_router
 from .routes.media import router as media_router
 from .routes.selections import router as selections_router
 
+
+
 app = FastAPI()
+
+# Near the top of the file
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3002").split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=cors_origins,
     allow_origin_regex=r"^https?://192\.168\.\d+\.\d+(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 @app.get("/health")
 def health():
