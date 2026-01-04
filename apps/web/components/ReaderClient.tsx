@@ -1346,27 +1346,54 @@ export default function ReaderClient({
         // First word: just show banner, don't show menu yet - wait for second word
         addDebugLog(`[WAIT] first word "${banner.word}" - waiting for second word`);
         // lastSelectableWordRef is already updated by addWordBanner
-      } else if (previousWord?.range && safeWordRange) {
+      } else if (previousWord && previousWord.sectionId !== null && 
+                 previousWord.start !== null && banner.end !== null &&
+                 previousWord.sectionId === banner.sectionId) {
         // Multi-word: create selection from previous word to current word
-        addDebugLog(`[MULTI] from "${previousWord.word}" to "${banner.word}"`);
+        // Both words must be in the same section
+        addDebugLog(`[MULTI] from "${previousWord.word}" (${previousWord.start}) to "${banner.word}" (${banner.end})`);
         
-        // Create a range spanning from previous word start to current word end
-        const multiWordRange = document.createRange();
-        multiWordRange.setStart(previousWord.range.startContainer, previousWord.range.startOffset);
-        multiWordRange.setEnd(safeWordRange.endContainer, safeWordRange.endOffset);
+        // Find the section element
+        const sectionElement = containerRef.current?.querySelector(
+          `[data-section-id="${previousWord.sectionId}"]`
+        ) as HTMLElement | null;
         
-        const selection = window.getSelection();
-        if (selection) {
-          selection.removeAllRanges();
-          selection.addRange(multiWordRange);
-          addDebugLog(`[SELECT] multi-word "${selection.toString()}" count=${selection.rangeCount}`);
+        if (sectionElement) {
+          // Use rangeFromOffsets to create a proper range from stored offsets
+          const multiWordRange = rangeFromOffsets(sectionElement, previousWord.start, banner.end);
+          
+          if (multiWordRange) {
+            const selection = window.getSelection();
+            if (selection) {
+              selection.removeAllRanges();
+              selection.addRange(multiWordRange);
+              addDebugLog(`[SELECT] multi-word "${selection.toString()}" count=${selection.rangeCount}`);
+            }
+            
+            // Show menu for the multi-word selection
+            addDebugLog(`[FINALIZE] multi-word calling with "${multiWordRange.toString()}"`);
+            finalizeRangeRef.current?.(multiWordRange);
+          } else {
+            addDebugLog(`[MULTI] FAIL - could not create range from offsets`);
+          }
+        } else {
+          addDebugLog(`[MULTI] FAIL - section element not found`);
         }
         
-        // Show menu for the multi-word selection
-        addDebugLog(`[FINALIZE] multi-word calling with "${multiWordRange.toString()}"`);
-        finalizeRangeRef.current?.(multiWordRange);
-        
         // Clear the previous word ref so next tap starts fresh
+        lastSelectableWordRef.current = null;
+      } else if (previousWord && previousWord.sectionId !== banner.sectionId) {
+        // Words in different sections - just select the current word
+        addDebugLog(`[MULTI] FAIL - different sections, selecting current word only`);
+        
+        const selection = window.getSelection();
+        if (selection && safeWordRange) {
+          selection.removeAllRanges();
+          selection.addRange(safeWordRange.cloneRange());
+        }
+        if (safeWordRange) {
+          finalizeRangeRef.current?.(safeWordRange);
+        }
         lastSelectableWordRef.current = null;
       }
     },
@@ -2393,27 +2420,11 @@ export default function ReaderClient({
               getSectionElement={getSectionElementForSelection}
             />
           </div>
-          {/* Custom selection highlight overlay for mobile (since native selection isn't visible) */}
-          {selectionHighlightRects.length > 0 && (
-            <>
-              {selectionHighlightRects.map((rect, index) => (
-                <div
-                  key={index}
-                  style={{
-                    position: "fixed",
-                    left: rect.left,
-                    top: rect.top,
-                    width: rect.width,
-                    height: rect.height,
-                    background: "rgba(59, 130, 246, 0.35)",
-                    borderRadius: "2px",
-                    pointerEvents: "none",
-                    zIndex: 9998,
-                  }}
-                />
-              ))}
-            </>
-          )}
+          {/* 
+            Custom selection highlight overlay disabled for now - 
+            position: fixed doesn't scroll with content.
+            TODO: Use inline highlighting or absolute positioning relative to container
+          */}
           {menuState && !noteModalOpen && !grammarModalOpen && !audioModalOpen ? (
             <ActionMenu
               top={menuState.top}
