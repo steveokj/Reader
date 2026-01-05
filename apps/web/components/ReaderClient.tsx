@@ -603,8 +603,8 @@ export default function ReaderClient({
         navSwipeStartRef.current = null;
         return;
       }
-      const zoneTop = Math.max(0, (viewportHeight - NAV_SWIPE_ZONE_HEIGHT) / 2);
-      const zoneBottom = zoneTop + NAV_SWIPE_ZONE_HEIGHT;
+      const zoneTop = Math.max(0, viewportHeight - NAV_SWIPE_ZONE_HEIGHT);
+      const zoneBottom = viewportHeight;
       if (y < zoneTop || y > zoneBottom) {
         navSwipeStartRef.current = null;
         return;
