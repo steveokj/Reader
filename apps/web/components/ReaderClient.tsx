@@ -594,6 +594,7 @@ export default function ReaderClient({
   const progressPendingRef = useRef<{ sectionId: number; offset: number } | null>(null);
   const lastProgressRef = useRef<{ sectionId: number; offset: number } | null>(null);
   const progressAppliedRef = useRef(false);
+  const pendingPageJumpRef = useRef<number | null>(null);
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -1399,6 +1400,12 @@ export default function ReaderClient({
         return Math.max(max, candidate);
       }, 1);
       setPageCount(maxNumber);
+      if (pendingPageJumpRef.current !== null) {
+        const pending = pendingPageJumpRef.current;
+        pendingPageJumpRef.current = null;
+        setCurrentPage(pending);
+        return;
+      }
       const position = getVisibleOffsets();
       if (!position) {
         return;
@@ -2893,6 +2900,7 @@ export default function ReaderClient({
       if (!resolved) {
         return;
       }
+      pendingPageJumpRef.current = resolved.page_number ?? fallbackIndex + 1;
       scrollToOffsets(
         resolved.section_id,
         resolved.position_start,
