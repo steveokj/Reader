@@ -68,3 +68,19 @@
 2) Confirm long-press drag selection still works on mobile. | 2026-01-04 22:51:28 |
 | ef8cce961c54662cabfc6eda6b62ab043b843bfd | Removed debug banner and finalized long-press selection. | remove the debug banner. make single long press open the action modal, i want to see how it looks | Removed the debug banner UI and made a long-press selection immediately open the action menu once the user releases on mobile.<br>- Dropped debug banner markup/state and styles in `apps/web/components/ReaderClient.tsx` and `apps/web/app/globals.css`.<br>- On touch end, if a selection exists, finalize it to show the action menu in `apps/web/components/ReaderClient.tsx`.<br><br>Next steps:<br>1) Long-press to select a single word and confirm the action menu opens on release.
 2) Verify double-tap selection still behaves normally. | 2026-01-04 23:09:41 |
+| 71acd70a7767b09aadc079435f336f32f1937776 | Fixed missing debugTapInfo dependency after removal. | [web] }
+[web]  GET /books/2?nocache=1 500 in 159ms (compile: 6ms, render: 152ms)
+[web]  GET /books/2?nocache=1 500 in 92ms (compile: 1953µs, render: 90ms)
+[api] INFO:     192.168.2.34:60991 - "GET /books/2 HTTP/1.1" 200 OK
+[web]  ReferenceError: setDebugTapInfo is not defined
+[web]     at ReaderClient (components\ReaderClient.tsx:1503:63)
+[web]   1501 |       }
+[web]   1502 |     },
+[web] > 1503 |     [addWordBanner, getWordBannerFromRange, normalizeWordKey, setDebugTapInfo]
+[web]        |                                                               ^
+[web]   1504 |   );
+[web]   1505 |
+[web]   1506 |   const processTapSequence = useCallback( {
+[web]   digest: '393407634'
+[web] }
+[web]  GET /books/2?nocache=1 500 in 95ms (compile: 5ms, render: 90ms) | Removed the stale `setDebugTapInfo` dependency from the double-tap handler after deleting debug state in `apps/web/components/ReaderClient.tsx`. | 2026-01-04 23:11:54 |
