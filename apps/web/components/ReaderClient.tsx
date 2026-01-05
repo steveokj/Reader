@@ -29,9 +29,7 @@ import { buildQuoteSelector } from "@/lib/selection/buildQuoteSelector";
 import { getSelectionOffsets } from "@/lib/selection/getSelectionOffsets";
 import { rangeFromOffsets } from "@/lib/selection/rangeFromOffsets";
 
-const LONG_PRESS_DELAY = 500;
 const LONG_PRESS_MOVE_THRESHOLD = 12;
-const LONG_PRESS_MULTIWORD_LENGTH = 12;
 const TAP_WINDOW_MS = 450;
 
 function normalizeBannerText(value: string) {
@@ -1073,16 +1071,6 @@ export default function ReaderClient({
   }, [themeTokens]);
 
   useEffect(() => {
-    if (!readerSettings.gesture_two_point_long_press) {
-      clearLongPressAnchor();
-      clearLongPressTimer();
-      longPressActiveRef.current = false;
-      longPressPointerRef.current = null;
-      longPressStartRef.current = null;
-    }
-  }, [clearLongPressAnchor, clearLongPressTimer, readerSettings.gesture_two_point_long_press]);
-
-  useEffect(() => {
     if (!isMobile) {
       setMobileNavOpen(false);
       setMobilePanel(null);
@@ -1351,62 +1339,11 @@ export default function ReaderClient({
     (x: number, y: number, pointerId: number | null) => {
       clearLongPressTimer();
       tapEligibleRef.current = true;
-      if (!readerSettings.gesture_two_point_long_press) {
-        return;
-      }
       longPressActiveRef.current = true;
       longPressPointerRef.current = pointerId;
       longPressStartRef.current = { x, y };
-      const pressX = x;
-      const pressY = y;
-
-      longPressTimerRef.current = window.setTimeout(() => {
-        if (!longPressActiveRef.current) {
-          return;
-        }
-        const selection = window.getSelection();
-        const selectionText = selection?.toString() ?? "";
-        const normalized = selectionText.replace(/\s+/g, " ").trim();
-        if (normalized.length > LONG_PRESS_MULTIWORD_LENGTH || normalized.includes(" ")) {
-          tapEligibleRef.current = false;
-          return;
-        }
-
-        const range = getCaretRangeFromPoint(pressX, pressY);
-        if (!range) {
-          return;
-        }
-        const sectionElement = getSectionElementFromNode(range.startContainer);
-        if (!sectionElement) {
-          return;
-        }
-
-        if (longPressAnchorRef.current) {
-          const combined = buildRange(longPressAnchorRef.current, range);
-          clearLongPressAnchor();
-          if (selection) {
-            selection.removeAllRanges();
-            selection.addRange(combined);
-          }
-          suppressTouchFinalizeRef.current = true;
-          finalizeRange(combined);
-        } else {
-          if (selection) {
-            selection.removeAllRanges();
-          }
-          suppressTouchFinalizeRef.current = true;
-          tapEligibleRef.current = false;
-          longPressAnchorRef.current = range;
-        }
-      }, LONG_PRESS_DELAY);
     },
-    [
-      clearLongPressAnchor,
-      clearLongPressTimer,
-      finalizeRange,
-      getSectionElementFromNode,
-      readerSettings.gesture_two_point_long_press,
-    ]
+    [clearLongPressTimer]
   );
 
   const moveLongPress = useCallback(

@@ -121,11 +121,15 @@ export default function SelectionOverlay({
     <div className="selection-overlay">
       {highlights.map((highlight) =>
         highlight.rects.map((rect, index) => {
-          const isInteractive = highlight.selection.id > 0;
-          const className =
-            highlight.selection.id === activeSelectionId
-              ? "selection-highlight is-active"
-              : "selection-highlight";
+          const isDraft = highlight.selection.id <= 0;
+          const isInteractive = !isDraft;
+          const className = [
+            "selection-highlight",
+            highlight.selection.id === activeSelectionId ? "is-active" : "",
+            isDraft ? "selection-highlight--draft" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
           const style = {
             top: rect.top,
             left: rect.left,

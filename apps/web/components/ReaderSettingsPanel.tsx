@@ -210,14 +210,6 @@ export default function ReaderSettingsPanel({
           </div>
         </div>
         <label className="settings-toggle">
-          <span>Two-point long-press</span>
-          <input
-            type="checkbox"
-            checked={settings.gesture_two_point_long_press}
-            onChange={(event) => apply({ gesture_two_point_long_press: event.target.checked })}
-          />
-        </label>
-        <label className="settings-toggle">
           <span>Swipe sequences</span>
           <input
             type="checkbox"
