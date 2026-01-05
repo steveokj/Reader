@@ -44,6 +44,21 @@ function isWordChar(value: string) {
   return /[A-Za-z0-9']/u.test(value);
 }
 
+function normalizeSearchSnippet(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function buildSearchSnippet(text: string, start: number, end: number) {
+  const context = 42;
+  const snippetStart = Math.max(0, start - context);
+  const snippetEnd = Math.min(text.length, end + context);
+  const raw = text.slice(snippetStart, snippetEnd);
+  const normalized = normalizeSearchSnippet(raw);
+  const prefix = snippetStart > 0 ? "..." : "";
+  const suffix = snippetEnd < text.length ? "..." : "";
+  return `${prefix}${normalized}${suffix}`;
+}
+
 type CaretPoint = { node: Node; offset: number };
 type NavSwipeStart = { x: number; y: number; time: number; pointerId: number | null };
 
@@ -304,6 +319,14 @@ type ReaderSection = {
   content_html?: string | null;
 };
 
+type SearchResult = {
+  id: string;
+  sectionId: number;
+  start: number;
+  end: number;
+  snippet: string;
+};
+
 type ReaderClientProps = {
   documentId: number;
   documentTitle: string;
@@ -404,6 +427,15 @@ function IconNew() {
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 5v14" />
       <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function IconSearch() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="11" cy="11" r="6" />
+      <path d="M16.5 16.5l3.5 3.5" />
     </svg>
   );
 }
@@ -517,9 +549,13 @@ export default function ReaderClient({
   const [isMobile, setIsMobile] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<
-    "chapters" | "highlights" | "new" | "settings" | "selection" | null
+    "chapters" | "highlights" | "new" | "search" | "settings" | "selection" | null
   >(null);
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchPerformed, setSearchPerformed] = useState(false);
+  const [searchResultsQuery, setSearchResultsQuery] = useState("");
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
   const finalizeRangeRef = useRef<((range: Range) => void) | null>(null);
@@ -1254,15 +1290,19 @@ export default function ReaderClient({
     }
   }, []);
 
+  const getSectionElementById = useCallback((sectionId: number): HTMLElement | null => {
+    const container = containerRef.current;
+    if (!container) {
+      return null;
+    }
+    return container.querySelector<HTMLElement>(`[data-section-id="${sectionId}"]`);
+  }, []);
+
   const getSectionElementForSelection = useCallback(
     (selection: Selection): HTMLElement | null => {
-      const container = containerRef.current;
-      if (!container) {
-        return null;
-      }
-      return container.querySelector<HTMLElement>(`[data-section-id="${selection.section_id}"]`);
+      return getSectionElementById(selection.section_id);
     },
-    []
+    [getSectionElementById]
   );
 
   const ensureSelectionForAddition = useCallback(async () => {
@@ -2425,6 +2465,31 @@ export default function ReaderClient({
     [closeMobileNav, isMobile, mobileNavOpen]
   );
 
+  const scrollToOffsets = useCallback(
+    (sectionId: number, start: number, end: number) => {
+      const sectionElement = getSectionElementById(sectionId);
+      if (!sectionElement) {
+        return;
+      }
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+      const range = rangeFromOffsets(sectionElement, start, end);
+      const rect = range ? range.getBoundingClientRect() : sectionElement.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const offsetTop = rect.top - containerRect.top + container.scrollTop;
+      const scrollTarget = Math.max(0, offsetTop - 120);
+      const isScrollable = container.scrollHeight > container.clientHeight + 1;
+      if (isScrollable) {
+        container.scrollTo({ top: scrollTarget });
+      } else {
+        window.scrollTo({ top: Math.max(0, rect.top + window.scrollY - 120) });
+      }
+    },
+    [getSectionElementById]
+  );
+
   const handleJumpToSelection = useCallback(
     (selection: Selection) => {
       setActiveSelectionId(selection.id);
@@ -2442,31 +2507,62 @@ export default function ReaderClient({
         setMobileNavOpen(false);
       }
 
-      const sectionElement = getSectionElementForSelection(selection);
-      if (!sectionElement) {
-        return;
-      }
-      const container = containerRef.current;
-      if (!container) {
-        return;
-      }
-      const range = rangeFromOffsets(
-        sectionElement,
+      scrollToOffsets(
+        selection.section_id,
         selection.selector.position.start,
         selection.selector.position.end
       );
-      const rect = range ? range.getBoundingClientRect() : sectionElement.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      const offsetTop = rect.top - containerRect.top + container.scrollTop;
-      const scrollTarget = Math.max(0, offsetTop - 120);
-      const isScrollable = container.scrollHeight > container.clientHeight + 1;
-      if (isScrollable) {
-        container.scrollTo({ top: scrollTarget });
-      } else {
-        window.scrollTo({ top: Math.max(0, rect.top + window.scrollY - 120) });
-      }
     },
-    [getSectionElementForSelection, isMobile]
+    [isMobile, scrollToOffsets]
+  );
+
+  const handleSearchSubmit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const query = searchQuery.trim();
+      setSearchPerformed(true);
+      if (!query) {
+        setSearchResults([]);
+        setSearchResultsQuery("");
+        return;
+      }
+      const lowerQuery = query.toLowerCase();
+      const results: SearchResult[] = [];
+      sections.forEach((section) => {
+        const text = section.content_text ?? "";
+        if (!text) {
+          return;
+        }
+        const lowerText = text.toLowerCase();
+        let index = 0;
+        while (index < lowerText.length) {
+          const found = lowerText.indexOf(lowerQuery, index);
+          if (found === -1) {
+            break;
+          }
+          const start = found;
+          const end = found + lowerQuery.length;
+          results.push({
+            id: `${section.id}-${start}`,
+            sectionId: section.id,
+            start,
+            end,
+            snippet: buildSearchSnippet(text, start, end),
+          });
+          index = end;
+        }
+      });
+      setSearchResults(results);
+      setSearchResultsQuery(query);
+    },
+    [searchQuery, sections]
+  );
+
+  const handleSearchResultClick = useCallback(
+    (result: SearchResult) => {
+      scrollToOffsets(result.sectionId, result.start, result.end);
+    },
+    [scrollToOffsets]
   );
 
   const selectionMarkerKinds = markers.map((marker) => marker.kind as MarkerKind);
@@ -2656,6 +2752,50 @@ export default function ReaderClient({
                   <DocumentIngestForm />
                 </div>
               ) : null}
+              {mobilePanel === "search" ? (
+                <div className="mobile-panel__content mobile-search">
+                  <div className="mobile-panel__title">Search</div>
+                  <form className="mobile-search__form" onSubmit={handleSearchSubmit}>
+                    <input
+                      className="mobile-search__input"
+                      type="search"
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="Search this book"
+                    />
+                    <button type="submit" className="mobile-search__submit">
+                      Search
+                    </button>
+                  </form>
+                  <div className="mobile-search__meta">
+                    {searchPerformed
+                      ? `${searchResults.length} ${
+                          searchResults.length === 1 ? "result" : "results"
+                        }${searchResultsQuery ? ` for "${searchResultsQuery}"` : ""}`
+                      : "Submit to search."}
+                  </div>
+                  <div className="mobile-search__results">
+                    {searchPerformed && searchResults.length === 0 ? (
+                      <div className="mobile-search__empty">No matches found.</div>
+                    ) : null}
+                    {searchResults.map((result) => {
+                      const section = sectionById.get(result.sectionId);
+                      const label = section?.title ?? section?.section_key ?? "Section";
+                      return (
+                        <button
+                          key={result.id}
+                          type="button"
+                          className="mobile-search__result"
+                          onClick={() => handleSearchResultClick(result)}
+                        >
+                          <div className="mobile-search__result-title">{label}</div>
+                          <div className="mobile-search__result-snippet">{result.snippet}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
               {mobilePanel === "settings" ? (
                 <div className="mobile-panel__content">
                   <div className="mobile-panel__title">Settings</div>
@@ -2686,6 +2826,18 @@ export default function ReaderClient({
               >
                 <IconChapters />
                 <span>Chapters</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setMobilePanel((prev) => (prev === "search" ? null : "search"))
+                }
+                aria-label="Search"
+                className={mobilePanel === "search" ? "is-active" : undefined}
+                style={navButtonStyle(mobilePanel === "search")}
+              >
+                <IconSearch />
+                <span>Search</span>
               </button>
               <button
                 type="button"
