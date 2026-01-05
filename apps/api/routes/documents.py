@@ -1,7 +1,13 @@
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from ..db.conn import get_conn
-from ..models.schemas import ArticleIngest, DocumentCreate, DocumentDetailResponse, DocumentsResponse
+from ..models.schemas import (
+    ArticleIngest,
+    DocumentCreate,
+    DocumentDetailResponse,
+    DocumentPagesResponse,
+    DocumentsResponse,
+)
 from ..services import documents as documents_service
 from ..services import ingest as ingest_service
 
@@ -37,6 +43,16 @@ def get_document(document_id: int):
             raise HTTPException(status_code=404, detail="Document not found")
         document, sections = result
         return {"document": document, "sections": sections}
+    finally:
+        conn.close()
+
+
+@router.get("/{document_id}/pages", response_model=DocumentPagesResponse)
+def get_document_pages(document_id: int):
+    conn = get_conn()
+    try:
+        pages = documents_service.get_document_pages(conn, document_id)
+        return {"pages": pages}
     finally:
         conn.close()
 

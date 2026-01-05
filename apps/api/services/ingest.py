@@ -12,7 +12,7 @@ from urllib.error import URLError
 from urllib.parse import unquote, quote, urljoin, urlsplit
 import xml.etree.ElementTree as ET
 
-from .documents import create_document
+from .documents import create_document, create_document_pages
 
 MEDIA_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "media"))
 EPUB_MEDIA_DIR = os.path.join(MEDIA_ROOT, "epub")
@@ -80,6 +80,99 @@ class _HTMLTextExtractor(HTMLParser):
     def get_text(self) -> str:
         self._flush()
         return "\n\n".join(self._paragraphs)
+
+
+class _HTMLIdOffsetExtractor(HTMLParser):
+    def __init__(self, target_ids: Set[str]) -> None:
+        super().__init__(convert_charrefs=True)
+        self._target_ids = target_ids
+        self._offsets: Dict[str, int] = {}
+        self._skip_stack: List[str] = []
+        self._preserve_ws = 0
+        self._last_text_char: Optional[str] = None
+        self._text_length = 0
+
+    def _emit_text(self, text: str) -> None:
+        if not text:
+            return
+        self._text_length += len(text)
+        self._last_text_char = text[-1]
+
+    def _append_space(self) -> None:
+        if self._last_text_char is None:
+            return
+        if self._last_text_char in {" ", "\n"}:
+            return
+        self._emit_text(" ")
+
+    def _append_block_break(self) -> None:
+        if self._last_text_char is None:
+            return
+        if self._last_text_char != "\n":
+            self._emit_text("\n")
+
+    def _append_text(self, text: str) -> None:
+        if not text:
+            return
+        if self._preserve_ws > 0:
+            self._emit_text(text)
+            return
+        normalized = re.sub(r"\s+", " ", text)
+        if not normalized.strip():
+            self._append_space()
+            return
+        self._emit_text(normalized)
+
+    def _record_anchor(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
+        if not self._target_ids:
+            return
+        for name, value in attrs:
+            if not name or value is None:
+                continue
+            key = name.lower()
+            if key == "id" or (tag == "a" and key == "name"):
+                anchor = value.strip()
+                if anchor and anchor in self._target_ids and anchor not in self._offsets:
+                    self._offsets[anchor] = self._text_length
+
+    def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
+        tag = tag.lower()
+        if self._skip_stack:
+            if tag in _SKIP_CONTENT_TAGS:
+                self._skip_stack.append(tag)
+            return
+        if tag in _SKIP_CONTENT_TAGS:
+            self._skip_stack.append(tag)
+            return
+
+        if tag in _PRESERVE_WS_TAGS:
+            self._preserve_ws += 1
+
+        self._record_anchor(tag, attrs)
+
+        if tag in _VOID_TAGS and tag in {"br", "hr"}:
+            self._append_block_break()
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if self._skip_stack:
+            if self._skip_stack and self._skip_stack[-1] == tag:
+                self._skip_stack.pop()
+            return
+
+        if tag in _PRESERVE_WS_TAGS:
+            self._preserve_ws = max(0, self._preserve_ws - 1)
+
+        if tag in _BLOCK_TAGS:
+            self._append_block_break()
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_stack:
+            return
+        self._append_text(data)
+
+    def get_offsets(self) -> Dict[str, int]:
+        return self._offsets
 
 
 class _MetaImageExtractor(HTMLParser):
@@ -350,6 +443,15 @@ def _sanitize_html(html: str, resolve_src) -> Tuple[str, str]:
     sanitizer.feed(html)
     sanitizer.close()
     return sanitizer.get_html(), sanitizer.get_text()
+
+
+def _extract_id_offsets(html: str, target_ids: Set[str]) -> Dict[str, int]:
+    if not target_ids:
+        return {}
+    extractor = _HTMLIdOffsetExtractor(target_ids)
+    extractor.feed(html)
+    extractor.close()
+    return extractor.get_offsets()
 
 
 def _extract_cover_image_from_html(html: str) -> Optional[str]:
@@ -625,6 +727,25 @@ def _normalize_epub_href(base_dir: str, href: str) -> Optional[str]:
     return resolved
 
 
+def _split_epub_href(base_dir: str, href: str) -> Tuple[Optional[str], Optional[str]]:
+    if not href:
+        return None, None
+    parts = href.split("#", 1)
+    path = _normalize_epub_href(base_dir, parts[0])
+    fragment = unquote(parts[1]) if len(parts) > 1 else None
+    return path, fragment
+
+
+def _parse_page_number(label: str) -> Optional[int]:
+    match = re.search(r"\d+", label)
+    if not match:
+        return None
+    try:
+        return int(match.group(0))
+    except ValueError:
+        return None
+
+
 def _extract_nav_text(element: ET.Element) -> str:
     text = "".join(element.itertext())
     return re.sub(r"\s+", " ", text).strip()
@@ -682,6 +803,42 @@ def _parse_nav_toc(zf: zipfile.ZipFile, nav_path: str) -> Dict[str, str]:
     return toc_map
 
 
+def _parse_nav_page_list(zf: zipfile.ZipFile, nav_path: str) -> List[Dict[str, str]]:
+    try:
+        nav_bytes = zf.read(nav_path)
+    except KeyError:
+        return []
+    root = ET.fromstring(nav_bytes)
+    base_dir = posixpath.dirname(nav_path)
+    pages: List[Dict[str, str]] = []
+    for nav in root.findall(".//{*}nav"):
+        nav_type = ""
+        for key, value in nav.attrib.items():
+            if key.endswith("type"):
+                nav_type = value
+                break
+        if nav_type and "page-list" not in nav_type:
+            continue
+        for anchor in nav.findall(".//{*}a"):
+            href = anchor.get("href") or ""
+            label = _extract_nav_text(anchor)
+            if not href or not label:
+                continue
+            normalized, fragment = _split_epub_href(base_dir, href)
+            if not normalized:
+                continue
+            pages.append(
+                {
+                    "path": normalized,
+                    "fragment": fragment or "",
+                    "label": label,
+                }
+            )
+        if pages:
+            break
+    return pages
+
+
 def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     epub_bytes = file.file.read()
     if not epub_bytes:
@@ -716,17 +873,26 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
                 zf, asset_dir, asset_root, asset_cache, base_dir, cover_href
             )
         toc_map: Dict[str, str] = {}
+        page_list: List[Dict[str, Any]] = []
         if nav_href:
             nav_path = _normalize_epub_href(base_dir, nav_href)
             if nav_path:
                 toc_map = _parse_nav_toc(zf, nav_path)
+                raw_pages = _parse_nav_page_list(zf, nav_path)
+                page_list = [
+                    {**entry, "page_index": index + 1} for index, entry in enumerate(raw_pages)
+                ]
         if not toc_map and toc_id:
             toc_item = manifest.get(toc_id)
             if toc_item:
                 ncx_path = _normalize_epub_href(base_dir, toc_item.get("href", ""))
                 if ncx_path:
                     toc_map = _parse_ncx_toc(zf, ncx_path)
+        pages_by_path: Dict[str, List[Dict[str, Any]]] = {}
+        for entry in page_list:
+            pages_by_path.setdefault(entry["path"], []).append(entry)
         sections: List[Dict[str, Any]] = []
+        page_entries: List[Dict[str, Any]] = []
         section_index = 0
         for spine_id in spine_ids:
             item = manifest.get(spine_id)
@@ -769,6 +935,22 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
                     "content_html": content_html or None,
                 }
             )
+            if item_path in pages_by_path:
+                entries = pages_by_path[item_path]
+                target_ids = {entry["fragment"] for entry in entries if entry.get("fragment")}
+                id_offsets = _extract_id_offsets(html, target_ids)
+                for entry in entries:
+                    fragment = entry.get("fragment") or ""
+                    offset = id_offsets.get(fragment, 0) if fragment else 0
+                    page_entries.append(
+                        {
+                            "section_key": str(section_index),
+                            "page_index": entry["page_index"],
+                            "page_label": entry["label"],
+                            "page_number": _parse_page_number(entry["label"]),
+                            "position_start": offset,
+                        }
+                    )
             section_index += 1
 
     if not sections:
@@ -782,7 +964,28 @@ def ingest_epub(conn, file, title: Optional[str] = None) -> Tuple[Dict[str, Any]
         "cover_url": cover_url,
         "sections": sections,
     }
-    return create_document(conn, payload)
+    document, created_sections = create_document(conn, payload)
+    if page_entries:
+        section_id_by_key = {
+            section["section_key"]: section["id"] for section in created_sections
+        }
+        pages_payload = []
+        for entry in page_entries:
+            section_id = section_id_by_key.get(entry["section_key"])
+            if not section_id:
+                continue
+            pages_payload.append(
+                {
+                    "section_id": section_id,
+                    "page_index": entry["page_index"],
+                    "page_label": entry["page_label"],
+                    "page_number": entry["page_number"],
+                    "position_start": entry["position_start"],
+                }
+            )
+        if pages_payload:
+            create_document_pages(conn, document["id"], pages_payload)
+    return document, created_sections
 
 
 def ingest_article(conn, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:

@@ -327,6 +327,14 @@ type SearchResult = {
   snippet: string;
 };
 
+type PageEntry = {
+  section_id: number;
+  page_index: number;
+  page_label: string;
+  page_number?: number | null;
+  position_start: number;
+};
+
 type ReaderClientProps = {
   documentId: number;
   documentTitle: string;
@@ -561,6 +569,7 @@ export default function ReaderClient({
   const [pageCount, setPageCount] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInput, setPageInput] = useState("1");
+  const [pageMap, setPageMap] = useState<PageEntry[]>([]);
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
   const finalizeRangeRef = useRef<((range: Range) => void) | null>(null);
@@ -795,6 +804,10 @@ export default function ReaderClient({
     return new Map(sections.map((section) => [section.id, section]));
   }, [sections]);
 
+  const sectionOrder = useMemo(() => {
+    return new Map(sections.map((section, index) => [section.id, index]));
+  }, [sections]);
+
   const getSectionElementFromNode = useCallback((node: Node | null): HTMLElement | null => {
     if (!node) {
       return null;
@@ -807,6 +820,43 @@ export default function ReaderClient({
     }
     return null;
   }, []);
+
+  const getVisibleOffsets = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return null;
+    }
+    const rect = container.getBoundingClientRect();
+    const x = Math.min(rect.right - 4, rect.left + 24);
+    const y = Math.min(rect.bottom - 4, rect.top + 32);
+    const caretPoint = getCaretPoint(x, y);
+    let node: Node | null = caretPoint?.node ?? null;
+    if (!node) {
+      const element = document.elementFromPoint(x, y);
+      node = element ?? null;
+    }
+    const sectionElement = getSectionElementFromNode(node);
+    if (!sectionElement) {
+      return null;
+    }
+    const range = document.createRange();
+    if (caretPoint) {
+      range.setStart(caretPoint.node, caretPoint.offset);
+      range.setEnd(caretPoint.node, caretPoint.offset);
+    } else {
+      range.setStart(sectionElement, 0);
+      range.setEnd(sectionElement, 0);
+    }
+    const offsets = getSelectionOffsets(range, sectionElement);
+    if (!offsets) {
+      return null;
+    }
+    const sectionId = Number(sectionElement.dataset.sectionId ?? "");
+    if (!sectionId || Number.isNaN(sectionId)) {
+      return null;
+    }
+    return { sectionId, offset: offsets.start };
+  }, [getSectionElementFromNode]);
 
   const normalizeWordKey = useCallback((value: string) => {
     return normalizeBannerText(value).toLowerCase();
@@ -1074,6 +1124,25 @@ export default function ReaderClient({
   }, [documentId]);
 
   useEffect(() => {
+    const loadPageMap = async () => {
+      try {
+        const response = await fetch(`${apiBase}/books/${documentId}/pages`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { pages?: PageEntry[] };
+        setPageMap(data.pages ?? []);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    loadPageMap();
+  }, [apiBase, documentId]);
+
+  useEffect(() => {
     const media = window.matchMedia("(max-width: 900px)");
     const computeIsMobile = () => {
       const touchCapable = navigator.maxTouchPoints > 0;
@@ -1217,6 +1286,42 @@ export default function ReaderClient({
     }
 
     const updatePageMetrics = () => {
+      if (pageMap.length) {
+        const position = getVisibleOffsets();
+        if (!position) {
+          return;
+        }
+        const currentSectionOrder = sectionOrder.get(position.sectionId);
+        if (currentSectionOrder === undefined) {
+          return;
+        }
+        let resolvedIndex = 0;
+        for (let index = 0; index < pageMap.length; index += 1) {
+          const entry = pageMap[index];
+          const entrySectionOrder = sectionOrder.get(entry.section_id) ?? -1;
+          if (entrySectionOrder < currentSectionOrder) {
+            resolvedIndex = index;
+            continue;
+          }
+          if (entrySectionOrder === currentSectionOrder && entry.position_start <= position.offset) {
+            resolvedIndex = index;
+            continue;
+          }
+          if (entrySectionOrder > currentSectionOrder || entry.position_start > position.offset) {
+            break;
+          }
+        }
+        const resolvedEntry = pageMap[Math.min(resolvedIndex, pageMap.length - 1)];
+        const currentNumber = resolvedEntry.page_number ?? resolvedIndex + 1;
+        const maxNumber = pageMap.reduce((max, entry, index) => {
+          const candidate = entry.page_number ?? index + 1;
+          return Math.max(max, candidate);
+        }, 1);
+        setPageCount(maxNumber);
+        setCurrentPage(currentNumber);
+        return;
+      }
+
       const pageSize = container.clientHeight;
       if (!pageSize) {
         return;
@@ -1229,13 +1334,15 @@ export default function ReaderClient({
 
     updatePageMetrics();
     container.addEventListener("scroll", updatePageMetrics, { passive: true });
+    window.addEventListener("scroll", updatePageMetrics, { passive: true });
     window.addEventListener("resize", updatePageMetrics);
 
     return () => {
       container.removeEventListener("scroll", updatePageMetrics);
+      window.removeEventListener("scroll", updatePageMetrics);
       window.removeEventListener("resize", updatePageMetrics);
     };
-  }, [highlightRefreshKey, isMobile, sections.length]);
+  }, [getVisibleOffsets, highlightRefreshKey, isMobile, pageMap, sectionOrder, sections.length]);
 
   useEffect(() => {
     if (!mobileNavOpen || mobileNavMode !== "pages") {
@@ -2628,6 +2735,21 @@ export default function ReaderClient({
       if (Number.isNaN(target)) {
         return;
       }
+      if (pageMap.length) {
+        const targetEntry = pageMap.find(
+          (entry, index) => (entry.page_number ?? index + 1) === target
+        );
+        const fallbackIndex = Math.min(pageMap.length, Math.max(1, target)) - 1;
+        const resolved = targetEntry ?? pageMap[fallbackIndex];
+        if (!resolved) {
+          return;
+        }
+        scrollToOffsets(resolved.section_id, resolved.position_start, resolved.position_start);
+        const resolvedPage = resolved.page_number ?? fallbackIndex + 1;
+        setPageInput(String(resolvedPage));
+        return;
+      }
+
       const page = Math.min(pageCount, Math.max(1, target));
       const container = containerRef.current;
       if (!container) {
@@ -2640,7 +2762,7 @@ export default function ReaderClient({
       container.scrollTo({ top: (page - 1) * pageSize });
       setPageInput(String(page));
     },
-    [pageCount, pageInput]
+    [pageCount, pageInput, pageMap, scrollToOffsets]
   );
 
   const selectionMarkerKinds = markers.map((marker) => marker.kind as MarkerKind);

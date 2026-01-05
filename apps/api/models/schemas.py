@@ -46,6 +46,18 @@ class DocumentDetailResponse(BaseModel):
     sections: List[DocumentSection]
 
 
+class PageEntry(BaseModel):
+    section_id: int
+    page_index: int
+    page_label: str
+    page_number: Optional[int] = None
+    position_start: int
+
+
+class DocumentPagesResponse(BaseModel):
+    pages: List[PageEntry]
+
+
 class PositionSelector(BaseModel):
     start: int
     end: int

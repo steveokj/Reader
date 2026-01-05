@@ -77,6 +77,33 @@ def create_document(conn, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], List
     return document, sections
 
 
+def create_document_pages(
+    conn, document_id: int, pages: List[Dict[str, Any]]
+) -> None:
+    if not pages:
+        return
+    now = _iso_now()
+    for page in pages:
+        conn.execute(
+            """
+            INSERT INTO document_pages (
+              document_id, section_id, page_index, page_label, page_number, position_start, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                document_id,
+                page["section_id"],
+                page["page_index"],
+                page["page_label"],
+                page.get("page_number"),
+                page["position_start"],
+                now,
+            ),
+        )
+    conn.commit()
+
+
 def get_documents(conn) -> List[Dict[str, Any]]:
     rows = conn.execute(
         "SELECT id, title, source_type, source_ref, cover_url, created_at FROM documents ORDER BY id"
@@ -101,6 +128,19 @@ def get_document(conn, document_id: int) -> Optional[Tuple[Dict[str, Any], List[
         (document_id,),
     ).fetchall()
     return dict(doc), [dict(row) for row in sections]
+
+
+def get_document_pages(conn, document_id: int) -> List[Dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT section_id, page_index, page_label, page_number, position_start
+        FROM document_pages
+        WHERE document_id = ?
+        ORDER BY page_index
+        """,
+        (document_id,),
+    ).fetchall()
+    return [dict(row) for row in rows]
 
 
 def ensure_sample_document(conn) -> None:
