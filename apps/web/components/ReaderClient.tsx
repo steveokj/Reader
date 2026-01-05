@@ -335,6 +335,14 @@ type PageEntry = {
   position_start: number;
 };
 
+type ReadingProgress = {
+  document_id: number;
+  section_id: number;
+  position_start: number;
+  position_end: number;
+  updated_at: string;
+};
+
 type ReaderClientProps = {
   documentId: number;
   documentTitle: string;
@@ -570,6 +578,8 @@ export default function ReaderClient({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const [pageMap, setPageMap] = useState<PageEntry[]>([]);
+  const [readingProgress, setReadingProgress] = useState<ReadingProgress | null>(null);
+  const [progressLoaded, setProgressLoaded] = useState(false);
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
   const finalizeRangeRef = useRef<((range: Range) => void) | null>(null);
@@ -580,6 +590,10 @@ export default function ReaderClient({
   const settingsSaveTimerRef = useRef<number | null>(null);
   const pendingSettingsRef = useRef<ReaderSettingsUpdate>({});
   const settingsTouchedRef = useRef(false);
+  const progressSaveTimerRef = useRef<number | null>(null);
+  const progressPendingRef = useRef<{ sectionId: number; offset: number } | null>(null);
+  const lastProgressRef = useRef<{ sectionId: number; offset: number } | null>(null);
+  const progressAppliedRef = useRef(false);
 
   const clearLongPressTimer = useCallback(() => {
     if (longPressTimerRef.current !== null) {
@@ -827,8 +841,12 @@ export default function ReaderClient({
       return null;
     }
     const rect = container.getBoundingClientRect();
-    const x = Math.min(rect.right - 4, rect.left + 24);
-    const y = Math.min(rect.bottom - 4, rect.top + 32);
+    const maxX = Math.max(4, Math.min(window.innerWidth - 4, rect.right - 4));
+    const minX = Math.max(4, Math.min(maxX, rect.left + 24));
+    const maxY = Math.max(4, Math.min(window.innerHeight - 4, rect.bottom - 4));
+    const minY = Math.max(4, Math.min(maxY, rect.top + 32));
+    const x = minX;
+    const y = minY;
     const caretPoint = getCaretPoint(x, y);
     let node: Node | null = caretPoint?.node ?? null;
     if (!node) {
@@ -857,6 +875,62 @@ export default function ReaderClient({
     }
     return { sectionId, offset: offsets.start };
   }, [getSectionElementFromNode]);
+
+  const saveReadingProgress = useCallback(
+    async (sectionId: number, offset: number) => {
+      try {
+        const response = await fetch(`${apiBase}/books/${documentId}/progress`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            section_id: sectionId,
+            position_start: offset,
+            position_end: offset,
+          }),
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { progress?: ReadingProgress | null };
+        if (data.progress) {
+          setReadingProgress(data.progress);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [apiBase, documentId]
+  );
+
+  const flushProgressSave = useCallback(() => {
+    const pending = progressPendingRef.current;
+    if (!pending) {
+      return;
+    }
+    const last = lastProgressRef.current;
+    if (last && last.sectionId === pending.sectionId && last.offset === pending.offset) {
+      progressPendingRef.current = null;
+      return;
+    }
+    lastProgressRef.current = pending;
+    progressPendingRef.current = null;
+    void saveReadingProgress(pending.sectionId, pending.offset);
+  }, [saveReadingProgress]);
+
+  const scheduleProgressSave = useCallback(() => {
+    const position = getVisibleOffsets();
+    if (!position) {
+      return;
+    }
+    progressPendingRef.current = position;
+    if (progressSaveTimerRef.current !== null) {
+      window.clearTimeout(progressSaveTimerRef.current);
+    }
+    progressSaveTimerRef.current = window.setTimeout(() => {
+      progressSaveTimerRef.current = null;
+      flushProgressSave();
+    }, 700);
+  }, [flushProgressSave, getVisibleOffsets]);
 
   const normalizeWordKey = useCallback((value: string) => {
     return normalizeBannerText(value).toLowerCase();
@@ -1143,6 +1217,37 @@ export default function ReaderClient({
   }, [apiBase, documentId]);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadProgress = async () => {
+      try {
+        const response = await fetch(`${apiBase}/books/${documentId}/progress`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          setProgressLoaded(true);
+          return;
+        }
+        const data = (await response.json()) as { progress?: ReadingProgress | null };
+        if (cancelled) {
+          return;
+        }
+        setReadingProgress(data.progress ?? null);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (!cancelled) {
+          setProgressLoaded(true);
+        }
+      }
+    };
+
+    loadProgress();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase, documentId]);
+
+  useEffect(() => {
     const media = window.matchMedia("(max-width: 900px)");
     const computeIsMobile = () => {
       const touchCapable = navigator.maxTouchPoints > 0;
@@ -1265,6 +1370,27 @@ export default function ReaderClient({
   }, [initialSectionKey, sections]);
 
   useEffect(() => {
+    if (progressAppliedRef.current) {
+      return;
+    }
+    if (!progressLoaded) {
+      return;
+    }
+    progressAppliedRef.current = true;
+    if (initialSectionKey || !readingProgress) {
+      return;
+    }
+    const apply = () => {
+      scrollToOffsets(
+        readingProgress.section_id,
+        readingProgress.position_start,
+        readingProgress.position_end
+      );
+    };
+    window.requestAnimationFrame(apply);
+  }, [initialSectionKey, progressLoaded, readingProgress, scrollToOffsets, sections.length]);
+
+  useEffect(() => {
     if (!activeSelectionId) {
       setAdditions([]);
       setMarkers([]);
@@ -1288,47 +1414,50 @@ export default function ReaderClient({
     const updatePageMetrics = () => {
       if (pageMap.length) {
         const position = getVisibleOffsets();
-        if (!position) {
-          return;
-        }
-        const currentSectionOrder = sectionOrder.get(position.sectionId);
-        if (currentSectionOrder === undefined) {
-          return;
-        }
-        let resolvedIndex = 0;
-        for (let index = 0; index < pageMap.length; index += 1) {
-          const entry = pageMap[index];
-          const entrySectionOrder = sectionOrder.get(entry.section_id) ?? -1;
-          if (entrySectionOrder < currentSectionOrder) {
-            resolvedIndex = index;
-            continue;
+        if (position) {
+          const currentSectionOrder = sectionOrder.get(position.sectionId);
+          if (currentSectionOrder !== undefined) {
+            let resolvedIndex = 0;
+            for (let index = 0; index < pageMap.length; index += 1) {
+              const entry = pageMap[index];
+              const entrySectionOrder = sectionOrder.get(entry.section_id) ?? -1;
+              if (entrySectionOrder < currentSectionOrder) {
+                resolvedIndex = index;
+                continue;
+              }
+              if (entrySectionOrder === currentSectionOrder && entry.position_start <= position.offset) {
+                resolvedIndex = index;
+                continue;
+              }
+              if (entrySectionOrder > currentSectionOrder || entry.position_start > position.offset) {
+                break;
+              }
+            }
+            const resolvedEntry = pageMap[Math.min(resolvedIndex, pageMap.length - 1)];
+            const currentNumber = resolvedEntry.page_number ?? resolvedIndex + 1;
+            const maxNumber = pageMap.reduce((max, entry, index) => {
+              const candidate = entry.page_number ?? index + 1;
+              return Math.max(max, candidate);
+            }, 1);
+            setPageCount(maxNumber);
+            setCurrentPage(currentNumber);
+            return;
           }
-          if (entrySectionOrder === currentSectionOrder && entry.position_start <= position.offset) {
-            resolvedIndex = index;
-            continue;
-          }
-          if (entrySectionOrder > currentSectionOrder || entry.position_start > position.offset) {
-            break;
-          }
         }
-        const resolvedEntry = pageMap[Math.min(resolvedIndex, pageMap.length - 1)];
-        const currentNumber = resolvedEntry.page_number ?? resolvedIndex + 1;
-        const maxNumber = pageMap.reduce((max, entry, index) => {
-          const candidate = entry.page_number ?? index + 1;
-          return Math.max(max, candidate);
-        }, 1);
-        setPageCount(maxNumber);
-        setCurrentPage(currentNumber);
-        return;
       }
 
-      const pageSize = container.clientHeight;
+      const isScrollable = container.scrollHeight > container.clientHeight + 1;
+      const pageSize = isScrollable ? container.clientHeight : window.innerHeight;
       if (!pageSize) {
         return;
       }
-      const total = Math.max(1, Math.ceil(container.scrollHeight / pageSize));
+      const totalHeight = isScrollable
+        ? container.scrollHeight
+        : document.documentElement.scrollHeight || document.body.scrollHeight;
+      const scrollTop = isScrollable ? container.scrollTop : window.scrollY;
+      const total = Math.max(1, Math.ceil(totalHeight / pageSize));
       setPageCount(total);
-      const page = Math.min(total, Math.max(1, Math.floor(container.scrollTop / pageSize) + 1));
+      const page = Math.min(total, Math.max(1, Math.floor(scrollTop / pageSize) + 1));
       setCurrentPage(page);
     };
 
@@ -1343,6 +1472,36 @@ export default function ReaderClient({
       window.removeEventListener("resize", updatePageMetrics);
     };
   }, [getVisibleOffsets, highlightRefreshKey, isMobile, pageMap, sectionOrder, sections.length]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+    const handleScroll = () => {
+      scheduleProgressSave();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        flushProgressSave();
+      }
+    };
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("beforeunload", handleVisibility);
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("scroll", handleScroll);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("beforeunload", handleVisibility);
+      if (progressSaveTimerRef.current !== null) {
+        window.clearTimeout(progressSaveTimerRef.current);
+        progressSaveTimerRef.current = null;
+      }
+    };
+  }, [flushProgressSave, scheduleProgressSave]);
 
   useEffect(() => {
     if (!mobileNavOpen || mobileNavMode !== "pages") {
@@ -2755,11 +2914,17 @@ export default function ReaderClient({
       if (!container) {
         return;
       }
-      const pageSize = container.clientHeight;
+      const isScrollable = container.scrollHeight > container.clientHeight + 1;
+      const pageSize = isScrollable ? container.clientHeight : window.innerHeight;
       if (!pageSize) {
         return;
       }
-      container.scrollTo({ top: (page - 1) * pageSize });
+      const nextTop = (page - 1) * pageSize;
+      if (isScrollable) {
+        container.scrollTo({ top: nextTop });
+      } else {
+        window.scrollTo({ top: nextTop });
+      }
       setPageInput(String(page));
     },
     [pageCount, pageInput, pageMap, scrollToOffsets]

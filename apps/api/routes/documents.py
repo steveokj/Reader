@@ -7,6 +7,8 @@ from ..models.schemas import (
     DocumentDetailResponse,
     DocumentPagesResponse,
     DocumentsResponse,
+    ReadingProgressResponse,
+    ReadingProgressUpdate,
 )
 from ..services import documents as documents_service
 from ..services import ingest as ingest_service
@@ -53,6 +55,32 @@ def get_document_pages(document_id: int):
     try:
         pages = documents_service.get_document_pages(conn, document_id)
         return {"pages": pages}
+    finally:
+        conn.close()
+
+
+@router.get("/{document_id}/progress", response_model=ReadingProgressResponse)
+def get_document_progress(document_id: int):
+    conn = get_conn()
+    try:
+        progress = documents_service.get_reading_progress(conn, document_id)
+        return {"progress": progress}
+    finally:
+        conn.close()
+
+
+@router.put("/{document_id}/progress", response_model=ReadingProgressResponse)
+def update_document_progress(document_id: int, payload: ReadingProgressUpdate):
+    conn = get_conn()
+    try:
+        progress = documents_service.upsert_reading_progress(
+            conn,
+            document_id,
+            payload.section_id,
+            payload.position_start,
+            payload.position_end,
+        )
+        return {"progress": progress}
     finally:
         conn.close()
 

@@ -143,6 +143,44 @@ def get_document_pages(conn, document_id: int) -> List[Dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def get_reading_progress(conn, document_id: int) -> Optional[Dict[str, Any]]:
+    row = conn.execute(
+        """
+        SELECT document_id, section_id, position_start, position_end, updated_at
+        FROM reading_progress
+        WHERE document_id = ?
+        """,
+        (document_id,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def upsert_reading_progress(
+    conn, document_id: int, section_id: int, position_start: int, position_end: int
+) -> Dict[str, Any]:
+    now = _iso_now()
+    conn.execute(
+        """
+        INSERT INTO reading_progress (document_id, section_id, position_start, position_end, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(document_id) DO UPDATE SET
+          section_id = excluded.section_id,
+          position_start = excluded.position_start,
+          position_end = excluded.position_end,
+          updated_at = excluded.updated_at
+        """,
+        (document_id, section_id, position_start, position_end, now),
+    )
+    conn.commit()
+    return {
+        "document_id": document_id,
+        "section_id": section_id,
+        "position_start": position_start,
+        "position_end": position_end,
+        "updated_at": now,
+    }
+
+
 def ensure_sample_document(conn) -> None:
     existing = conn.execute("SELECT id FROM documents ORDER BY id LIMIT 1").fetchone()
     if existing:

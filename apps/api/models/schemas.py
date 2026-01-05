@@ -58,6 +58,24 @@ class DocumentPagesResponse(BaseModel):
     pages: List[PageEntry]
 
 
+class ReadingProgress(BaseModel):
+    document_id: int
+    section_id: int
+    position_start: int
+    position_end: int
+    updated_at: str
+
+
+class ReadingProgressUpdate(BaseModel):
+    section_id: int
+    position_start: int
+    position_end: int
+
+
+class ReadingProgressResponse(BaseModel):
+    progress: Optional[ReadingProgress] = None
+
+
 class PositionSelector(BaseModel):
     start: int
     end: int
