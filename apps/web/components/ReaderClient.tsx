@@ -514,8 +514,6 @@ export default function ReaderClient({
     "chapters" | "highlights" | "new" | "settings" | "selection" | null
   >(null);
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
-  const [debugTapInfo, setDebugTapInfo] = useState("");
-  const [isMounted, setIsMounted] = useState(false);
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
   const finalizeRangeRef = useRef<((range: Range) => void) | null>(null);
@@ -799,40 +797,40 @@ export default function ReaderClient({
     }
   }, []);
 
-  const selectWordRangeFromTap = useCallback((previous: WordSelectionTap, current: WordSelectionTap) => {
-    if (previous.range && current.range) {
-      const spanRange = buildSpanRange(previous.range, current.range);
-      const selection = window.getSelection();
-      if (selection) {
-        selection.removeAllRanges();
-        selection.addRange(spanRange);
+  const selectWordRangeFromTap = useCallback(
+    (previous: WordSelectionTap, current: WordSelectionTap) => {
+      if (previous.range && current.range) {
+        const spanRange = buildSpanRange(previous.range, current.range);
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+          selection.addRange(spanRange);
+        }
+        if (process.env.NODE_ENV !== "production") {
+          console.debug("[double-tap] selected span range", {
+            first: previous.word,
+            second: current.word,
+          });
+        }
+        return true;
       }
-      setDebugTapInfo(`select span "${previous.word}" -> "${current.word}"`);
-      if (process.env.NODE_ENV !== "production") {
-        console.debug("[double-tap] selected span range", {
-          first: previous.word,
-          second: current.word,
-        });
+
+      if (
+        previous.sectionId !== null &&
+        current.sectionId !== null &&
+        previous.start !== null &&
+        previous.end !== null &&
+        current.start !== null &&
+        current.end !== null
+      ) {
+        selectWordRange(previous, current);
+        return true;
       }
-      return true;
-    }
 
-    if (
-      previous.sectionId !== null &&
-      current.sectionId !== null &&
-      previous.start !== null &&
-      previous.end !== null &&
-      current.start !== null &&
-      current.end !== null
-    ) {
-      selectWordRange(previous, current);
-      setDebugTapInfo(`select offsets "${previous.word}" -> "${current.word}"`);
-      return true;
-    }
-
-    setDebugTapInfo(`select failed "${previous.word}" -> "${current.word}"`);
-    return false;
-  }, [selectWordRange, setDebugTapInfo]);
+      return false;
+    },
+    [selectWordRange]
+  );
 
   const addWordBanner = useCallback(
     (tap: Omit<WordSelectionTap, "id">): boolean => {
@@ -1002,9 +1000,6 @@ export default function ReaderClient({
     };
   }, []);
 
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1428,13 +1423,11 @@ export default function ReaderClient({
 
       const wordRange = getWordRangeFromPointRange(pointRange);
       if (!wordRange) {
-        setDebugTapInfo("whitespace - ignored");
         return;
       }
 
       const wordText = wordRange.toString().trim();
       if (!wordText) {
-        setDebugTapInfo("empty - ignored");
         return;
       }
 
@@ -1446,12 +1439,6 @@ export default function ReaderClient({
           start: null,
           end: null,
         };
-
-      setDebugTapInfo(
-        `doubletap "${banner.word}" section=${banner.sectionId ?? "-"} range=${
-          banner.start ?? "-"
-        }-${banner.end ?? "-"}`
-      );
 
       const previousWord = lastSelectableWordRef.current;
       const wasAdded = addWordBanner({ ...banner, range: safeWordRange });
@@ -1532,12 +1519,6 @@ export default function ReaderClient({
       const nextCount = withinWindow ? tapCountRef.current + 1 : 1;
       tapCountRef.current = nextCount;
       lastTapRef.current = { time: now, x, y };
-
-      setDebugTapInfo(
-        `tap ${new Date().toLocaleTimeString()} (${Math.round(x)},${Math.round(
-          y
-        )}) count=${nextCount} dt=${deltaMs ?? "-"}ms dist=${distance ? Math.round(distance) : "-"}`
-      );
 
       if (nextCount === 1) {
         clearTapTimer();
@@ -1685,6 +1666,13 @@ export default function ReaderClient({
         if (consumed) {
           return;
         }
+      } else if (source === "doc-touchend") {
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
+          suppressTouchFinalizeRef.current = true;
+          finalizeRange(selection.getRangeAt(0));
+          return;
+        }
       }
 
       const selection = window.getSelection();
@@ -1711,9 +1699,8 @@ export default function ReaderClient({
       }
       const touch = event.changedTouches[0];
       if (!touch) {
-        setDebugTapInfo(`touchend ${new Date().toLocaleTimeString()} no-touch`);
-        return;
-      }
+          return;
+        }
       lastPointerTouchUpRef.current = Date.now();
       handleTapPoint(touch.clientX, touch.clientY, "touchend");
     },
@@ -1744,11 +1731,6 @@ export default function ReaderClient({
       }
       docTapStartRef.current = { time: Date.now(), x: touch.clientX, y: touch.clientY };
       docTapMovedRef.current = false;
-      setDebugTapInfo(
-        `doc-touchstart ${new Date().toLocaleTimeString()} (${Math.round(touch.clientX)},${Math.round(
-          touch.clientY
-        )})`
-      );
     };
 
     const handleDocTouchMove = (event: TouchEvent) => {
@@ -2394,23 +2376,12 @@ export default function ReaderClient({
     [handleSelectHighlight]
   );
 
-  const debugBanner =
-    isMounted
-      ? createPortal(
-          <div className="mobile-debug-banner">
-            <span>tap debug: {debugTapInfo || "waiting"}</span>
-          </div>,
-          document.body
-        )
-      : null;
-
   return (
     <div
       className={`reader-layout reader-layout--columns reader-theme--${readerSettings.theme}`}
       data-highlight-style={readerSettings.ui_highlight_style}
       style={readerStyle}
     >
-      {debugBanner}
       <aside className="reader-sidebar">
         <div className="reader-sidebar__header">
           <div className="reader-kicker">{sourceType}</div>

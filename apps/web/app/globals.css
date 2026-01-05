@@ -2059,23 +2059,6 @@ a {
   opacity: 1;
 }
 
-.mobile-debug-banner {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 8px);
-  left: 16px;
-  right: 16px;
-  z-index: 80;
-  margin: 0;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(31, 28, 22, 0.16);
-  border: 1px solid rgba(31, 28, 22, 0.18);
-  box-shadow: 0 6px 16px rgba(31, 28, 22, 0.12);
-  font-size: 11px;
-  color: rgba(31, 28, 22, 0.85);
-  text-align: center;
-  pointer-events: none;
-}
 
 
 @media (max-width: 900px) {
