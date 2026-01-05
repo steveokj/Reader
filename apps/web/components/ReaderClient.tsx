@@ -1500,7 +1500,7 @@ export default function ReaderClient({
         lastSelectableWordRef.current = null;
       }
     },
-    [addWordBanner, getWordBannerFromRange, normalizeWordKey, setDebugTapInfo]
+    [addWordBanner, getWordBannerFromRange, normalizeWordKey]
   );
 
   const processTapSequence = useCallback(
