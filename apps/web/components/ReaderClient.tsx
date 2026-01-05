@@ -1392,37 +1392,39 @@ export default function ReaderClient({
 
     const updatePageMetrics = () => {
       if (pageMap.length) {
+        const maxNumber = pageMap.reduce((max, entry, index) => {
+          const candidate = entry.page_number ?? index + 1;
+          return Math.max(max, candidate);
+        }, 1);
+        setPageCount(maxNumber);
         const position = getVisibleOffsets();
-        if (position) {
-          const currentSectionOrder = sectionOrder.get(position.sectionId);
-          if (currentSectionOrder !== undefined) {
-            let resolvedIndex = 0;
-            for (let index = 0; index < pageMap.length; index += 1) {
-              const entry = pageMap[index];
-              const entrySectionOrder = sectionOrder.get(entry.section_id) ?? -1;
-              if (entrySectionOrder < currentSectionOrder) {
-                resolvedIndex = index;
-                continue;
-              }
-              if (entrySectionOrder === currentSectionOrder && entry.position_start <= position.offset) {
-                resolvedIndex = index;
-                continue;
-              }
-              if (entrySectionOrder > currentSectionOrder || entry.position_start > position.offset) {
-                break;
-              }
-            }
-            const resolvedEntry = pageMap[Math.min(resolvedIndex, pageMap.length - 1)];
-            const currentNumber = resolvedEntry.page_number ?? resolvedIndex + 1;
-            const maxNumber = pageMap.reduce((max, entry, index) => {
-              const candidate = entry.page_number ?? index + 1;
-              return Math.max(max, candidate);
-            }, 1);
-            setPageCount(maxNumber);
-            setCurrentPage(currentNumber);
-            return;
+        if (!position) {
+          return;
+        }
+        const currentSectionOrder = sectionOrder.get(position.sectionId);
+        if (currentSectionOrder === undefined) {
+          return;
+        }
+        let resolvedIndex = 0;
+        for (let index = 0; index < pageMap.length; index += 1) {
+          const entry = pageMap[index];
+          const entrySectionOrder = sectionOrder.get(entry.section_id) ?? -1;
+          if (entrySectionOrder < currentSectionOrder) {
+            resolvedIndex = index;
+            continue;
+          }
+          if (entrySectionOrder === currentSectionOrder && entry.position_start <= position.offset) {
+            resolvedIndex = index;
+            continue;
+          }
+          if (entrySectionOrder > currentSectionOrder || entry.position_start > position.offset) {
+            break;
           }
         }
+        const resolvedEntry = pageMap[Math.min(resolvedIndex, pageMap.length - 1)];
+        const currentNumber = resolvedEntry.page_number ?? resolvedIndex + 1;
+        setCurrentPage(currentNumber);
+        return;
       }
 
       const isScrollable = container.scrollHeight > container.clientHeight + 1;
