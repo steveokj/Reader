@@ -1288,17 +1288,6 @@ export default function ReaderClient({
         return;
       }
 
-      const syncSelection = () => {
-        const selection = window.getSelection();
-        if (!selection) {
-          return;
-        }
-        selection.removeAllRanges();
-        selection.addRange(range);
-      };
-      syncSelection();
-      window.requestAnimationFrame(syncSelection);
-
       const section = sectionById.get(sectionId);
       const usesParagraphOffsets = Boolean(sectionElement.querySelector("[data-paragraph]"));
       const currentText = usesParagraphOffsets
@@ -1339,6 +1328,10 @@ export default function ReaderClient({
       if (isMobile) {
         setMobileNavOpen(true);
         setMobilePanel("selection");
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+        }
       }
     },
     [
@@ -2445,6 +2438,30 @@ export default function ReaderClient({
   const modalToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
   const actionMenuMarkerKinds = isCommitted ? selectionMarkerKinds : pendingMarkerKinds;
   const actionMenuToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
+  const overlaySelections = useMemo(() => {
+    if (!isMobile || !menuState || isCommitted) {
+      return selections;
+    }
+    const draftSelection: Selection = {
+      id: -1,
+      document_id: documentId,
+      section_id: menuState.sectionId,
+      selector: menuState.selector,
+      created_at: "",
+    };
+    return [...selections, draftSelection];
+  }, [documentId, isCommitted, isMobile, menuState, selections]);
+  const overlayActiveSelectionId =
+    isMobile && menuState && !isCommitted ? -1 : activeSelectionId;
+  const handleOverlaySelect = useCallback(
+    (selection: Selection) => {
+      if (selection.id <= 0) {
+        return;
+      }
+      handleSelectHighlight(selection);
+    },
+    [handleSelectHighlight]
+  );
 
   const debugBanner =
     isMounted
@@ -2569,10 +2586,10 @@ export default function ReaderClient({
               </section>
             ))}
             <SelectionOverlay
-              selections={selections}
+              selections={overlaySelections}
               containerRef={containerRef}
-              activeSelectionId={activeSelectionId}
-              onSelect={handleSelectHighlight}
+              activeSelectionId={overlayActiveSelectionId}
+              onSelect={handleOverlaySelect}
               getSectionElement={getSectionElementForSelection}
               refreshKey={highlightRefreshKey}
             />

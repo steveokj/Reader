@@ -120,24 +120,34 @@ export default function SelectionOverlay({
   return (
     <div className="selection-overlay">
       {highlights.map((highlight) =>
-        highlight.rects.map((rect, index) => (
-          <button
-            key={`${highlight.selection.id}-${index}`}
-            type="button"
-            className={
-              highlight.selection.id === activeSelectionId
-                ? "selection-highlight is-active"
-                : "selection-highlight"
-            }
-            style={{
-              top: rect.top,
-              left: rect.left,
-              width: rect.width,
-              height: rect.height,
-            }}
-            onClick={() => onSelect(highlight.selection)}
-          />
-        ))
+        highlight.rects.map((rect, index) => {
+          const isInteractive = highlight.selection.id > 0;
+          const className =
+            highlight.selection.id === activeSelectionId
+              ? "selection-highlight is-active"
+              : "selection-highlight";
+          const style = {
+            top: rect.top,
+            left: rect.left,
+            width: rect.width,
+            height: rect.height,
+            pointerEvents: isInteractive ? "auto" : "none",
+          } as const;
+
+          if (!isInteractive) {
+            return <div key={`${highlight.selection.id}-${index}`} className={className} style={style} />;
+          }
+
+          return (
+            <button
+              key={`${highlight.selection.id}-${index}`}
+              type="button"
+              className={className}
+              style={style}
+              onClick={() => onSelect(highlight.selection)}
+            />
+          );
+        })
       )}
     </div>
   );
