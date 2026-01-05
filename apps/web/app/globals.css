@@ -960,7 +960,7 @@ a {
 
 .reader-top-swipe-zone {
   position: fixed;
-  top: 0;
+  top: 50%;
   left: 0;
   right: 0;
   width: 100vw;
@@ -969,6 +969,7 @@ a {
   align-items: flex-start;
   justify-content: center;
   padding-top: 10px;
+  transform: translateY(-50%);
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;

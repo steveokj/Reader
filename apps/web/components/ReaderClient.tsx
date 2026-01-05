@@ -31,10 +31,10 @@ import { rangeFromOffsets } from "@/lib/selection/rangeFromOffsets";
 const LONG_PRESS_MOVE_THRESHOLD = 12;
 const LONG_PRESS_DELAY_MS = 1950;
 const TAP_WINDOW_MS = 450;
-const NAV_SWIPE_ZONE_PX = 120;
+const NAV_SWIPE_ZONE_HEIGHT = 120;
 const NAV_SWIPE_MIN_PX = 60;
-const NAV_SWIPE_MAX_MS = 900;
-const NAV_SWIPE_HORIZONTAL_RATIO = 1.2;
+const NAV_SWIPE_MAX_MS = 1200;
+const NAV_SWIPE_HORIZONTAL_RATIO = 1.0;
 
 function normalizeBannerText(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -598,7 +598,14 @@ export default function ReaderClient({
         navSwipeStartRef.current = null;
         return;
       }
-      if (y > NAV_SWIPE_ZONE_PX) {
+      const viewportHeight = window.innerHeight;
+      if (!viewportHeight) {
+        navSwipeStartRef.current = null;
+        return;
+      }
+      const zoneTop = Math.max(0, (viewportHeight - NAV_SWIPE_ZONE_HEIGHT) / 2);
+      const zoneBottom = zoneTop + NAV_SWIPE_ZONE_HEIGHT;
+      if (y < zoneTop || y > zoneBottom) {
         navSwipeStartRef.current = null;
         return;
       }
@@ -2701,7 +2708,7 @@ export default function ReaderClient({
       </aside>
       <div className="reader-body" onClick={handleBodyClick} onPointerDown={handleBodyPointerDown}>
         <div className="reader-shell">
-          {isMobile ? <div className="reader-top-swipe-zone">Top swipe zone</div> : null}
+          {isMobile ? <div className="reader-top-swipe-zone">Swipe zone</div> : null}
           <div
             className="reader-scroll"
             ref={containerRef}
