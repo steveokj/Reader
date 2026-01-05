@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import type { CSSProperties, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 
@@ -30,6 +29,7 @@ import { getSelectionOffsets } from "@/lib/selection/getSelectionOffsets";
 import { rangeFromOffsets } from "@/lib/selection/rangeFromOffsets";
 
 const LONG_PRESS_MOVE_THRESHOLD = 12;
+const LONG_PRESS_DELAY_MS = 450;
 const TAP_WINDOW_MS = 450;
 
 function normalizeBannerText(value: string) {
@@ -1331,6 +1331,44 @@ export default function ReaderClient({
       longPressActiveRef.current = true;
       longPressPointerRef.current = pointerId;
       longPressStartRef.current = { x, y };
+      longPressTimerRef.current = window.setTimeout(() => {
+        longPressTimerRef.current = null;
+        if (!longPressActiveRef.current) {
+          return;
+        }
+        if (pointerId !== null && longPressPointerRef.current !== pointerId) {
+          return;
+        }
+        tapEligibleRef.current = false;
+        const container = containerRef.current;
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+          const range = selection.getRangeAt(0).cloneRange();
+          if (!container || container.contains(range.startContainer)) {
+            suppressTouchFinalizeRef.current = true;
+            finalizeRangeRef.current?.(range);
+            return;
+          }
+        }
+        const pointRange = getCaretRangeFromPoint(x, y);
+        if (!pointRange) {
+          return;
+        }
+        if (container && !container.contains(pointRange.startContainer)) {
+          return;
+        }
+        const wordRange = getWordRangeFromPointRange(pointRange);
+        if (!wordRange) {
+          return;
+        }
+        const selectionRange = wordRange.cloneRange();
+        if (selection) {
+          selection.removeAllRanges();
+          selection.addRange(selectionRange.cloneRange());
+        }
+        suppressTouchFinalizeRef.current = true;
+        finalizeRangeRef.current?.(selectionRange);
+      }, LONG_PRESS_DELAY_MS);
     },
     [clearLongPressTimer]
   );
@@ -1653,9 +1691,6 @@ export default function ReaderClient({
       }
       lastHandledTapRef.current = { time: now, x, y };
       endLongPress(null);
-      setDebugTapInfo(
-        `${source} ${new Date().toLocaleTimeString()} (${Math.round(x)},${Math.round(y)})`
-      );
       if (suppressTouchFinalizeRef.current) {
         suppressTouchFinalizeRef.current = false;
         return;
