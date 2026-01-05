@@ -958,6 +958,26 @@ a {
   height: 100%;
 }
 
+.reader-top-swipe-zone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--reader-ink-muted);
+  background: linear-gradient(180deg, rgba(31, 28, 22, 0.12), rgba(31, 28, 22, 0));
+  border-bottom: 1px dashed rgba(31, 28, 22, 0.2);
+  pointer-events: none;
+  z-index: 20;
+}
+
 .reader-scroll {
   position: relative;
   height: 100%;

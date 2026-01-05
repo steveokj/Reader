@@ -2705,6 +2705,7 @@ export default function ReaderClient({
       </aside>
       <div className="reader-body" onClick={handleBodyClick} onPointerDown={handleBodyPointerDown}>
         <div className="reader-shell">
+          {isMobile ? <div className="reader-top-swipe-zone">Top swipe zone</div> : null}
           <div
             className="reader-scroll"
             ref={containerRef}
