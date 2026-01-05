@@ -13,6 +13,7 @@ In the early morning, the market opened with quiet routines. Vendors lifted shut
 At the station, a train rolled in with a long metallic sigh. People gathered their bags, stepped forward, and moved into the crowd with practiced ease.
 
 By dusk, the library lamps warmed each table. Pages turned softly, pens scratched notes, and the last light settled into the corners of the room."""
+SYNTHETIC_PAGE_CHARS = 1500
 
 
 def _iso_now() -> str:
@@ -140,7 +141,45 @@ def get_document_pages(conn, document_id: int) -> List[Dict[str, Any]]:
         """,
         (document_id,),
     ).fetchall()
-    return [dict(row) for row in rows]
+    existing = [dict(row) for row in rows]
+    if existing:
+        return existing
+
+    sections = conn.execute(
+        """
+        SELECT id, content_text
+        FROM document_sections
+        WHERE document_id = ?
+        ORDER BY id
+        """,
+        (document_id,),
+    ).fetchall()
+    if not sections:
+        return []
+
+    pages: List[Dict[str, Any]] = []
+    page_index = 1
+    for section in sections:
+        text = section["content_text"] or ""
+        length = len(text)
+        offsets = list(range(0, length, SYNTHETIC_PAGE_CHARS))
+        if not offsets:
+            offsets = [0]
+        for offset in offsets:
+            pages.append(
+                {
+                    "section_id": section["id"],
+                    "page_index": page_index,
+                    "page_label": f"Page {page_index}",
+                    "page_number": page_index,
+                    "position_start": offset,
+                }
+            )
+            page_index += 1
+
+    if pages:
+        create_document_pages(conn, document_id, pages)
+    return pages
 
 
 def get_reading_progress(conn, document_id: int) -> Optional[Dict[str, Any]]:

@@ -2755,7 +2755,7 @@ export default function ReaderClient({
   );
 
   const scrollToOffsets = useCallback(
-    (sectionId: number, start: number, end: number) => {
+    (sectionId: number, start: number, end: number, offsetPadding = 120) => {
       const sectionElement = getSectionElementById(sectionId);
       if (!sectionElement) {
         return;
@@ -2768,12 +2768,12 @@ export default function ReaderClient({
       const rect = range ? range.getBoundingClientRect() : sectionElement.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
       const offsetTop = rect.top - containerRect.top + container.scrollTop;
-      const scrollTarget = Math.max(0, offsetTop - 120);
+      const scrollTarget = Math.max(0, offsetTop - offsetPadding);
       const isScrollable = container.scrollHeight > container.clientHeight + 1;
       if (isScrollable) {
         container.scrollTo({ top: scrollTarget });
       } else {
-        window.scrollTo({ top: Math.max(0, rect.top + window.scrollY - 120) });
+        window.scrollTo({ top: Math.max(0, rect.top + window.scrollY - offsetPadding) });
       }
     },
     [getSectionElementById]
@@ -2893,7 +2893,12 @@ export default function ReaderClient({
       if (!resolved) {
         return;
       }
-      scrollToOffsets(resolved.section_id, resolved.position_start, resolved.position_start);
+      scrollToOffsets(
+        resolved.section_id,
+        resolved.position_start,
+        resolved.position_start,
+        0
+      );
       const resolvedPage = resolved.page_number ?? fallbackIndex + 1;
       setPageInput(String(resolvedPage));
     },
