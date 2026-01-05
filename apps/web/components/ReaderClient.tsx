@@ -521,6 +521,7 @@ export default function ReaderClient({
   const [wordBanners, setWordBanners] = useState<WordBanner[]>([]);
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
+  const finalizeRangeRef = useRef<((range: Range) => void) | null>(null);
   const [readerSettings, setReaderSettings] = useState<ReaderSettings>(defaultReaderSettings);
   const [settingsStatus, setSettingsStatus] = useState<"idle" | "loading" | "saving" | "error">(
     "loading"
@@ -837,7 +838,17 @@ export default function ReaderClient({
   }, [selectWordRange, setDebugTapInfo]);
 
   const addWordBanner = useCallback(
-    (tap: Omit<WordSelectionTap, "id">) => {
+    (tap: Omit<WordSelectionTap, "id">): boolean => {
+      const lastBanner = lastSelectableWordRef.current;
+      if (
+        lastBanner &&
+        normalizeWordKey(lastBanner.word) === normalizeWordKey(tap.word) &&
+        lastBanner.sectionId === tap.sectionId &&
+        lastBanner.start === tap.start
+      ) {
+        return false;
+      }
+
       const banner: WordBanner = {
         id: nextWordBannerIdRef.current++,
         word: tap.word,
@@ -851,11 +862,19 @@ export default function ReaderClient({
       };
       setWordBanners((prev) => {
         const next = [...prev, banner];
-        return next.slice(Math.max(0, next.length - 3));
+        return next.slice(Math.max(0, next.length - 2));
       });
       const previous = lastSelectableWordRef.current;
       if (previous && normalizeWordKey(previous.word) !== normalizeWordKey(selectionTap.word)) {
-        selectWordRangeFromTap(previous, selectionTap);
+        const didSelect = selectWordRangeFromTap(previous, selectionTap);
+        if (didSelect) {
+          window.setTimeout(() => {
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+              finalizeRangeRef.current?.(selection.getRangeAt(0));
+            }
+          }, 0);
+        }
       }
       const hasSelectableRange =
         selectionTap.range !== null ||
@@ -863,6 +882,7 @@ export default function ReaderClient({
       if (hasSelectableRange) {
         lastSelectableWordRef.current = selectionTap;
       }
+      return true;
     },
     [normalizeWordKey, selectWordRangeFromTap]
   );
@@ -1321,6 +1341,8 @@ export default function ReaderClient({
     ]
   );
 
+  finalizeRangeRef.current = finalizeRange;
+
   const startLongPress = useCallback(
     (x: number, y: number, pointerId: number | null) => {
       clearLongPressTimer();
@@ -1457,10 +1479,6 @@ export default function ReaderClient({
 
   const handleTouchDoubleTap = useCallback(
     (x: number, y: number) => {
-      const selection = window.getSelection();
-      if (selection) {
-        selection.removeAllRanges();
-      }
       const container = containerRef.current;
       if (!container) {
         return;
@@ -1474,25 +1492,93 @@ export default function ReaderClient({
       }
 
       const wordRange = getWordRangeFromPointRange(pointRange);
-      const safeWordRange = wordRange ? wordRange.cloneRange() : null;
+      if (!wordRange) {
+        setDebugTapInfo("whitespace - ignored");
+        return;
+      }
+
+      const wordText = wordRange.toString().trim();
+      if (!wordText) {
+        setDebugTapInfo("empty - ignored");
+        return;
+      }
+
+      const safeWordRange = wordRange.cloneRange();
       const banner =
-        getWordBannerFromRange(pointRange) ?? {
-          word: getWordAtPoint(x, y) ?? "(no word)",
+        getWordBannerFromRange(wordRange) ?? {
+          word: wordText,
           sectionId: null,
           start: null,
           end: null,
         };
+
       setDebugTapInfo(
         `doubletap "${banner.word}" section=${banner.sectionId ?? "-"} range=${
           banner.start ?? "-"
         }-${banner.end ?? "-"}`
       );
-      if (process.env.NODE_ENV !== "production") {
-        console.debug("[double-tap] banner", banner);
+
+      const previousWord = lastSelectableWordRef.current;
+      const wasAdded = addWordBanner({ ...banner, range: safeWordRange });
+      if (!wasAdded) {
+        return;
       }
-      addWordBanner({ ...banner, range: safeWordRange });
+
+      const isSameWord =
+        previousWord && normalizeWordKey(previousWord.word) === normalizeWordKey(banner.word);
+      const isFirstWord = !previousWord;
+
+      if (isSameWord && safeWordRange) {
+        const selection = window.getSelection();
+        if (selection) {
+          selection.removeAllRanges();
+          selection.addRange(safeWordRange.cloneRange());
+        }
+        finalizeRangeRef.current?.(safeWordRange);
+        lastSelectableWordRef.current = null;
+        return;
+      }
+
+      if (isFirstWord) {
+        return;
+      }
+
+      if (
+        previousWord &&
+        previousWord.sectionId !== null &&
+        previousWord.start !== null &&
+        banner.end !== null &&
+        previousWord.sectionId === banner.sectionId
+      ) {
+        const sectionElement = containerRef.current?.querySelector(
+          `[data-section-id="${previousWord.sectionId}"]`
+        ) as HTMLElement | null;
+        if (sectionElement) {
+          const multiWordRange = rangeFromOffsets(sectionElement, previousWord.start, banner.end);
+          if (multiWordRange) {
+            const selection = window.getSelection();
+            if (selection) {
+              selection.removeAllRanges();
+              selection.addRange(multiWordRange);
+            }
+            finalizeRangeRef.current?.(multiWordRange);
+          }
+        }
+        lastSelectableWordRef.current = null;
+        return;
+      }
+
+      if (previousWord && previousWord.sectionId !== banner.sectionId) {
+        const selection = window.getSelection();
+        if (selection && safeWordRange) {
+          selection.removeAllRanges();
+          selection.addRange(safeWordRange.cloneRange());
+        }
+        finalizeRangeRef.current?.(safeWordRange);
+        lastSelectableWordRef.current = null;
+      }
     },
-    [addWordBanner, getWordBannerFromRange, setDebugTapInfo]
+    [addWordBanner, getWordBannerFromRange, normalizeWordKey, setDebugTapInfo]
   );
 
   const processTapSequence = useCallback(
