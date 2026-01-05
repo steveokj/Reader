@@ -31,7 +31,7 @@ import { rangeFromOffsets } from "@/lib/selection/rangeFromOffsets";
 const LONG_PRESS_MOVE_THRESHOLD = 12;
 const LONG_PRESS_DELAY_MS = 1950;
 const TAP_WINDOW_MS = 450;
-const NAV_SWIPE_ZONE_PX = 80;
+const NAV_SWIPE_ZONE_PX = 120;
 const NAV_SWIPE_MIN_PX = 60;
 const NAV_SWIPE_MAX_MS = 900;
 const NAV_SWIPE_HORIZONTAL_RATIO = 1.2;
@@ -598,14 +598,7 @@ export default function ReaderClient({
         navSwipeStartRef.current = null;
         return;
       }
-      const container = containerRef.current;
-      if (!container) {
-        navSwipeStartRef.current = null;
-        return;
-      }
-      const rect = container.getBoundingClientRect();
-      const yFromTop = y - rect.top;
-      if (yFromTop > NAV_SWIPE_ZONE_PX) {
+      if (y > NAV_SWIPE_ZONE_PX) {
         navSwipeStartRef.current = null;
         return;
       }
@@ -2503,6 +2496,9 @@ export default function ReaderClient({
         return;
       }
       if (doubleTapInProgressRef.current) {
+        return;
+      }
+      if (Date.now() - lastPointerTouchUpRef.current < 300) {
         return;
       }
       const target = event.target as Node;
