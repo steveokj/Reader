@@ -1495,16 +1495,6 @@ export default function ReaderClient({
     [addWordBanner, getWordBannerFromRange, setDebugTapInfo]
   );
 
-  const isCenterTap = useCallback((x: number, y: number) => {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    const xMin = width * 0.25;
-    const xMax = width * 0.75;
-    const yMin = height * 0.25;
-    const yMax = height * 0.75;
-    return x >= xMin && x <= xMax && y >= yMin && y <= yMax;
-  }, []);
-
   const processTapSequence = useCallback(
     (x: number, y: number) => {
       if (doubleTapInProgressRef.current) {
@@ -1530,25 +1520,7 @@ export default function ReaderClient({
 
       if (nextCount === 1) {
         clearTapTimer();
-        const tapX = x;
-        const tapY = y;
         tapTimerRef.current = window.setTimeout(() => {
-          if (tapCountRef.current === 1 && readerSettings.gesture_center_tap) {
-            const selection = window.getSelection();
-            if (
-              !menuState &&
-              (!selection || selection.isCollapsed) &&
-              isCenterTap(tapX, tapY)
-            ) {
-              setMobileNavOpen((prev) => {
-                const next = !prev;
-                if (!next) {
-                  setMobilePanel(null);
-                }
-                return next;
-              });
-            }
-          }
           resetTapState();
         }, TAP_WINDOW_MS);
         return true;
@@ -1574,14 +1546,6 @@ export default function ReaderClient({
       }
 
       if (nextCount >= 3) {
-        const selection = window.getSelection();
-        if (
-          readerSettings.gesture_triple_click &&
-          !menuState &&
-          (!selection || selection.isCollapsed)
-        ) {
-          setMobileNavOpen(true);
-        }
         resetTapState();
         return true;
       }
@@ -1591,10 +1555,6 @@ export default function ReaderClient({
     [
       clearTapTimer,
       handleTouchDoubleTap,
-      isCenterTap,
-      menuState,
-      readerSettings.gesture_center_tap,
-      readerSettings.gesture_triple_click,
       resetTapState,
     ]
   );

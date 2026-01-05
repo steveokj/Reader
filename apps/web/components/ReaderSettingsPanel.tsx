@@ -210,22 +210,6 @@ export default function ReaderSettingsPanel({
           </div>
         </div>
         <label className="settings-toggle">
-          <span>Center tap menu</span>
-          <input
-            type="checkbox"
-            checked={settings.gesture_center_tap}
-            onChange={(event) => apply({ gesture_center_tap: event.target.checked })}
-          />
-        </label>
-        <label className="settings-toggle">
-          <span>Triple click</span>
-          <input
-            type="checkbox"
-            checked={settings.gesture_triple_click}
-            onChange={(event) => apply({ gesture_triple_click: event.target.checked })}
-          />
-        </label>
-        <label className="settings-toggle">
           <span>Two-point long-press</span>
           <input
             type="checkbox"
