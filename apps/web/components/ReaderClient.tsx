@@ -1288,6 +1288,17 @@ export default function ReaderClient({
         return;
       }
 
+      const syncSelection = () => {
+        const selection = window.getSelection();
+        if (!selection) {
+          return;
+        }
+        selection.removeAllRanges();
+        selection.addRange(range);
+      };
+      syncSelection();
+      window.requestAnimationFrame(syncSelection);
+
       const section = sectionById.get(sectionId);
       const usesParagraphOffsets = Boolean(sectionElement.querySelector("[data-paragraph]"));
       const currentText = usesParagraphOffsets
