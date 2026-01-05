@@ -116,6 +116,10 @@ a {
   margin-top: 10px;
 }
 
+.reader-article--html hr { border: 0;   
+  height: 0; margin: 1.2rem 0; 
+}  
+
 .documents-page .reader-header {
   display: flex;
   flex-direction: column;
