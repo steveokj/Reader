@@ -975,11 +975,12 @@ a {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--reader-ink-muted);
-  background: linear-gradient(0deg, rgba(31, 28, 22, 0.16), rgba(31, 28, 22, 0));
-  border-top: 1px dashed rgba(31, 28, 22, 0.28);
+  background: transparent;
+  border-top: none;
   border-bottom: none;
   pointer-events: none;
   z-index: 20;
+  opacity: 0;
 }
 
 .reader-scroll {
