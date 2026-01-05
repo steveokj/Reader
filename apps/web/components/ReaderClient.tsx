@@ -1370,27 +1370,6 @@ export default function ReaderClient({
   }, [initialSectionKey, sections]);
 
   useEffect(() => {
-    if (progressAppliedRef.current) {
-      return;
-    }
-    if (!progressLoaded) {
-      return;
-    }
-    progressAppliedRef.current = true;
-    if (initialSectionKey || !readingProgress) {
-      return;
-    }
-    const apply = () => {
-      scrollToOffsets(
-        readingProgress.section_id,
-        readingProgress.position_start,
-        readingProgress.position_end
-      );
-    };
-    window.requestAnimationFrame(apply);
-  }, [initialSectionKey, progressLoaded, readingProgress, scrollToOffsets, sections.length]);
-
-  useEffect(() => {
     if (!activeSelectionId) {
       setAdditions([]);
       setMarkers([]);
@@ -2811,6 +2790,27 @@ export default function ReaderClient({
     },
     [getSectionElementById]
   );
+
+  useEffect(() => {
+    if (progressAppliedRef.current) {
+      return;
+    }
+    if (!progressLoaded) {
+      return;
+    }
+    progressAppliedRef.current = true;
+    if (initialSectionKey || !readingProgress) {
+      return;
+    }
+    const apply = () => {
+      scrollToOffsets(
+        readingProgress.section_id,
+        readingProgress.position_start,
+        readingProgress.position_end
+      );
+    };
+    window.requestAnimationFrame(apply);
+  }, [initialSectionKey, progressLoaded, readingProgress, scrollToOffsets, sections.length]);
 
   const handleJumpToSelection = useCallback(
     (selection: Selection) => {
