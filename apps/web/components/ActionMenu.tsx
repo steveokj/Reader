@@ -5,6 +5,7 @@ import MarkerToggle from "@/components/MarkerToggle";
 type ActionMenuProps = {
   top: number;
   left: number;
+  variant?: "floating" | "mobile";
   selectionText: string;
   isSaving: boolean;
   isCommitted: boolean;
@@ -107,6 +108,7 @@ export default function ActionMenu({
   onAudio,
   onGrammar,
   onClose,
+  variant = "floating",
 }: ActionMenuProps) {
   const status = isSaving ? "Saving..." : isCommitted ? "Saved" : "Not saved";
   const fullSelectionText = selectionText.replace(/\s+/g, " ").trim();
@@ -114,14 +116,11 @@ export default function ActionMenu({
   const stopEvent = (event: { stopPropagation: () => void }) => {
     event.stopPropagation();
   };
+  const menuClassName = variant === "mobile" ? "action-menu action-menu--mobile" : "action-menu";
+  const menuStyle = variant === "mobile" ? undefined : { top, left };
 
   return (
-    <div
-      className="action-menu"
-      style={{ top, left }}
-      onMouseUp={stopEvent}
-      onTouchEnd={stopEvent}
-    >
+    <div className={menuClassName} style={menuStyle} onMouseUp={stopEvent} onTouchEnd={stopEvent}>
       <div className="action-menu__meta">
         <div className="action-menu__meta-left">
           <button

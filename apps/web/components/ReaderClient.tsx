@@ -490,6 +490,7 @@ export default function ReaderClient({
   const tapTimerRef = useRef<number | null>(null);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const lastHandledTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const doubleTapInProgressRef = useRef(false);
   const docTapStartRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const docTapMovedRef = useRef(false);
   const docTapInScopeRef = useRef(false);
@@ -512,7 +513,7 @@ export default function ReaderClient({
   const [isMobile, setIsMobile] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<
-    "chapters" | "highlights" | "new" | "settings" | null
+    "chapters" | "highlights" | "new" | "settings" | "selection" | null
   >(null);
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
   const [debugTapInfo, setDebugTapInfo] = useState("");
@@ -1069,6 +1070,16 @@ export default function ReaderClient({
   }, [isMobile]);
 
   useEffect(() => {
+    if (!isMobile) {
+      return;
+    }
+    if (mobilePanel === "selection" && !menuState) {
+      setMobilePanel(null);
+      setMobileNavOpen(false);
+    }
+  }, [isMobile, menuState, mobilePanel]);
+
+  useEffect(() => {
     if (!initialSectionKey) {
       return;
     }
@@ -1100,6 +1111,9 @@ export default function ReaderClient({
   }, [activeSelectionId, refreshAdditions, refreshMarkers]);
 
   const clearSelection = useCallback(() => {
+    if (doubleTapInProgressRef.current) {
+      return;
+    }
     const selection = window.getSelection();
     if (selection) {
       selection.removeAllRanges();
@@ -1291,11 +1305,16 @@ export default function ReaderClient({
         setIsCommitted(false);
       }
       setPendingMarkerKinds([]);
+      if (isMobile) {
+        setMobileNavOpen(true);
+        setMobilePanel("selection");
+      }
     },
     [
       clearLongPressAnchor,
       clearSelection,
       getSectionElementFromNode,
+      isMobile,
       readerSettings.ui_action_menu_placement,
       sectionById,
       selections,
@@ -1488,6 +1507,9 @@ export default function ReaderClient({
 
   const processTapSequence = useCallback(
     (x: number, y: number) => {
+      if (doubleTapInProgressRef.current) {
+        return true;
+      }
       if (!tapEligibleRef.current) {
         return false;
       }
@@ -1533,15 +1555,21 @@ export default function ReaderClient({
       }
 
       if (nextCount === 2) {
+        if (doubleTapInProgressRef.current) {
+          resetTapState();
+          return true;
+        }
+        doubleTapInProgressRef.current = true;
         const selection = window.getSelection();
         if (selection) {
           selection.removeAllRanges();
         }
         clearTapTimer();
         handleTouchDoubleTap(x, y);
-        tapTimerRef.current = window.setTimeout(() => {
-          resetTapState();
-        }, TAP_WINDOW_MS);
+        resetTapState();
+        window.setTimeout(() => {
+          doubleTapInProgressRef.current = false;
+        }, 50);
         return true;
       }
 
@@ -1861,6 +1889,9 @@ export default function ReaderClient({
 
   const handleDoubleClick = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
+      if (doubleTapInProgressRef.current) {
+        return;
+      }
       const container = containerRef.current;
       if (!container) {
         return;
@@ -2295,6 +2326,9 @@ export default function ReaderClient({
       if (!mobileNavOpen) {
         return;
       }
+      if (doubleTapInProgressRef.current) {
+        return;
+      }
       const target = event.target as Node;
       if (mobileNavRef.current?.contains(target) || mobilePanelRef.current?.contains(target)) {
         return;
@@ -2366,7 +2400,7 @@ export default function ReaderClient({
       : null;
 
   const wordBannerStack =
-    isMounted && wordBanners.length
+    isMounted && wordBanners.length && mobilePanel !== "selection"
       ? createPortal(
           <div
             className="double-tap-banner-stack"
@@ -2486,7 +2520,7 @@ export default function ReaderClient({
               refreshKey={highlightRefreshKey}
             />
           </div>
-          {menuState && !noteModalOpen && !grammarModalOpen && !audioModalOpen ? (
+          {!isMobile && menuState && !noteModalOpen && !grammarModalOpen && !audioModalOpen ? (
             <ActionMenu
               top={menuState.top}
               left={menuState.left}
@@ -2510,7 +2544,9 @@ export default function ReaderClient({
                   ? " mobile-panel--settings"
                   : mobilePanel === "new"
                     ? " mobile-panel--new"
-                    : ""
+                    : mobilePanel === "selection"
+                      ? " mobile-panel--selection"
+                      : ""
               }`}
               ref={mobilePanelRef}
               style={mobilePanelStyle}
@@ -2534,6 +2570,28 @@ export default function ReaderClient({
                   onJumpToSelection={handleJumpToSelection}
                 />
               ) : null}
+              {mobilePanel === "selection" && menuState && !noteModalOpen && !grammarModalOpen && !audioModalOpen ? (
+                <ActionMenu
+                  top={0}
+                  left={0}
+                  variant="mobile"
+                  selectionText={menuState.selectionText}
+                  isSaving={isSaving}
+                  isCommitted={isCommitted}
+                  markerKinds={actionMenuMarkerKinds}
+                  showMarkers
+                  onToggleMarker={actionMenuToggle}
+                  onCommit={handleCommitSelection}
+                  onNote={handleOpenNote}
+                  onAudio={handleOpenAudio}
+                  onGrammar={handleOpenGrammar}
+                  onClose={() => {
+                    setMobilePanel(null);
+                    setMobileNavOpen(false);
+                    clearSelection();
+                  }}
+                />
+              ) : null}
               {mobilePanel === "new" ? (
                 <div className="mobile-panel__content">
                   <div className="mobile-panel__title">New book</div>
@@ -2552,7 +2610,7 @@ export default function ReaderClient({
               ) : null}
             </div>
           ) : null}
-          {isMobile && mobileNavOpen ? (
+          {isMobile && mobileNavOpen && mobilePanel !== "selection" ? (
             <div
               className="mobile-nav"
               ref={mobileNavRef}
