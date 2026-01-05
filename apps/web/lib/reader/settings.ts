@@ -29,7 +29,7 @@
 export type FontFamily = (typeof fontFamilies)[number]["value"];
 
 export const textWidthOptions = [
-  { value: "narrow", label: "Narrow", maxWidth: "520px", sidePadding: "10px" },
+  { value: "narrow", label: "Narrow", maxWidth: "520px", sidePadding: "2px" },
   { value: "medium", label: "Medium", maxWidth: "640px", sidePadding: "16px" },
   { value: "wide", label: "Wide", maxWidth: "760px", sidePadding: "22px" },
 ] as const;
@@ -105,18 +105,30 @@ export function getTextWidthStyles(value: string) {
 
 export function getThemeTokens(theme: ReaderTheme): ThemeTokens {
   if (theme === "dark") {
-    return {
-      ink: "#f5f2ec",
-      paper: "#1b1a17",
-      panel: "#24211d",
-      border: "rgba(255, 255, 255, 0.12)",
-      shadow: "rgba(0, 0, 0, 0.45)",
-      accent: "#f29b7c",
-      highlight: "rgba(242, 155, 124, 0.28)",
-      highlightActive: "rgba(242, 155, 124, 0.5)",
-      inkMuted: "rgba(245, 242, 236, 0.6)",
-      inkSubtle: "rgba(245, 242, 236, 0.5)",
+    return {  
+      ink: "#e2e1de",                                                                                                                                                                                                                                                                                                                                                                            
+      paper: "#45484a",                                                                                                                                                                                                                                                                                                                                                                          
+      panel: "#3a3d3f",                                                                                                                                                                                                                                                                                                                                                                          
+      border: "rgba(255, 255, 255, 0.14)",                                                                                                                                                                                                                                                                                                                                                       
+      shadow: "rgba(0, 0, 0, 0.5)",                                                                                                                                                                                                                                                                                                                                                              
+      accent: "#f29b7c",                                                                                                                                                                                                                                                                                                                                                                         
+      highlight: "rgba(242, 155, 124, 0.25)",                                                                                                                                                                                                                                                                                                                                                    
+      highlightActive: "rgba(242, 155, 124, 0.45)",                                                                                                                                                                                                                                                                                                                                              
+      inkMuted: "rgba(191, 189, 184, 0.6)",                                                                                                                                                                                                                                                                                                                                                      
+      inkSubtle: "rgba(191, 189, 184, 0.45)",  
     };
+    // return {
+    //   ink: "#bfbdb8", /*#f5f2ec",*/
+    //   paper: "#45484a", /*"#1b1a17",*/
+    //   panel: "#24211d",
+    //   border: "rgba(255, 255, 255, 0.12)",
+    //   shadow: "rgba(0, 0, 0, 0.45)",
+    //   accent: "#f29b7c",
+    //   highlight: "rgba(242, 155, 124, 0.28)",
+    //   highlightActive: "rgba(242, 155, 124, 0.5)",
+    //   inkMuted: "rgba(245, 242, 236, 0.6)",
+    //   inkSubtle: "rgba(245, 242, 236, 0.5)",
+    // };
   }
   if (theme === "sepia") {
     return {
