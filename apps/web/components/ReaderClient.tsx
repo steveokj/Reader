@@ -512,6 +512,7 @@ export default function ReaderClient({
   const audioSelectionRef = useRef<number | null>(null);
   const mobileNavRef = useRef<HTMLDivElement>(null);
   const mobilePanelRef = useRef<HTMLDivElement>(null);
+  const mobilePageNavRef = useRef<HTMLDivElement>(null);
   const longPressTimerRef = useRef<number | null>(null);
   const longPressStartRef = useRef<{ x: number; y: number } | null>(null);
   const longPressPointerRef = useRef<number | null>(null);
@@ -548,6 +549,7 @@ export default function ReaderClient({
   const scrolledSectionRef = useRef<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileNavMode, setMobileNavMode] = useState<"main" | "pages">("main");
   const [mobilePanel, setMobilePanel] = useState<
     "chapters" | "highlights" | "new" | "search" | "settings" | "selection" | null
   >(null);
@@ -556,6 +558,9 @@ export default function ReaderClient({
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [searchResultsQuery, setSearchResultsQuery] = useState("");
+  const [pageCount, setPageCount] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageInput, setPageInput] = useState("1");
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
   const finalizeRangeRef = useRef<((range: Range) => void) | null>(null);
@@ -631,11 +636,13 @@ export default function ReaderClient({
       if (!horizontal) {
         return false;
       }
+      const mode = dx > 0 ? "pages" : "main";
+      setMobileNavMode(mode);
       setMobileNavOpen(true);
       setMobilePanel(null);
       return true;
     },
-    [setMobileNavOpen, setMobilePanel]
+    [setMobileNavMode, setMobileNavOpen, setMobilePanel]
   );
 
   const queueSettingsUpdate = useCallback(
@@ -1199,6 +1206,43 @@ export default function ReaderClient({
     refreshAdditions(activeSelectionId);
     refreshMarkers(activeSelectionId);
   }, [activeSelectionId, refreshAdditions, refreshMarkers]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      return;
+    }
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const updatePageMetrics = () => {
+      const pageSize = container.clientHeight;
+      if (!pageSize) {
+        return;
+      }
+      const total = Math.max(1, Math.ceil(container.scrollHeight / pageSize));
+      setPageCount(total);
+      const page = Math.min(total, Math.max(1, Math.floor(container.scrollTop / pageSize) + 1));
+      setCurrentPage(page);
+    };
+
+    updatePageMetrics();
+    container.addEventListener("scroll", updatePageMetrics, { passive: true });
+    window.addEventListener("resize", updatePageMetrics);
+
+    return () => {
+      container.removeEventListener("scroll", updatePageMetrics);
+      window.removeEventListener("resize", updatePageMetrics);
+    };
+  }, [highlightRefreshKey, isMobile, sections.length]);
+
+  useEffect(() => {
+    if (!mobileNavOpen || mobileNavMode !== "pages") {
+      return;
+    }
+    setPageInput(String(currentPage));
+  }, [currentPage, mobileNavMode, mobileNavOpen]);
 
   const clearSelection = useCallback(() => {
     if (doubleTapInProgressRef.current) {
@@ -2429,6 +2473,7 @@ export default function ReaderClient({
   const closeMobileNav = useCallback(() => {
     setMobileNavOpen(false);
     setMobilePanel(null);
+    setMobileNavMode("main");
   }, []);
 
   const handleBodyPointerDown = useCallback(
@@ -2437,7 +2482,11 @@ export default function ReaderClient({
         return;
       }
       const target = event.target as Node;
-      if (mobileNavRef.current?.contains(target) || mobilePanelRef.current?.contains(target)) {
+      if (
+        mobileNavRef.current?.contains(target) ||
+        mobilePanelRef.current?.contains(target) ||
+        mobilePageNavRef.current?.contains(target)
+      ) {
         return;
       }
       closeMobileNav();
@@ -2457,7 +2506,11 @@ export default function ReaderClient({
         return;
       }
       const target = event.target as Node;
-      if (mobileNavRef.current?.contains(target) || mobilePanelRef.current?.contains(target)) {
+      if (
+        mobileNavRef.current?.contains(target) ||
+        mobilePanelRef.current?.contains(target) ||
+        mobilePageNavRef.current?.contains(target)
+      ) {
         return;
       }
       closeMobileNav();
@@ -2563,6 +2616,28 @@ export default function ReaderClient({
       scrollToOffsets(result.sectionId, result.start, result.end);
     },
     [scrollToOffsets]
+  );
+
+  const handlePageJump = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const target = Number.parseInt(pageInput, 10);
+      if (Number.isNaN(target)) {
+        return;
+      }
+      const page = Math.min(pageCount, Math.max(1, target));
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+      const pageSize = container.clientHeight;
+      if (!pageSize) {
+        return;
+      }
+      container.scrollTo({ top: (page - 1) * pageSize });
+      setPageInput(String(page));
+    },
+    [pageCount, pageInput]
   );
 
   const selectionMarkerKinds = markers.map((marker) => marker.kind as MarkerKind);
@@ -2809,71 +2884,101 @@ export default function ReaderClient({
             </div>
           ) : null}
           {isMobile && mobileNavOpen && mobilePanel !== "selection" ? (
-            <div
-              className="mobile-nav"
-              ref={mobileNavRef}
-              style={mobileNavStyle}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  setMobilePanel((prev) => (prev === "chapters" ? null : "chapters"))
-                }
-                aria-label="Chapters"
-                className={mobilePanel === "chapters" ? "is-active" : undefined}
-                style={navButtonStyle(mobilePanel === "chapters")}
+            mobileNavMode === "pages" ? (
+              <div
+                className="mobile-page-nav"
+                ref={mobilePageNavRef}
+                style={mobileNavStyle}
+                onClick={(event) => event.stopPropagation()}
               >
-                <IconChapters />
-                <span>Chapters</span>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setMobilePanel((prev) => (prev === "search" ? null : "search"))
-                }
-                aria-label="Search"
-                className={mobilePanel === "search" ? "is-active" : undefined}
-                style={navButtonStyle(mobilePanel === "search")}
+                <div className="mobile-page-nav__info">
+                  <div className="mobile-page-nav__label">Page</div>
+                  <div className="mobile-page-nav__value">
+                    {currentPage} / {pageCount}
+                  </div>
+                </div>
+                <form className="mobile-page-nav__form" onSubmit={handlePageJump}>
+                  <input
+                    type="number"
+                    min={1}
+                    max={pageCount}
+                    inputMode="numeric"
+                    className="mobile-page-nav__input"
+                    value={pageInput}
+                    onChange={(event) => setPageInput(event.target.value)}
+                  />
+                  <button type="submit" className="mobile-page-nav__submit">
+                    Go
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div
+                className="mobile-nav"
+                ref={mobileNavRef}
+                style={mobileNavStyle}
+                onClick={(event) => event.stopPropagation()}
               >
-                <IconSearch />
-                <span>Search</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMobilePanel((prev) => (prev === "new" ? null : "new"))}
-                aria-label="New"
-                className={mobilePanel === "new" ? "is-active" : undefined}
-                style={navButtonStyle(mobilePanel === "new")}
-              >
-                <IconNew />
-                <span>New</span>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setMobilePanel((prev) => (prev === "settings" ? null : "settings"))
-                }
-                aria-label="Settings"
-                className={mobilePanel === "settings" ? "is-active" : undefined}
-                style={navButtonStyle(mobilePanel === "settings")}
-              >
-                <IconSettings />
-                <span>Settings</span>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setMobilePanel((prev) => (prev === "highlights" ? null : "highlights"))
-                }
-                aria-label="Highlights"
-                className={mobilePanel === "highlights" ? "is-active" : undefined}
-                style={navButtonStyle(mobilePanel === "highlights")}
-              >
-                <IconHighlights />
-                <span>Highlights</span>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMobilePanel((prev) => (prev === "chapters" ? null : "chapters"))
+                  }
+                  aria-label="Chapters"
+                  className={mobilePanel === "chapters" ? "is-active" : undefined}
+                  style={navButtonStyle(mobilePanel === "chapters")}
+                >
+                  <IconChapters />
+                  <span>Chapters</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMobilePanel((prev) => (prev === "search" ? null : "search"))
+                  }
+                  aria-label="Search"
+                  className={mobilePanel === "search" ? "is-active" : undefined}
+                  style={navButtonStyle(mobilePanel === "search")}
+                >
+                  <IconSearch />
+                  <span>Search</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobilePanel((prev) => (prev === "new" ? null : "new"))}
+                  aria-label="New"
+                  className={mobilePanel === "new" ? "is-active" : undefined}
+                  style={navButtonStyle(mobilePanel === "new")}
+                >
+                  <IconNew />
+                  <span>New</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMobilePanel((prev) => (prev === "settings" ? null : "settings"))
+                  }
+                  aria-label="Settings"
+                  className={mobilePanel === "settings" ? "is-active" : undefined}
+                  style={navButtonStyle(mobilePanel === "settings")}
+                >
+                  <IconSettings />
+                  <span>Settings</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMobilePanel((prev) => (prev === "highlights" ? null : "highlights"))
+                  }
+                  aria-label="Highlights"
+                  className={mobilePanel === "highlights" ? "is-active" : undefined}
+                  style={navButtonStyle(mobilePanel === "highlights")}
+                >
+                  <IconHighlights />
+                  <span>Highlights</span>
+                </button>
+              </div>
+            )
           ) : null}
         </div>
       </div>
