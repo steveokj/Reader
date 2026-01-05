@@ -139,6 +139,16 @@ def _build_start_prompt(system_prompt: str, message: str) -> str:
     return "\n".join([system_prompt.strip(), "", "User:", message.strip()])
 
 
+@router.get("", response_model=ExploreThreadsResponse)
+def list_threads():
+    conn = get_conn()
+    try:
+        threads = explore_chat_service.list_threads(conn)
+        return {"threads": threads}
+    finally:
+        conn.close()
+
+
 @router.post("", response_model=ExploreChatResponse)
 def explore_chat(payload: ExploreChatRequest):
     message = payload.message.strip()

@@ -220,6 +220,12 @@ class ExploreThread(BaseModel):
     updated_at: str
 
 
+class ExploreThreadUpdate(BaseModel):
+    title: Optional[str] = None
+    system_prompt: Optional[str] = None
+    session_mode: Optional[str] = None
+
+
 class ExploreChatMessage(BaseModel):
     id: int
     thread_id: int
@@ -233,3 +239,7 @@ class ExploreChatResponse(BaseModel):
     messages: List[ExploreChatMessage]
     mode: str
     session_mode: Optional[str] = None
+
+
+class ExploreThreadsResponse(BaseModel):
+    threads: List[ExploreThread]
