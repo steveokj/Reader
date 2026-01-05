@@ -516,7 +516,6 @@ export default function ReaderClient({
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
   const [debugTapInfo, setDebugTapInfo] = useState("");
   const [isMounted, setIsMounted] = useState(false);
-  const [wordBanners, setWordBanners] = useState<WordBanner[]>([]);
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
   const finalizeRangeRef = useRef<((range: Range) => void) | null>(null);
@@ -858,10 +857,6 @@ export default function ReaderClient({
         ...banner,
         range: tap.range ?? null,
       };
-      setWordBanners((prev) => {
-        const next = [...prev, banner];
-        return next.slice(Math.max(0, next.length - 2));
-      });
       const previous = lastSelectableWordRef.current;
       if (previous && normalizeWordKey(previous.word) !== normalizeWordKey(selectionTap.word)) {
         const didSelect = selectWordRangeFromTap(previous, selectionTap);
@@ -886,7 +881,6 @@ export default function ReaderClient({
   );
 
   const clearWordBanners = useCallback(() => {
-    setWordBanners([]);
     lastSelectableWordRef.current = null;
   }, []);
 
@@ -2410,46 +2404,6 @@ export default function ReaderClient({
         )
       : null;
 
-  const wordBannerStack =
-    isMounted && wordBanners.length && mobilePanel !== "selection"
-      ? createPortal(
-          <div
-            className="double-tap-banner-stack"
-            style={{
-              position: "fixed",
-              top: "calc(env(safe-area-inset-top, 0px) + 48px)",
-              left: 16,
-              right: 16,
-              zIndex: 81,
-              display: "flex",
-              flexDirection: "column",
-              gap: 0,
-              pointerEvents: "none",
-            }}
-          >
-            {wordBanners.map((banner, index) => {
-              const label =
-                index === 0 ? "1st" : index === 1 ? "2nd" : index === 2 ? "3rd" : `${index + 1}th`;
-              return (
-                <div
-                  key={banner.id}
-                  className={`double-tap-banner double-tap-banner--slot-${index + 1}`}
-                  style={{
-                    marginTop: index === 0 ? 0 : 10,
-                    position: "relative",
-                  }}
-                >
-                  <span>
-                    {label}: {banner.word}
-                  </span>
-                </div>
-              );
-            })}
-          </div>,
-          document.body
-        )
-      : null;
-
   return (
     <div
       className={`reader-layout reader-layout--columns reader-theme--${readerSettings.theme}`}
@@ -2457,7 +2411,6 @@ export default function ReaderClient({
       style={readerStyle}
     >
       {debugBanner}
-      {wordBannerStack}
       <aside className="reader-sidebar">
         <div className="reader-sidebar__header">
           <div className="reader-kicker">{sourceType}</div>
