@@ -1391,55 +1391,41 @@ export default function ReaderClient({
     }
 
     const updatePageMetrics = () => {
-      if (pageMap.length) {
-        const maxNumber = pageMap.reduce((max, entry, index) => {
-          const candidate = entry.page_number ?? index + 1;
-          return Math.max(max, candidate);
-        }, 1);
-        setPageCount(maxNumber);
-        const position = getVisibleOffsets();
-        if (!position) {
-          return;
-        }
-        const currentSectionOrder = sectionOrder.get(position.sectionId);
-        if (currentSectionOrder === undefined) {
-          return;
-        }
-        let resolvedIndex = 0;
-        for (let index = 0; index < pageMap.length; index += 1) {
-          const entry = pageMap[index];
-          const entrySectionOrder = sectionOrder.get(entry.section_id) ?? -1;
-          if (entrySectionOrder < currentSectionOrder) {
-            resolvedIndex = index;
-            continue;
-          }
-          if (entrySectionOrder === currentSectionOrder && entry.position_start <= position.offset) {
-            resolvedIndex = index;
-            continue;
-          }
-          if (entrySectionOrder > currentSectionOrder || entry.position_start > position.offset) {
-            break;
-          }
-        }
-        const resolvedEntry = pageMap[Math.min(resolvedIndex, pageMap.length - 1)];
-        const currentNumber = resolvedEntry.page_number ?? resolvedIndex + 1;
-        setCurrentPage(currentNumber);
+      if (!pageMap.length) {
         return;
       }
-
-      const isScrollable = container.scrollHeight > container.clientHeight + 1;
-      const pageSize = isScrollable ? container.clientHeight : window.innerHeight;
-      if (!pageSize) {
+      const maxNumber = pageMap.reduce((max, entry, index) => {
+        const candidate = entry.page_number ?? index + 1;
+        return Math.max(max, candidate);
+      }, 1);
+      setPageCount(maxNumber);
+      const position = getVisibleOffsets();
+      if (!position) {
         return;
       }
-      const totalHeight = isScrollable
-        ? container.scrollHeight
-        : document.documentElement.scrollHeight || document.body.scrollHeight;
-      const scrollTop = isScrollable ? container.scrollTop : window.scrollY;
-      const total = Math.max(1, Math.ceil(totalHeight / pageSize));
-      setPageCount(total);
-      const page = Math.min(total, Math.max(1, Math.floor(scrollTop / pageSize) + 1));
-      setCurrentPage(page);
+      const currentSectionOrder = sectionOrder.get(position.sectionId);
+      if (currentSectionOrder === undefined) {
+        return;
+      }
+      let resolvedIndex = 0;
+      for (let index = 0; index < pageMap.length; index += 1) {
+        const entry = pageMap[index];
+        const entrySectionOrder = sectionOrder.get(entry.section_id) ?? -1;
+        if (entrySectionOrder < currentSectionOrder) {
+          resolvedIndex = index;
+          continue;
+        }
+        if (entrySectionOrder === currentSectionOrder && entry.position_start <= position.offset) {
+          resolvedIndex = index;
+          continue;
+        }
+        if (entrySectionOrder > currentSectionOrder || entry.position_start > position.offset) {
+          break;
+        }
+      }
+      const resolvedEntry = pageMap[Math.min(resolvedIndex, pageMap.length - 1)];
+      const currentNumber = resolvedEntry.page_number ?? resolvedIndex + 1;
+      setCurrentPage(currentNumber);
     };
 
     updatePageMetrics();
@@ -2892,44 +2878,26 @@ export default function ReaderClient({
   const handlePageJump = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
+      if (!pageMap.length) {
+        return;
+      }
       const target = Number.parseInt(pageInput, 10);
       if (Number.isNaN(target)) {
         return;
       }
-      if (pageMap.length) {
-        const targetEntry = pageMap.find(
-          (entry, index) => (entry.page_number ?? index + 1) === target
-        );
-        const fallbackIndex = Math.min(pageMap.length, Math.max(1, target)) - 1;
-        const resolved = targetEntry ?? pageMap[fallbackIndex];
-        if (!resolved) {
-          return;
-        }
-        scrollToOffsets(resolved.section_id, resolved.position_start, resolved.position_start);
-        const resolvedPage = resolved.page_number ?? fallbackIndex + 1;
-        setPageInput(String(resolvedPage));
+      const targetEntry = pageMap.find(
+        (entry, index) => (entry.page_number ?? index + 1) === target
+      );
+      const fallbackIndex = Math.min(pageMap.length, Math.max(1, target)) - 1;
+      const resolved = targetEntry ?? pageMap[fallbackIndex];
+      if (!resolved) {
         return;
       }
-
-      const page = Math.min(pageCount, Math.max(1, target));
-      const container = containerRef.current;
-      if (!container) {
-        return;
-      }
-      const isScrollable = container.scrollHeight > container.clientHeight + 1;
-      const pageSize = isScrollable ? container.clientHeight : window.innerHeight;
-      if (!pageSize) {
-        return;
-      }
-      const nextTop = (page - 1) * pageSize;
-      if (isScrollable) {
-        container.scrollTo({ top: nextTop });
-      } else {
-        window.scrollTo({ top: nextTop });
-      }
-      setPageInput(String(page));
+      scrollToOffsets(resolved.section_id, resolved.position_start, resolved.position_start);
+      const resolvedPage = resolved.page_number ?? fallbackIndex + 1;
+      setPageInput(String(resolvedPage));
     },
-    [pageCount, pageInput, pageMap, scrollToOffsets]
+    [pageInput, pageMap, scrollToOffsets]
   );
 
   const selectionMarkerKinds = markers.map((marker) => marker.kind as MarkerKind);
@@ -3178,33 +3146,47 @@ export default function ReaderClient({
           ) : null}
           {isMobile && mobileNavOpen && mobilePanel !== "selection" ? (
             mobileNavMode === "pages" ? (
-              <div
-                className="mobile-page-nav"
-                ref={mobilePageNavRef}
-                style={mobileNavStyle}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="mobile-page-nav__info">
-                  <div className="mobile-page-nav__label">Page</div>
-                  <div className="mobile-page-nav__value">
-                    {currentPage} / {pageCount}
+              pageMap.length ? (
+                <div
+                  className="mobile-page-nav"
+                  ref={mobilePageNavRef}
+                  style={mobileNavStyle}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="mobile-page-nav__info">
+                    <div className="mobile-page-nav__label">Page</div>
+                    <div className="mobile-page-nav__value">
+                      {currentPage} / {pageCount}
+                    </div>
+                  </div>
+                  <form className="mobile-page-nav__form" onSubmit={handlePageJump}>
+                    <input
+                      type="number"
+                      min={1}
+                      max={pageCount}
+                      inputMode="numeric"
+                      className="mobile-page-nav__input"
+                      value={pageInput}
+                      onChange={(event) => setPageInput(event.target.value)}
+                    />
+                    <button type="submit" className="mobile-page-nav__submit">
+                      Go
+                    </button>
+                  </form>
+                </div>
+              ) : (
+                <div
+                  className="mobile-page-nav"
+                  ref={mobilePageNavRef}
+                  style={mobileNavStyle}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="mobile-page-nav__info">
+                    <div className="mobile-page-nav__label">Pages</div>
+                    <div className="mobile-page-nav__value">Not available</div>
                   </div>
                 </div>
-                <form className="mobile-page-nav__form" onSubmit={handlePageJump}>
-                  <input
-                    type="number"
-                    min={1}
-                    max={pageCount}
-                    inputMode="numeric"
-                    className="mobile-page-nav__input"
-                    value={pageInput}
-                    onChange={(event) => setPageInput(event.target.value)}
-                  />
-                  <button type="submit" className="mobile-page-nav__submit">
-                    Go
-                  </button>
-                </form>
-              </div>
+              )
             ) : (
               <div
                 className="mobile-nav"
