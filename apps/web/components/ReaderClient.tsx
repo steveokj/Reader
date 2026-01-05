@@ -29,8 +29,12 @@ import { getSelectionOffsets } from "@/lib/selection/getSelectionOffsets";
 import { rangeFromOffsets } from "@/lib/selection/rangeFromOffsets";
 
 const LONG_PRESS_MOVE_THRESHOLD = 12;
-const LONG_PRESS_DELAY_MS = 450;
+const LONG_PRESS_DELAY_MS = 1950;
 const TAP_WINDOW_MS = 450;
+const NAV_SWIPE_ZONE_PX = 80;
+const NAV_SWIPE_MIN_PX = 60;
+const NAV_SWIPE_MAX_MS = 900;
+const NAV_SWIPE_HORIZONTAL_RATIO = 1.2;
 
 function normalizeBannerText(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -41,6 +45,7 @@ function isWordChar(value: string) {
 }
 
 type CaretPoint = { node: Node; offset: number };
+type NavSwipeStart = { x: number; y: number; time: number; pointerId: number | null };
 
 function getWordAtOffset(text: string, offset: number): string | null {
   if (!text) {
@@ -492,6 +497,7 @@ export default function ReaderClient({
   const docTapStartRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const docTapMovedRef = useRef(false);
   const docTapInScopeRef = useRef(false);
+  const navSwipeStartRef = useRef<NavSwipeStart | null>(null);
 
   const [menuState, setMenuState] = useState<MenuState | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -544,6 +550,57 @@ export default function ReaderClient({
     lastTapRef.current = null;
     clearTapTimer();
   }, [clearTapTimer]);
+
+  const startNavSwipe = useCallback(
+    (x: number, y: number, pointerId: number | null) => {
+      if (!isMobile) {
+        navSwipeStartRef.current = null;
+        return;
+      }
+      const container = containerRef.current;
+      if (!container) {
+        navSwipeStartRef.current = null;
+        return;
+      }
+      const rect = container.getBoundingClientRect();
+      const yFromTop = y - rect.top;
+      if (yFromTop > NAV_SWIPE_ZONE_PX) {
+        navSwipeStartRef.current = null;
+        return;
+      }
+      navSwipeStartRef.current = { x, y, time: Date.now(), pointerId };
+    },
+    [isMobile]
+  );
+
+  const handleNavSwipeEnd = useCallback(
+    (x: number, y: number, pointerId: number | null) => {
+      const start = navSwipeStartRef.current;
+      navSwipeStartRef.current = null;
+      if (!start) {
+        return false;
+      }
+      if (start.pointerId !== null && pointerId !== null && start.pointerId !== pointerId) {
+        return false;
+      }
+      const elapsed = Date.now() - start.time;
+      const dx = x - start.x;
+      const dy = y - start.y;
+      const distance = Math.hypot(dx, dy);
+      if (elapsed > NAV_SWIPE_MAX_MS || distance < NAV_SWIPE_MIN_PX) {
+        return false;
+      }
+      const horizontal =
+        Math.abs(dx) >= Math.abs(dy) * NAV_SWIPE_HORIZONTAL_RATIO;
+      if (!horizontal) {
+        return false;
+      }
+      setMobileNavOpen(true);
+      setMobilePanel(null);
+      return true;
+    },
+    [setMobileNavOpen, setMobilePanel]
+  );
 
   const queueSettingsUpdate = useCallback(
     (update: ReaderSettingsUpdate) => {
@@ -1425,6 +1482,7 @@ export default function ReaderClient({
       if (event.pointerType !== "touch") {
         return;
       }
+      startNavSwipe(event.clientX, event.clientY, event.pointerId);
       if (longPressActiveRef.current && longPressPointerRef.current === null) {
         pointerTouchSessionRef.current = true;
         return;
@@ -1432,7 +1490,7 @@ export default function ReaderClient({
       pointerTouchSessionRef.current = true;
       startLongPress(event.clientX, event.clientY, event.pointerId);
     },
-    [startLongPress]
+    [startLongPress, startNavSwipe]
   );
 
   const handleLongPressPointerMove = useCallback(
@@ -1605,6 +1663,11 @@ export default function ReaderClient({
         return;
       }
       endLongPress(event.pointerId);
+      if (handleNavSwipeEnd(event.clientX, event.clientY, event.pointerId)) {
+        lastPointerTouchUpRef.current = Date.now();
+        pointerTouchSessionRef.current = false;
+        return;
+      }
       lastPointerTouchUpRef.current = Date.now();
       if (suppressTouchFinalizeRef.current) {
         suppressTouchFinalizeRef.current = false;
@@ -1634,11 +1697,12 @@ export default function ReaderClient({
       finalizeRange(selection.getRangeAt(0));
       pointerTouchSessionRef.current = false;
     },
-    [clearSelection, endLongPress, finalizeRange, processTapSequence]
+    [clearSelection, endLongPress, finalizeRange, handleNavSwipeEnd, processTapSequence]
   );
 
   const handleLongPressPointerCancel = useCallback(() => {
     cancelLongPress();
+    navSwipeStartRef.current = null;
     pointerTouchSessionRef.current = false;
   }, [cancelLongPress]);
 
@@ -1651,9 +1715,10 @@ export default function ReaderClient({
       if (!touch) {
         return;
       }
+      startNavSwipe(touch.clientX, touch.clientY, null);
       startLongPress(touch.clientX, touch.clientY, null);
     },
-    [startLongPress]
+    [startLongPress, startNavSwipe]
   );
 
   const handleTouchMove = useCallback(
@@ -1675,6 +1740,7 @@ export default function ReaderClient({
       return;
     }
     cancelLongPress();
+    navSwipeStartRef.current = null;
     resetTapState();
   }, [cancelLongPress, resetTapState]);
 
@@ -1736,10 +1802,14 @@ export default function ReaderClient({
       if (!touch) {
           return;
         }
+      if (handleNavSwipeEnd(touch.clientX, touch.clientY, null)) {
+        lastPointerTouchUpRef.current = Date.now();
+        return;
+      }
       lastPointerTouchUpRef.current = Date.now();
       handleTapPoint(touch.clientX, touch.clientY, "touchend");
     },
-    [handleTapPoint]
+    [handleNavSwipeEnd, handleTapPoint]
   );
 
   useEffect(() => {
@@ -2316,6 +2386,25 @@ export default function ReaderClient({
     }
   }, [activeSelectionId]);
 
+  const closeMobileNav = useCallback(() => {
+    setMobileNavOpen(false);
+    setMobilePanel(null);
+  }, []);
+
+  const handleBodyPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!isMobile || !mobileNavOpen) {
+        return;
+      }
+      const target = event.target as Node;
+      if (mobileNavRef.current?.contains(target) || mobilePanelRef.current?.contains(target)) {
+        return;
+      }
+      closeMobileNav();
+    },
+    [closeMobileNav, isMobile, mobileNavOpen]
+  );
+
   const handleBodyClick = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       if (!isMobile) {
@@ -2331,10 +2420,9 @@ export default function ReaderClient({
       if (mobileNavRef.current?.contains(target) || mobilePanelRef.current?.contains(target)) {
         return;
       }
-      setMobileNavOpen(false);
-      setMobilePanel(null);
+      closeMobileNav();
     },
-    [isMobile, mobileNavOpen]
+    [closeMobileNav, isMobile, mobileNavOpen]
   );
 
   const handleJumpToSelection = useCallback(
@@ -2444,7 +2532,7 @@ export default function ReaderClient({
           </button>
         </div>
       </aside>
-      <div className="reader-body" onClick={handleBodyClick}>
+      <div className="reader-body" onClick={handleBodyClick} onPointerDown={handleBodyPointerDown}>
         <div className="reader-shell">
           <div
             className="reader-scroll"
