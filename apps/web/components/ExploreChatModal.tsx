@@ -13,6 +13,7 @@ type ChatMessage = {
 
 type ExploreChatModalProps = {
   open: boolean;
+  bookTitle?: string | null;
   selectionText?: string | null;
   onClose: () => void;
 };
@@ -93,7 +94,12 @@ function IconClose() {
   );
 }
 
-export default function ExploreChatModal({ open, selectionText, onClose }: ExploreChatModalProps) {
+export default function ExploreChatModal({
+  open,
+  bookTitle,
+  selectionText,
+  onClose,
+}: ExploreChatModalProps) {
   const apiBase = getClientApiBase();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draftMessage, setDraftMessage] = useState("");
@@ -204,6 +210,7 @@ export default function ExploreChatModal({ open, selectionText, onClose }: Explo
             message: payloadMessage,
             action: threadId ? "resume" : "new",
             mode: "codex-cli",
+            book_title: bookTitle ?? null,
           }),
         });
         if (!response.ok) {

@@ -237,6 +237,7 @@ class ExploreChatRequest(BaseModel):
     action: Optional[str] = None
     system_prompt: Optional[str] = None
     title: Optional[str] = None
+    book_title: Optional[str] = None
     timeout_seconds: Optional[int] = None
 
 

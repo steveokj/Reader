@@ -20,9 +20,22 @@ from ..services import explore_chat as explore_chat_service
 router = APIRouter(prefix="/explore/chat", tags=["explore"])
 
 DEFAULT_SYSTEM_PROMPT = (
-    "You are a helpful reading companion. Respond to the user's last message, "
-    "keep continuity with the chat history, and be concise."
+    "You are a professional, in-depth reading companion and literary analyst for the book titled "
+    '"{book_title}".\n'
+    "Respond with thoughtful, detailed, and well-structured answers; avoid brevity unless asked.\n"
+    "Ground answers in the provided context or excerpt. Do not fabricate quotes, sources, or plot.\n"
+    "If context is insufficient, say what is missing and ask a focused follow-up question.\n"
+    "When asked for analysis, explain reasoning and link it to the passage.\n"
+    "When asked for summary, provide a clear, multi-sentence summary that preserves nuance.\n"
+    "Images: when asked for an image, return a direct public image URL ending in "
+    ".jpg/.png/.webp/.gif/.svg and format as Markdown: ![alt text](url). "
+    "Include short alt text. If you cannot find a direct image URL, say so and provide a normal web link."
 )
+
+
+def _resolve_system_prompt(payload: ExploreChatRequest) -> str:
+    title = (payload.book_title or "").strip() or "the current book"
+    return DEFAULT_SYSTEM_PROMPT.format(book_title=title)
 
 
 def resolve_codex_path() -> str | None:
@@ -172,7 +185,7 @@ def explore_chat(payload: ExploreChatRequest):
                 raise HTTPException(status_code=404, detail="Thread not found.")
 
         if not thread:
-            system_prompt = (payload.system_prompt or DEFAULT_SYSTEM_PROMPT).strip()
+            system_prompt = (payload.system_prompt or _resolve_system_prompt(payload)).strip()
             title = payload.title.strip() if payload.title else None
             if not title:
                 title = (message[:48] + "...") if len(message) > 48 else message
@@ -203,7 +216,7 @@ def explore_chat(payload: ExploreChatRequest):
                         resume_last=True,
                     )
             else:
-                system_prompt = thread.get("system_prompt") or DEFAULT_SYSTEM_PROMPT
+                system_prompt = thread.get("system_prompt") or _resolve_system_prompt(payload)
                 prompt = _build_start_prompt(system_prompt, message)
                 response_text, session_id, _ = run_codex_cli(
                     prompt,
