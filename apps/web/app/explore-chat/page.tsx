@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { getClientApiBase } from "@/lib/apiBase";
 
@@ -31,6 +31,8 @@ export default function ExploreChatPage() {
   const [mode, setMode] = useState<ExploreMode>("codex-cli");
   const [draftMessage, setDraftMessage] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [threads, setThreads] = useState<ChatThread[]>([]);
+  const [activeThread, setActiveThread] = useState<ChatThread | null>(null);
   const [threadId, setThreadId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
