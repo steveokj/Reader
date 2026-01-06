@@ -168,3 +168,32 @@ def list_messages(conn, thread_id: int) -> List[Dict[str, Any]]:
         }
         for row in rows
     ]
+
+
+def get_thread_for_document(conn, document_id: int) -> Optional[Dict[str, Any]]:
+    row = conn.execute(
+        """
+        SELECT thread_id
+        FROM explore_thread_documents
+        WHERE document_id = ?
+        """,
+        (document_id,),
+    ).fetchone()
+    if not row:
+        return None
+    return get_thread(conn, row["thread_id"])
+
+
+def set_thread_for_document(conn, document_id: int, thread_id: int) -> None:
+    now = _iso_now()
+    conn.execute(
+        """
+        INSERT INTO explore_thread_documents (document_id, thread_id, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(document_id) DO UPDATE SET
+          thread_id = excluded.thread_id,
+          updated_at = excluded.updated_at
+        """,
+        (document_id, thread_id, now),
+    )
+    conn.commit()

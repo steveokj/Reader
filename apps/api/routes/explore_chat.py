@@ -29,7 +29,8 @@ DEFAULT_SYSTEM_PROMPT = (
     "When asked for summary, provide a clear, multi-sentence summary that preserves nuance.\n"
     "Images: when asked for an image, return a direct public image URL ending in "
     ".jpg/.png/.webp/.gif/.svg and format as Markdown: ![alt text](url). "
-    "Include short alt text. If you cannot find a direct image URL, say so and provide a normal web link."
+    "Include short alt text. If multiple images are requested, return multiple Markdown image links, one per line. "
+    "If you cannot find a direct image URL, say so and provide a normal web link."
 )
 
 
@@ -192,6 +193,8 @@ def explore_chat(payload: ExploreChatRequest):
             thread = explore_chat_service.create_thread(conn, title, system_prompt, None)
 
         explore_chat_service.add_message(conn, thread["id"], "user", message)
+        if payload.document_id:
+            explore_chat_service.set_thread_for_document(conn, payload.document_id, thread["id"])
 
         if mode == "mock":
             response_text = f"Mock reply: {message[:240]}"
@@ -249,6 +252,23 @@ def get_thread(thread_id: int):
         if not thread:
             raise HTTPException(status_code=404, detail="Thread not found.")
         messages = explore_chat_service.list_messages(conn, thread_id)
+        return {
+            "thread": thread,
+            "messages": messages,
+            "mode": "codex-cli",
+        }
+    finally:
+        conn.close()
+
+
+@router.get("/book/{document_id}", response_model=ExploreChatResponse)
+def get_thread_for_document(document_id: int):
+    conn = get_conn()
+    try:
+        thread = explore_chat_service.get_thread_for_document(conn, document_id)
+        if not thread:
+            raise HTTPException(status_code=404, detail="Thread not found for document.")
+        messages = explore_chat_service.list_messages(conn, thread["id"])
         return {
             "thread": thread,
             "messages": messages,

@@ -3304,6 +3304,7 @@ export default function ReaderClient({
       <ExploreChatModal
         open={exploreModalOpen}
         bookTitle={documentTitle}
+        documentId={documentId}
         selectionText={exploreSelectionText}
         onClose={() => setExploreModalOpen(false)}
       />

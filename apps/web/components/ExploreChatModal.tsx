@@ -14,6 +14,7 @@ type ChatMessage = {
 type ExploreChatModalProps = {
   open: boolean;
   bookTitle?: string | null;
+  documentId?: number | null;
   selectionText?: string | null;
   onClose: () => void;
 };
@@ -98,6 +99,7 @@ function IconClose() {
 export default function ExploreChatModal({
   open,
   bookTitle,
+  documentId,
   selectionText,
   onClose,
 }: ExploreChatModalProps) {
@@ -116,12 +118,15 @@ export default function ExploreChatModal({
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const storageKey = useMemo(() => {
+    if (documentId) {
+      return `explore-chat:doc:${documentId}`;
+    }
     const normalizedTitle = (bookTitle || FALLBACK_BOOK_TITLE)
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
     return `explore-chat:${normalizedTitle}`;
-  }, [bookTitle]);
+  }, [bookTitle, documentId]);
 
   const contextPreview = useMemo(() => truncateContext(contextText), [contextText]);
 
@@ -159,6 +164,46 @@ export default function ExploreChatModal({
       setDraftMessage("");
     }
   }, [open, storageKey]);
+
+  useEffect(() => {
+    if (!open || !documentId) {
+      return;
+    }
+    let cancelled = false;
+    const loadThread = async () => {
+      try {
+        const response = await fetch(`${apiBase}/explore/chat/book/${documentId}`);
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as {
+          thread?: { id?: number };
+          messages?: ChatMessage[];
+        };
+        if (cancelled) {
+          return;
+        }
+        if (data.thread?.id) {
+          setThreadId(data.thread.id);
+        }
+        if (data.messages) {
+          setMessages(
+            data.messages.map((message) => ({
+              id: message.id,
+              role: message.role,
+              content: message.content,
+            }))
+          );
+        }
+      } catch {
+        // ignore load errors
+      }
+    };
+    loadThread();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase, documentId, open]);
 
   useEffect(() => {
     if (!open) {
@@ -252,17 +297,18 @@ export default function ExploreChatModal({
       const payloadMessage = `${contextPrefix}${trimmed}`;
 
       try {
-      const response = await fetch(`${apiBase}/explore/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          thread_id: threadId,
-          message: payloadMessage,
-          action: threadId ? "resume" : "new",
-          mode: "codex-cli",
-          book_title: bookTitle ?? FALLBACK_BOOK_TITLE,
-        }),
-      });
+        const response = await fetch(`${apiBase}/explore/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            thread_id: threadId,
+            message: payloadMessage,
+            action: threadId ? "resume" : "new",
+            mode: "codex-cli",
+            book_title: bookTitle ?? FALLBACK_BOOK_TITLE,
+            document_id: documentId ?? null,
+          }),
+        });
         if (!response.ok) {
           const data = (await response.json()) as { detail?: string };
           throw new Error(data.detail || "Explore request failed.");
@@ -287,7 +333,7 @@ export default function ExploreChatModal({
         setIsSubmitting(false);
       }
     },
-    [apiBase, bookTitle, contextText, draftMessage, isSubmitting, threadId]
+    [apiBase, bookTitle, contextText, documentId, draftMessage, isSubmitting, threadId]
   );
 
   return (
@@ -385,11 +431,20 @@ export default function ExploreChatModal({
         </form>
       </div>
       {zoomedImage ? (
-        <div className="explore-chat-modal__zoom" onClick={() => setZoomedImage(null)}>
+        <div
+          className="explore-chat-modal__zoom"
+          onClick={(event) => {
+            event.stopPropagation();
+            setZoomedImage(null);
+          }}
+        >
           <button
             type="button"
             className="explore-chat-modal__zoom-close"
-            onClick={() => setZoomedImage(null)}
+            onClick={(event) => {
+              event.stopPropagation();
+              setZoomedImage(null);
+            }}
             aria-label="Close image"
           >
             <IconClose />
