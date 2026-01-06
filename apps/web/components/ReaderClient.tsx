@@ -2980,6 +2980,22 @@ export default function ReaderClient({
       data-highlight-style={readerSettings.ui_highlight_style}
       style={readerStyle}
     >
+      {!isReaderReady ? (
+        <div
+          className="reader-loading-overlay"
+          aria-live="polite"
+          aria-busy="true"
+          style={{
+            backgroundColor: "var(--reader-paper, #f6f1e9)",
+            color: "var(--reader-ink, #1f1c16)",
+          }}
+        >
+          <div className="reader-loading-overlay__content">
+            <span className="reader-loading-overlay__spinner" aria-hidden="true" />
+            <div className="reader-loading-overlay__text">Loading your place...</div>
+          </div>
+        </div>
+      ) : null}
       <aside className="reader-sidebar">
         <div className="reader-sidebar__header">
           <div className="reader-kicker">{sourceType}</div>
@@ -3367,14 +3383,6 @@ export default function ReaderClient({
           setAudioModalOpen(false);
         }}
       />
-      {!isReaderReady ? (
-        <div className="reader-loading-overlay" aria-live="polite" aria-busy="true">
-          <div className="reader-loading-overlay__content">
-            <span className="reader-loading-overlay__spinner" aria-hidden="true" />
-            <div className="reader-loading-overlay__text">Loading your place...</div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
