@@ -68,7 +68,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieTheme = cookies().get("reader-theme")?.value;
+  const cookieStore = await cookies();
+  const cookieTheme = cookieStore.get("reader-theme")?.value;
   const resolvedTheme =
     cookieTheme && allowedThemes.has(cookieTheme) ? cookieTheme : await fetchServerTheme();
 
