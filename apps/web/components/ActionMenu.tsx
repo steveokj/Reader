@@ -16,6 +16,7 @@ type ActionMenuProps = {
   onNote: () => void;
   onAudio: () => void;
   onGrammar: () => void;
+  onExplore: () => void;
   onClose: () => void;
 };
 
@@ -107,6 +108,7 @@ export default function ActionMenu({
   onNote,
   onAudio,
   onGrammar,
+  onExplore,
   onClose,
   variant = "floating",
 }: ActionMenuProps) {
@@ -163,7 +165,7 @@ export default function ActionMenu({
         <button type="button" onClick={onGrammar} aria-label="Grammar" title="Grammar">
           <IconGrammar />
         </button>
-        <button type="button" aria-label="Explore" title="Explore">
+        <button type="button" onClick={onExplore} aria-label="Explore" title="Explore">
           <IconExplore />
         </button>
         <button type="button" aria-label="More" title="More">

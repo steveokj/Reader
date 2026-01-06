@@ -5,6 +5,7 @@ import type { CSSProperties, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import ActionMenu from "@/components/ActionMenu";
+import ExploreChatModal from "@/components/ExploreChatModal";
 import ReaderDocument from "@/components/ReaderDocument";
 import ReaderHighlightsPanel from "@/components/ReaderHighlightsPanel";
 import ReaderSettingsPanel from "@/components/ReaderSettingsPanel";
@@ -559,6 +560,8 @@ export default function ReaderClient({
   const [noteModalOpen, setNoteModalOpen] = useState(false);
   const [grammarModalOpen, setGrammarModalOpen] = useState(false);
   const [audioModalOpen, setAudioModalOpen] = useState(false);
+  const [exploreModalOpen, setExploreModalOpen] = useState(false);
+  const [exploreSelectionText, setExploreSelectionText] = useState("");
   const [editingNote, setEditingNote] = useState<Addition | null>(null);
   const scrolledSectionRef = useRef<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -2421,6 +2424,19 @@ export default function ReaderClient({
     setDraftSelection,
   ]);
 
+  const handleOpenExplore = useCallback(
+    (selectionText: string) => {
+      setExploreSelectionText(selectionText);
+      setExploreModalOpen(true);
+      if (isMobile) {
+        setMobilePanel(null);
+        setMobileNavOpen(false);
+      }
+      clearSelection();
+    },
+    [clearSelection, isMobile]
+  );
+
   const handleClearAudioSelection = useCallback(async () => {
     const selectionId = audioSelectionRef.current ?? activeSelectionId;
     if (!selectionId) {
@@ -3035,6 +3051,7 @@ export default function ReaderClient({
               onNote={handleOpenNote}
               onAudio={handleOpenAudio}
               onGrammar={handleOpenGrammar}
+              onExplore={() => handleOpenExplore(menuState.selectionText)}
               onClose={clearSelection}
             />
           ) : null}
@@ -3084,6 +3101,7 @@ export default function ReaderClient({
                   onNote={handleOpenNote}
                   onAudio={handleOpenAudio}
                   onGrammar={handleOpenGrammar}
+                  onExplore={() => handleOpenExplore(menuState.selectionText)}
                   onClose={() => {
                     setMobilePanel(null);
                     setMobileNavOpen(false);
@@ -3283,6 +3301,11 @@ export default function ReaderClient({
           />
         </aside>
       ) : null}
+      <ExploreChatModal
+        open={exploreModalOpen}
+        selectionText={exploreSelectionText}
+        onClose={() => setExploreModalOpen(false)}
+      />
       <NoteModal
         isOpen={noteModalOpen}
         initialText={editingNote?.text_content ?? ""}
