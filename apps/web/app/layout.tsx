@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -25,6 +26,9 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const allowedThemes = new Set(["light", "dark", "sepia"]);
+
 const readerThemeScript = `
 (() => {
   try {
@@ -42,13 +46,34 @@ const readerThemeScript = `
 })();
 `;
 
-export default function RootLayout({
+async function fetchServerTheme(): Promise<string | undefined> {
+  try {
+    const response = await fetch(`${API_BASE}/settings`, { cache: "no-store" });
+    if (!response.ok) {
+      return undefined;
+    }
+    const data = (await response.json()) as { settings?: { theme?: string } };
+    const theme = data?.settings?.theme;
+    if (theme && allowedThemes.has(theme)) {
+      return theme;
+    }
+    return undefined;
+  } catch (error) {
+    return undefined;
+  }
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieTheme = cookies().get("reader-theme")?.value;
+  const resolvedTheme =
+    cookieTheme && allowedThemes.has(cookieTheme) ? cookieTheme : await fetchServerTheme();
+
   return (
-    <html lang="en">
+    <html lang="en" data-reader-theme={resolvedTheme ?? undefined}>
       <head>
         <Script id="reader-theme-bootstrap" strategy="beforeInteractive">
           {readerThemeScript}

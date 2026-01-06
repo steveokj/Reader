@@ -751,6 +751,11 @@ export default function ReaderClient({
     } catch (error) {
       // ignore
     }
+    try {
+      document.cookie = `reader-theme=${theme}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    } catch (error) {
+      // ignore
+    }
   }, [readerSettings.theme, shouldPersistTheme]);
 
   const readerScrollStyle = useMemo<CSSProperties>(
