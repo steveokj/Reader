@@ -107,7 +107,11 @@ def create_document_pages(
 
 def get_documents(conn) -> List[Dict[str, Any]]:
     rows = conn.execute(
-        "SELECT id, title, source_type, source_ref, cover_url, created_at FROM documents ORDER BY id"
+        """
+        SELECT id, title, source_type, source_ref, cover_url, created_at
+        FROM documents
+        ORDER BY created_at DESC, id DESC
+        """
     ).fetchall()
     return [dict(row) for row in rows]
 

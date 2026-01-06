@@ -1853,10 +1853,6 @@ a {
   max-height: 72vh;
 }
 
-.mobile-panel--new {
-  max-height: 72vh;
-}
-
 .mobile-panel--selection {
   bottom: 40px;
   max-height: 35vh;

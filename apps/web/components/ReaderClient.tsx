@@ -5,7 +5,6 @@ import type { CSSProperties, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import ActionMenu from "@/components/ActionMenu";
-import DocumentIngestForm from "@/components/DocumentIngestForm";
 import ReaderDocument from "@/components/ReaderDocument";
 import ReaderHighlightsPanel from "@/components/ReaderHighlightsPanel";
 import ReaderSettingsPanel from "@/components/ReaderSettingsPanel";
@@ -438,11 +437,10 @@ function IconChapters() {
   );
 }
 
-function IconNew() {
+function IconHome() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
+      <path d="M12 4.5l7 6V19a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-4h-2v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8.5l7-6zm0-2a1 1 0 0 1 .66.25l8 6.9a1 1 0 1 1-1.32 1.5L19 10.45V19a3 3 0 0 1-3 3h-4a1 1 0 0 1-1-1v-4H13v4a1 1 0 0 1-1 1H8a3 3 0 0 1-3-3v-8.55l-.34.3a1 1 0 0 1-1.32-1.5l8-6.9A1 1 0 0 1 12 2.5z" />
     </svg>
   );
 }
@@ -567,7 +565,7 @@ export default function ReaderClient({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileNavMode, setMobileNavMode] = useState<"main" | "pages">("main");
   const [mobilePanel, setMobilePanel] = useState<
-    "chapters" | "highlights" | "new" | "search" | "settings" | "selection" | null
+    "chapters" | "highlights" | "search" | "settings" | "selection" | null
   >(null);
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
   const [searchQuery, setSearchQuery] = useState("");
@@ -3045,11 +3043,9 @@ export default function ReaderClient({
               className={`mobile-panel${
                 mobilePanel === "settings"
                   ? " mobile-panel--settings"
-                  : mobilePanel === "new"
-                    ? " mobile-panel--new"
-                    : mobilePanel === "selection"
-                      ? " mobile-panel--selection"
-                      : ""
+                  : mobilePanel === "selection"
+                    ? " mobile-panel--selection"
+                    : ""
               }`}
               ref={mobilePanelRef}
               style={mobilePanelStyle}
@@ -3094,12 +3090,6 @@ export default function ReaderClient({
                     clearSelection();
                   }}
                 />
-              ) : null}
-              {mobilePanel === "new" ? (
-                <div className="mobile-panel__content">
-                  <div className="mobile-panel__title">New book</div>
-                  <DocumentIngestForm />
-                </div>
               ) : null}
               {mobilePanel === "search" ? (
                 <div className="mobile-panel__content mobile-search">
@@ -3209,15 +3199,15 @@ export default function ReaderClient({
               >
                 <button
                   type="button"
-                  onClick={() =>
-                    setMobilePanel((prev) => (prev === "chapters" ? null : "chapters"))
-                  }
-                  aria-label="Chapters"
-                  className={mobilePanel === "chapters" ? "is-active" : undefined}
-                  style={navButtonStyle(mobilePanel === "chapters")}
+                  onClick={() => {
+                    closeMobileNav();
+                    router.push("/books");
+                  }}
+                  aria-label="Home"
+                  style={navButtonStyle(false)}
                 >
-                  <IconChapters />
-                  <span>Chapters</span>
+                  <IconHome />
+                  <span>Home</span>
                 </button>
                 <button
                   type="button"
@@ -3233,13 +3223,27 @@ export default function ReaderClient({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMobilePanel((prev) => (prev === "new" ? null : "new"))}
-                  aria-label="New"
-                  className={mobilePanel === "new" ? "is-active" : undefined}
-                  style={navButtonStyle(mobilePanel === "new")}
+                  onClick={() =>
+                    setMobilePanel((prev) => (prev === "highlights" ? null : "highlights"))
+                  }
+                  aria-label="Highlights"
+                  className={mobilePanel === "highlights" ? "is-active" : undefined}
+                  style={navButtonStyle(mobilePanel === "highlights")}
                 >
-                  <IconNew />
-                  <span>New</span>
+                  <IconHighlights />
+                  <span>Highlights</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMobilePanel((prev) => (prev === "chapters" ? null : "chapters"))
+                  }
+                  aria-label="Chapters"
+                  className={mobilePanel === "chapters" ? "is-active" : undefined}
+                  style={navButtonStyle(mobilePanel === "chapters")}
+                >
+                  <IconChapters />
+                  <span>Chapters</span>
                 </button>
                 <button
                   type="button"
@@ -3252,18 +3256,6 @@ export default function ReaderClient({
                 >
                   <IconSettings />
                   <span>Settings</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMobilePanel((prev) => (prev === "highlights" ? null : "highlights"))
-                  }
-                  aria-label="Highlights"
-                  className={mobilePanel === "highlights" ? "is-active" : undefined}
-                  style={navButtonStyle(mobilePanel === "highlights")}
-                >
-                  <IconHighlights />
-                  <span>Highlights</span>
                 </button>
               </div>
             )
