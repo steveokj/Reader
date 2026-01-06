@@ -884,6 +884,42 @@ a {
   align-items: start;
 }
 
+.reader-loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--reader-paper);
+  color: var(--reader-ink);
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+}
+
+.reader-loading-overlay__content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.reader-loading-overlay__spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--reader-border);
+  border-top-color: var(--reader-accent);
+  animation: spin 0.9s linear infinite;
+}
+
+.reader-loading-overlay__text {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--reader-ink-muted);
+}
+
 .reader-theme--sepia,
 html[data-reader-theme="sepia"] .reader-layout {
   --reader-ink: #3b2f24;

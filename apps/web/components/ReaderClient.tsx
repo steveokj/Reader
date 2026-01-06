@@ -581,6 +581,7 @@ export default function ReaderClient({
   const [pageMap, setPageMap] = useState<PageEntry[]>([]);
   const [readingProgress, setReadingProgress] = useState<ReadingProgress | null>(null);
   const [progressLoaded, setProgressLoaded] = useState(false);
+  const [initialRestoreComplete, setInitialRestoreComplete] = useState(false);
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
   const finalizeRangeRef = useRef<((range: Range) => void) | null>(null);
@@ -825,6 +826,8 @@ export default function ReaderClient({
       ].join("|"),
     [readerSettings]
   );
+
+  const isReaderReady = initialRestoreComplete && settingsStatus !== "loading";
 
   const sectionById = useMemo(() => {
     return new Map(sections.map((section) => [section.id, section]));
@@ -2819,6 +2822,7 @@ export default function ReaderClient({
     }
     progressAppliedRef.current = true;
     if (initialSectionKey || !readingProgress) {
+      setInitialRestoreComplete(true);
       return;
     }
     const apply = () => {
@@ -2827,6 +2831,9 @@ export default function ReaderClient({
         readingProgress.position_start,
         readingProgress.position_end
       );
+      window.requestAnimationFrame(() => {
+        setInitialRestoreComplete(true);
+      });
     };
     window.requestAnimationFrame(apply);
   }, [initialSectionKey, progressLoaded, readingProgress, scrollToOffsets, sections.length]);
@@ -3360,6 +3367,14 @@ export default function ReaderClient({
           setAudioModalOpen(false);
         }}
       />
+      {!isReaderReady ? (
+        <div className="reader-loading-overlay" aria-live="polite" aria-busy="true">
+          <div className="reader-loading-overlay__content">
+            <span className="reader-loading-overlay__spinner" aria-hidden="true" />
+            <div className="reader-loading-overlay__text">Loading your place...</div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
