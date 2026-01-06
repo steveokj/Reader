@@ -1572,10 +1572,10 @@ a {
   width: min(720px, 100%);
   max-height: 92vh;
   margin: 0 14px;
-  background: #fffaf5;
+  background: var(--reader-panel);
   border-radius: 18px 18px 0 0;
-  border: 1px solid rgba(31, 28, 22, 0.12);
-  box-shadow: 0 20px 40px var(--shadow);
+  border: 1px solid var(--reader-border);
+  box-shadow: 0 20px 40px var(--reader-shadow);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1586,7 +1586,7 @@ a {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(31, 28, 22, 0.08);
+  border-bottom: 1px solid var(--reader-border);
 }
 
 .explore-chat-modal__title {
@@ -1618,8 +1618,8 @@ a {
   align-items: center;
   gap: 10px;
   padding: 8px 16px;
-  background: rgba(31, 28, 22, 0.05);
-  border-bottom: 1px dashed rgba(31, 28, 22, 0.16);
+  background: color-mix(in srgb, var(--reader-panel) 80%, var(--reader-paper));
+  border-bottom: 1px dashed var(--reader-border);
 }
 
 .explore-chat-modal__context-label {
@@ -1645,7 +1645,7 @@ a {
 
 .explore-chat-modal__empty {
   font-size: 13px;
-  color: rgba(31, 28, 22, 0.6);
+  color: var(--reader-ink-muted);
   padding: 12px 4px;
 }
 
@@ -1668,6 +1668,56 @@ a {
 .explore-chat-modal__submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.explore-chat-modal .chat-message--assistant {
+  background: var(--reader-panel);
+  border: 1px solid var(--reader-border);
+  color: var(--reader-ink);
+}
+
+.explore-chat-modal .chat-message--user {
+  background: var(--reader-highlight);
+  color: var(--reader-ink);
+}
+
+.explore-chat-modal .chat-input {
+  background: var(--reader-paper);
+  border-top: 1px solid var(--reader-border);
+}
+
+.explore-chat-modal .chat-textarea {
+  background: var(--reader-paper);
+  color: var(--reader-ink);
+  border: 1px solid var(--reader-border);
+}
+
+.chat-message__image {
+  margin-top: 10px;
+}
+
+.chat-message__image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid var(--reader-border);
+}
+
+.chat-message__image a {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--reader-accent);
+  text-decoration: none;
+}
+
+.chat-message__image a:hover {
+  text-decoration: underline;
+}
+
+.chat-message__text {
+  white-space: pre-wrap;
 }
 
 .modal-header {

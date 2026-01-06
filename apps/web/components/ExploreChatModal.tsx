@@ -17,7 +17,14 @@ type ExploreChatModalProps = {
   onClose: () => void;
 };
 
+type MessagePart =
+  | { type: "text"; value: string }
+  | { type: "image"; url: string; alt: string };
+
 const CONTEXT_PREVIEW_LIMIT = 140;
+const IMAGE_URL_REGEX =
+  /https?:\/\/[^\s)]+?\.(?:png|jpe?g|gif|webp|svg)(?:\?[^\s)]+)?/gi;
+const MARKDOWN_IMAGE_REGEX = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/gi;
 
 function truncateContext(text: string) {
   const normalized = text.replace(/\s+/g, " ").trim();
@@ -28,6 +35,54 @@ function truncateContext(text: string) {
     return normalized;
   }
   return `${normalized.slice(0, CONTEXT_PREVIEW_LIMIT).trimEnd()}...`;
+}
+
+function splitMarkdownImages(text: string): MessagePart[] {
+  const parts: MessagePart[] = [];
+  let lastIndex = 0;
+  for (const match of text.matchAll(MARKDOWN_IMAGE_REGEX)) {
+    const matchIndex = match.index ?? 0;
+    if (matchIndex > lastIndex) {
+      parts.push({ type: "text", value: text.slice(lastIndex, matchIndex) });
+    }
+    const alt = (match[1] || "Image").trim() || "Image";
+    parts.push({ type: "image", url: match[2], alt });
+    lastIndex = matchIndex + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    parts.push({ type: "text", value: text.slice(lastIndex) });
+  }
+  return parts;
+}
+
+function splitImageUrls(text: string): MessagePart[] {
+  const parts: MessagePart[] = [];
+  let lastIndex = 0;
+  for (const match of text.matchAll(IMAGE_URL_REGEX)) {
+    const matchIndex = match.index ?? 0;
+    if (matchIndex > lastIndex) {
+      parts.push({ type: "text", value: text.slice(lastIndex, matchIndex) });
+    }
+    parts.push({ type: "image", url: match[0], alt: "Image" });
+    lastIndex = matchIndex + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    parts.push({ type: "text", value: text.slice(lastIndex) });
+  }
+  return parts;
+}
+
+function parseMessageParts(text: string): MessagePart[] {
+  const withMarkdown = splitMarkdownImages(text);
+  const merged: MessagePart[] = [];
+  for (const part of withMarkdown) {
+    if (part.type === "text") {
+      merged.push(...splitImageUrls(part.value));
+    } else {
+      merged.push(part);
+    }
+  }
+  return merged;
 }
 
 function IconClose() {
@@ -225,7 +280,20 @@ export default function ExploreChatModal({ open, selectionText, onClose }: Explo
               key={message.id}
               className={`chat-message chat-message--${message.role}`}
             >
-              {message.content}
+              {parseMessageParts(message.content).map((part, index) =>
+                part.type === "image" ? (
+                  <div className="chat-message__image" key={`${message.id}-img-${index}`}>
+                    <img src={part.url} alt={part.alt} loading="lazy" />
+                    <a href={part.url} target="_blank" rel="noreferrer">
+                      Open image
+                    </a>
+                  </div>
+                ) : (
+                  <span className="chat-message__text" key={`${message.id}-text-${index}`}>
+                    {part.value}
+                  </span>
+                )
+              )}
             </div>
           ))}
           {isSubmitting ? (
