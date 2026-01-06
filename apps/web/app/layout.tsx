@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -24,6 +25,23 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
+const readerThemeScript = `
+(() => {
+  try {
+    const stored = localStorage.getItem("reader-theme");
+    if (!stored) {
+      return;
+    }
+    if (stored !== "light" && stored !== "dark" && stored !== "sepia") {
+      return;
+    }
+    document.documentElement.dataset.readerTheme = stored;
+  } catch (error) {
+    // ignore
+  }
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -31,6 +49,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <Script id="reader-theme-bootstrap" strategy="beforeInteractive">
+          {readerThemeScript}
+        </Script>
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         {children}
       </body>

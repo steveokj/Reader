@@ -884,7 +884,8 @@ a {
   align-items: start;
 }
 
-.reader-theme--sepia {
+.reader-theme--sepia,
+html[data-reader-theme="sepia"] .reader-layout {
   --reader-ink: #3b2f24;
   --reader-paper: #f3e6d6;
   --reader-panel: #f8efe3;
@@ -896,17 +897,18 @@ a {
   --reader-highlight-active: rgba(200, 120, 72, 0.45);
 }
 
-.reader-theme--dark {
-  --reader-ink: #f5f2ec;
-  --reader-paper: #1b1a17;
-  --reader-panel: #24211d;
-  --reader-border: rgba(255, 255, 255, 0.12);
-  --reader-shadow: rgba(0, 0, 0, 0.45);
+.reader-theme--dark,
+html[data-reader-theme="dark"] .reader-layout {
+  --reader-ink: #e2e1de;
+  --reader-paper: #45484a;
+  --reader-panel: #3a3d3f;
+  --reader-border: rgba(255, 255, 255, 0.14);
+  --reader-shadow: rgba(0, 0, 0, 0.5);
   --reader-accent: #f29b7c;
-  --reader-ink-muted: rgba(245, 242, 236, 0.6);
-  --reader-ink-subtle: rgba(245, 242, 236, 0.5);
-  --reader-highlight: rgba(242, 155, 124, 0.28);
-  --reader-highlight-active: rgba(242, 155, 124, 0.5);
+  --reader-ink-muted: rgba(191, 189, 184, 0.6);
+  --reader-ink-subtle: rgba(191, 189, 184, 0.45);
+  --reader-highlight: rgba(242, 155, 124, 0.25);
+  --reader-highlight-active: rgba(242, 155, 124, 0.45);
 }
 
 .reader-sidebar {

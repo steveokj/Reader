@@ -727,20 +727,30 @@ export default function ReaderClient({
       "--reader-font-family": getFontFamilyCss(readerSettings.font_family),
       "--reader-content-max-width": widthStyles.maxWidth,
       "--reader-side-padding": widthStyles.sidePadding,
-      "--reader-ink": themeTokens.ink,
-      "--reader-paper": themeTokens.paper,
-      "--reader-panel": themeTokens.panel,
-      "--reader-border": themeTokens.border,
-      "--reader-shadow": themeTokens.shadow,
-      "--reader-accent": themeTokens.accent,
-      "--reader-highlight": themeTokens.highlight,
-      "--reader-highlight-active": themeTokens.highlightActive,
-      "--reader-ink-muted": themeTokens.inkMuted,
-      "--reader-ink-subtle": themeTokens.inkSubtle,
-      backgroundColor: themeTokens.paper,
-      color: themeTokens.ink,
     } as CSSProperties;
-  }, [readerSettings, themeTokens, widthStyles]);
+  }, [
+    readerSettings.font_family,
+    readerSettings.font_size,
+    readerSettings.line_height,
+    readerSettings.paragraph_spacing,
+    widthStyles.maxWidth,
+    widthStyles.sidePadding,
+  ]);
+
+  const shouldPersistTheme = settingsStatus === "idle" || settingsStatus === "saving";
+
+  useEffect(() => {
+    if (!shouldPersistTheme) {
+      return;
+    }
+    const theme = readerSettings.theme;
+    document.documentElement.dataset.readerTheme = theme;
+    try {
+      window.localStorage.setItem("reader-theme", theme);
+    } catch (error) {
+      // ignore
+    }
+  }, [readerSettings.theme, shouldPersistTheme]);
 
   const readerScrollStyle = useMemo<CSSProperties>(
     () => ({
