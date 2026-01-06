@@ -1696,6 +1696,15 @@ a {
   margin-top: 10px;
 }
 
+.chat-message__image-button {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: zoom-in;
+  display: block;
+  width: 100%;
+}
+
 .chat-message__image img {
   display: block;
   width: 100%;
@@ -1718,6 +1727,51 @@ a {
 
 .chat-message__text {
   white-space: pre-wrap;
+}
+
+.explore-chat-modal__zoom {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 10, 7, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 70;
+  padding: 24px;
+}
+
+.explore-chat-modal__zoom img {
+  max-width: min(960px, 100%);
+  max-height: 90vh;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 24px 40px rgba(0, 0, 0, 0.35);
+}
+
+.explore-chat-modal__zoom-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.explore-chat-modal__zoom-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .modal-header {

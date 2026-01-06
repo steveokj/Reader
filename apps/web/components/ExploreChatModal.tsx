@@ -23,6 +23,7 @@ type MessagePart =
   | { type: "image"; url: string; alt: string };
 
 const CONTEXT_PREVIEW_LIMIT = 140;
+const FALLBACK_BOOK_TITLE = "the current book";
 const IMAGE_URL_REGEX =
   /https?:\/\/[^\s)]+?\.(?:png|jpe?g|gif|webp|svg)(?:\?[^\s)]+)?/gi;
 const MARKDOWN_IMAGE_REGEX = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/gi;
@@ -107,9 +108,20 @@ export default function ExploreChatModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contextText, setContextText] = useState("");
+  const [zoomedImage, setZoomedImage] = useState<{ url: string; alt: string } | null>(
+    null
+  );
   const messageIdRef = useRef(0);
   const messagesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const storageKey = useMemo(() => {
+    const normalizedTitle = (bookTitle || FALLBACK_BOOK_TITLE)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+    return `explore-chat:${normalizedTitle}`;
+  }, [bookTitle]);
 
   const contextPreview = useMemo(() => truncateContext(contextText), [contextText]);
 
@@ -118,9 +130,47 @@ export default function ExploreChatModal({
       return;
     }
     setError(null);
-    setDraftMessage("");
     setContextText(selectionText?.trim() ?? "");
   }, [open, selectionText]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const stored = window.localStorage.getItem(storageKey);
+    if (!stored) {
+      setMessages([]);
+      setThreadId(null);
+      setDraftMessage("");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored) as {
+        threadId?: number | null;
+        messages?: ChatMessage[];
+        draftMessage?: string;
+      };
+      setMessages(parsed.messages ?? []);
+      setThreadId(parsed.threadId ?? null);
+      setDraftMessage(parsed.draftMessage ?? "");
+    } catch {
+      setMessages([]);
+      setThreadId(null);
+      setDraftMessage("");
+    }
+  }, [open, storageKey]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const payload = JSON.stringify({
+      threadId,
+      messages,
+      draftMessage,
+    });
+    window.localStorage.setItem(storageKey, payload);
+  }, [draftMessage, messages, open, storageKey, threadId]);
 
   useEffect(() => {
     if (!open) {
@@ -202,17 +252,17 @@ export default function ExploreChatModal({
       const payloadMessage = `${contextPrefix}${trimmed}`;
 
       try {
-        const response = await fetch(`${apiBase}/explore/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            thread_id: threadId,
-            message: payloadMessage,
-            action: threadId ? "resume" : "new",
-            mode: "codex-cli",
-            book_title: bookTitle ?? null,
-          }),
-        });
+      const response = await fetch(`${apiBase}/explore/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          thread_id: threadId,
+          message: payloadMessage,
+          action: threadId ? "resume" : "new",
+          mode: "codex-cli",
+          book_title: bookTitle ?? FALLBACK_BOOK_TITLE,
+        }),
+      });
         if (!response.ok) {
           const data = (await response.json()) as { detail?: string };
           throw new Error(data.detail || "Explore request failed.");
@@ -237,7 +287,7 @@ export default function ExploreChatModal({
         setIsSubmitting(false);
       }
     },
-    [apiBase, contextText, draftMessage, isSubmitting, threadId]
+    [apiBase, bookTitle, contextText, draftMessage, isSubmitting, threadId]
   );
 
   return (
@@ -290,7 +340,13 @@ export default function ExploreChatModal({
               {parseMessageParts(message.content).map((part, index) =>
                 part.type === "image" ? (
                   <div className="chat-message__image" key={`${message.id}-img-${index}`}>
-                    <img src={part.url} alt={part.alt} loading="lazy" />
+                    <button
+                      type="button"
+                      className="chat-message__image-button"
+                      onClick={() => setZoomedImage({ url: part.url, alt: part.alt })}
+                    >
+                      <img src={part.url} alt={part.alt} loading="lazy" />
+                    </button>
                     <a href={part.url} target="_blank" rel="noreferrer">
                       Open image
                     </a>
@@ -328,6 +384,19 @@ export default function ExploreChatModal({
           </button>
         </form>
       </div>
+      {zoomedImage ? (
+        <div className="explore-chat-modal__zoom" onClick={() => setZoomedImage(null)}>
+          <button
+            type="button"
+            className="explore-chat-modal__zoom-close"
+            onClick={() => setZoomedImage(null)}
+            aria-label="Close image"
+          >
+            <IconClose />
+          </button>
+          <img src={zoomedImage.url} alt={zoomedImage.alt} />
+        </div>
+      ) : null}
     </div>
   );
 }
