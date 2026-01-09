@@ -19,6 +19,7 @@ import { getClientApiBase } from "@/lib/apiBase";
 import {
   defaultReaderSettings,
   getFontFamilyCss,
+  getThemeOverride,
   getThemeTokens,
   getTextWidthStyles,
   type ReaderSettings,
@@ -710,9 +711,11 @@ export default function ReaderClient({
     [apiBase]
   );
 
+  const themeOverride = useMemo(() => getThemeOverride(readerSettings), [readerSettings]);
+
   const themeTokens = useMemo(
-    () => getThemeTokens(readerSettings.theme),
-    [readerSettings.theme]
+    () => getThemeTokens(readerSettings.theme, themeOverride),
+    [readerSettings.theme, themeOverride]
   );
 
   const widthStyles = useMemo(
@@ -728,12 +731,16 @@ export default function ReaderClient({
       "--reader-font-family": getFontFamilyCss(readerSettings.font_family),
       "--reader-content-max-width": widthStyles.maxWidth,
       "--reader-side-padding": widthStyles.sidePadding,
+      "--reader-ink": themeOverride.ink,
+      "--reader-paper": themeOverride.paper,
     } as CSSProperties;
   }, [
     readerSettings.font_family,
     readerSettings.font_size,
     readerSettings.line_height,
     readerSettings.paragraph_spacing,
+    themeOverride.ink,
+    themeOverride.paper,
     widthStyles.maxWidth,
     widthStyles.sidePadding,
   ]);

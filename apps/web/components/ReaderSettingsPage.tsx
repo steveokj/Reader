@@ -9,6 +9,7 @@ import { getClientApiBase } from "@/lib/apiBase";
 import {
   defaultReaderSettings,
   getFontFamilyCss,
+  getThemeOverride,
   getThemeTokens,
   getTextWidthStyles,
   type ReaderSettings,
@@ -25,9 +26,11 @@ export default function ReaderSettingsPage() {
   const settingsSaveTimerRef = useRef<number | null>(null);
   const pendingSettingsRef = useRef<ReaderSettingsUpdate>({});
   const settingsTouchedRef = useRef(false);
+  const themeOverride = useMemo(() => getThemeOverride(readerSettings), [readerSettings]);
+
   const themeTokens = useMemo(
-    () => getThemeTokens(readerSettings.theme),
-    [readerSettings.theme]
+    () => getThemeTokens(readerSettings.theme, themeOverride),
+    [readerSettings.theme, themeOverride]
   );
 
   useEffect(() => {

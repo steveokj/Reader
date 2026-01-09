@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+import { useMemo, useState } from "react";
 
 import {
   defaultReaderSettings,
@@ -34,6 +35,12 @@ const highlightOptions: { value: HighlightStyle; label: string }[] = [
   { value: "underline", label: "Underline" },
 ];
 
+const themeColorKeys = {
+  light: { ink: "theme_light_ink", paper: "theme_light_paper" },
+  sepia: { ink: "theme_sepia_ink", paper: "theme_sepia_paper" },
+  dark: { ink: "theme_dark_ink", paper: "theme_dark_paper" },
+} as const;
+
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
@@ -49,6 +56,40 @@ export default function ReaderSettingsPanel({
   status = "idle",
 }: ReaderSettingsPanelProps) {
   const apply = (update: ReaderSettingsUpdate) => onChange(update);
+  const [showThemeCustomizer, setShowThemeCustomizer] = useState(false);
+  const themeKeys = useMemo(() => themeColorKeys[settings.theme], [settings.theme]);
+  const inkKey = themeKeys.ink as keyof ReaderSettings;
+  const paperKey = themeKeys.paper as keyof ReaderSettings;
+  const inkValue = String(settings[inkKey] ?? "");
+  const paperValue = String(settings[paperKey] ?? "");
+  const canUseEyeDropper = typeof window !== "undefined" && "EyeDropper" in window;
+
+  const updateThemeColor = (key: keyof ReaderSettingsUpdate, value: string) => {
+    apply({ [key]: value } as ReaderSettingsUpdate);
+  };
+
+  const handleThemeColorInput =
+    (key: keyof ReaderSettingsUpdate) => (event: FormEvent<HTMLInputElement>) => {
+      updateThemeColor(key, event.currentTarget.value);
+    };
+
+  const handleEyeDropper = async (key: keyof ReaderSettingsUpdate) => {
+    const win = window as Window & {
+      EyeDropper?: new () => { open: () => Promise<{ sRGBHex: string }> };
+    };
+    if (!win.EyeDropper) {
+      return;
+    }
+    try {
+      const dropper = new win.EyeDropper();
+      const result = await dropper.open();
+      if (result?.sRGBHex) {
+        updateThemeColor(key, result.sRGBHex);
+      }
+    } catch (error) {
+      // ignore
+    }
+  };
 
   const handleFontSizeChange = (event: ChangeEvent<HTMLInputElement>) => {
     apply({ font_size: Number(event.target.value) || defaultReaderSettings.font_size });
@@ -64,22 +105,100 @@ export default function ReaderSettingsPanel({
     <div className="settings-sheet">
       <div className="settings-sheet__section">
         <div className="settings-sheet__title">Reading</div>
-        <div className="settings-row">
-          <span>Theme</span>
-          <div className="settings-pill-group">
-            {themeOptions.map((option) => (
+        <div className="settings-row settings-row--stack">
+          <div className="settings-theme-row">
+            <span>Theme</span>
+            <div className="settings-theme-actions">
+              <div className="settings-pill-group">
+                {themeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={
+                      settings.theme === option.value ? "settings-pill is-active" : "settings-pill"
+                    }
+                    onClick={() => apply({ theme: option.value })}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
               <button
-                key={option.value}
                 type="button"
-                className={
-                  settings.theme === option.value ? "settings-pill is-active" : "settings-pill"
-                }
-                onClick={() => apply({ theme: option.value })}
+                className="settings-theme-customize"
+                onClick={() => setShowThemeCustomizer((prev) => !prev)}
               >
-                {option.label}
+                <span className="settings-theme-customize__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M12 3a9 9 0 1 0 9 9c0-1.2-.27-2.35-.78-3.38-.2-.41-.7-.56-1.1-.35l-1.3.67a2.2 2.2 0 0 1-2.98-1.02 2.2 2.2 0 0 1 1.02-2.98l1.28-.65c.4-.2.55-.69.34-1.09A8.98 8.98 0 0 0 12 3z" />
+                    <circle cx="8.2" cy="12" r="1.4" />
+                    <circle cx="12" cy="16.4" r="1.4" />
+                    <circle cx="16.2" cy="12.4" r="1.4" />
+                  </svg>
+                </span>
+                {showThemeCustomizer ? "Hide" : "Customize"}
               </button>
-            ))}
+            </div>
           </div>
+          {showThemeCustomizer ? (
+            <div className="settings-theme-custom">
+              <div className="settings-theme-custom__item">
+                <div className="settings-theme-custom__label">Ink</div>
+                <div className="settings-theme-custom__controls">
+                  <input
+                    type="color"
+                    value={inkValue}
+                    onChange={handleThemeColorInput(inkKey)}
+                    onInput={handleThemeColorInput(inkKey)}
+                    aria-label="Ink color"
+                  />
+                  {canUseEyeDropper ? (
+                    <button
+                      type="button"
+                      className="settings-theme-custom__picker"
+                      onClick={() => handleEyeDropper(inkKey)}
+                      aria-label="Pick ink color"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M14.5 4.5l5 5-7.1 7.1-5.8 1.2 1.2-5.8L14.5 4.5z" />
+                        <path d="M13.1 6l5 5" />
+                      </svg>
+                    </button>
+                  ) : null}
+                  <span className="settings-theme-custom__value">{inkValue.toUpperCase()}</span>
+                </div>
+              </div>
+              <div className="settings-theme-custom__item">
+                <div className="settings-theme-custom__label">Paper</div>
+                <div className="settings-theme-custom__controls">
+                  <input
+                    type="color"
+                    value={paperValue}
+                    onChange={handleThemeColorInput(paperKey)}
+                    onInput={handleThemeColorInput(paperKey)}
+                    aria-label="Paper color"
+                  />
+                  {canUseEyeDropper ? (
+                    <button
+                      type="button"
+                      className="settings-theme-custom__picker"
+                      onClick={() => handleEyeDropper(paperKey)}
+                      aria-label="Pick paper color"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M14.5 4.5l5 5-7.1 7.1-5.8 1.2 1.2-5.8L14.5 4.5z" />
+                        <path d="M13.1 6l5 5" />
+                      </svg>
+                    </button>
+                  ) : null}
+                  <span className="settings-theme-custom__value">{paperValue.toUpperCase()}</span>
+                </div>
+              </div>
+              <div className="settings-theme-custom__hint">
+                Adjust colors for the {settings.theme} theme.
+              </div>
+            </div>
+          ) : null}
         </div>
         <div className="settings-row">
           <span>Font size</span>

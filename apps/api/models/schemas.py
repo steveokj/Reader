@@ -183,6 +183,12 @@ class ReaderSettings(BaseModel):
     font_family: str
     text_width: str
     theme: str
+    theme_light_ink: str
+    theme_light_paper: str
+    theme_sepia_ink: str
+    theme_sepia_paper: str
+    theme_dark_ink: str
+    theme_dark_paper: str
     paragraph_spacing: float
     selection_snapping: str
     gesture_center_tap: bool
@@ -201,6 +207,12 @@ class ReaderSettingsUpdate(BaseModel):
     font_family: Optional[str] = None
     text_width: Optional[str] = None
     theme: Optional[str] = None
+    theme_light_ink: Optional[str] = None
+    theme_light_paper: Optional[str] = None
+    theme_sepia_ink: Optional[str] = None
+    theme_sepia_paper: Optional[str] = None
+    theme_dark_ink: Optional[str] = None
+    theme_dark_paper: Optional[str] = None
     paragraph_spacing: Optional[float] = None
     selection_snapping: Optional[str] = None
     gesture_center_tap: Optional[bool] = None
