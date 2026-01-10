@@ -2,13 +2,16 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from ..db.conn import get_conn
 from ..models.schemas import (
-    ArticleIngest,
-    DocumentCreate,
-    DocumentDetailResponse,
-    DocumentPagesResponse,
-    DocumentsResponse,
-    ReadingProgressResponse,
-    ReadingProgressUpdate,
+  ArticleIngest,
+  DocumentCreate,
+  DocumentDetailResponse,
+  DocumentPagesResponse,
+  DocumentsResponse,
+  ReadingHistoryCreate,
+  ReadingHistoryListResponse,
+  ReadingHistoryResponse,
+  ReadingProgressResponse,
+  ReadingProgressUpdate,
 )
 from ..services import documents as documents_service
 from ..services import ingest as ingest_service
@@ -65,6 +68,32 @@ def get_document_progress(document_id: int):
     try:
         progress = documents_service.get_reading_progress(conn, document_id)
         return {"progress": progress}
+    finally:
+        conn.close()
+
+
+@router.get("/{document_id}/history", response_model=ReadingHistoryListResponse)
+def get_document_history(document_id: int, limit: int = 40):
+    conn = get_conn()
+    try:
+        entries = documents_service.get_reading_history(conn, document_id, limit)
+        return {"entries": entries}
+    finally:
+        conn.close()
+
+
+@router.post("/{document_id}/history", response_model=ReadingHistoryResponse)
+def create_document_history(document_id: int, payload: ReadingHistoryCreate):
+    conn = get_conn()
+    try:
+        entry = documents_service.create_reading_history(
+            conn,
+            document_id,
+            payload.section_id,
+            payload.position_start,
+            payload.page_number,
+        )
+        return {"entry": entry}
     finally:
         conn.close()
 

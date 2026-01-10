@@ -198,6 +198,55 @@ def get_reading_progress(conn, document_id: int) -> Optional[Dict[str, Any]]:
     return dict(row) if row else None
 
 
+def get_reading_history(conn, document_id: int, limit: int = 40) -> List[Dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT id, document_id, section_id, position_start, page_number, created_at
+        FROM reading_history
+        WHERE document_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?
+        """,
+        (document_id, limit),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def create_reading_history(
+    conn, document_id: int, section_id: int, position_start: int, page_number: Optional[int] = None
+) -> Dict[str, Any]:
+    now = _iso_now()
+    cur = conn.execute(
+        """
+        INSERT INTO reading_history (document_id, section_id, position_start, page_number, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (document_id, section_id, position_start, page_number, now),
+    )
+    conn.execute(
+        """
+        DELETE FROM reading_history
+        WHERE id IN (
+          SELECT id
+          FROM reading_history
+          WHERE document_id = ?
+          ORDER BY created_at DESC, id DESC
+          LIMIT -1 OFFSET 200
+        )
+        """,
+        (document_id,),
+    )
+    conn.commit()
+    return {
+        "id": cur.lastrowid,
+        "document_id": document_id,
+        "section_id": section_id,
+        "position_start": position_start,
+        "page_number": page_number,
+        "created_at": now,
+    }
+
+
 def upsert_reading_progress(
     conn, document_id: int, section_id: int, position_start: int, position_end: int
 ) -> Dict[str, Any]:

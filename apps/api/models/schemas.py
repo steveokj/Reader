@@ -76,6 +76,29 @@ class ReadingProgressResponse(BaseModel):
     progress: Optional[ReadingProgress] = None
 
 
+class ReadingHistoryCreate(BaseModel):
+    section_id: int
+    position_start: int
+    page_number: Optional[int] = None
+
+
+class ReadingHistoryEntry(BaseModel):
+    id: int
+    document_id: int
+    section_id: int
+    position_start: int
+    page_number: Optional[int] = None
+    created_at: str
+
+
+class ReadingHistoryResponse(BaseModel):
+    entry: ReadingHistoryEntry
+
+
+class ReadingHistoryListResponse(BaseModel):
+    entries: List[ReadingHistoryEntry]
+
+
 class PositionSelector(BaseModel):
     start: int
     end: int

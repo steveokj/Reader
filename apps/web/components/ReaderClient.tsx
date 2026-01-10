@@ -347,6 +347,15 @@ type PageEntry = {
   position_start: number;
 };
 
+type ReadingHistoryEntry = {
+  id: number;
+  document_id: number;
+  section_id: number;
+  position_start: number;
+  page_number?: number | null;
+  created_at: string;
+};
+
 type PageHistoryEntry = {
   id: number;
   sectionId: number;
@@ -661,7 +670,6 @@ export default function ReaderClient({
   const [progressLoaded, setProgressLoaded] = useState(false);
   const [initialRestoreComplete, setInitialRestoreComplete] = useState(false);
   const nextWordBannerIdRef = useRef(0);
-  const pageHistoryIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
   const finalizeRangeRef = useRef<((range: Range) => void) | null>(null);
   const [readerSettings, setReaderSettings] = useState<ReaderSettings>(defaultReaderSettings);
@@ -1042,27 +1050,47 @@ export default function ReaderClient({
     [sectionById]
   );
 
-  const recordPageHistory = useCallback(() => {
+  const recordPageHistory = useCallback(async () => {
     const position = getVisibleOffsets();
     if (!position) {
       return;
     }
-    const entry: PageHistoryEntry = {
-      id: pageHistoryIdRef.current++,
-      sectionId: position.sectionId,
-      offset: position.offset,
-      label: buildHistoryLabel(position.sectionId),
-      pageNumber: Number.isFinite(currentPage) ? currentPage : null,
-      createdAt: new Date().toISOString(),
-    };
-    setPageHistory((prev) => {
-      const filtered = prev.filter(
-        (item) =>
-          item.sectionId !== entry.sectionId || Math.abs(item.offset - entry.offset) > 2
-      );
-      return [entry, ...filtered].slice(0, 40);
-    });
-  }, [buildHistoryLabel, currentPage, getVisibleOffsets]);
+    try {
+      const response = await fetch(`${apiBase}/books/${documentId}/history`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          section_id: position.sectionId,
+          position_start: position.offset,
+          page_number: pageMap.length ? currentPage : null,
+        }),
+      });
+      if (!response.ok) {
+        return;
+      }
+      const data = (await response.json()) as { entry?: ReadingHistoryEntry };
+      if (!data.entry) {
+        return;
+      }
+      const entry: PageHistoryEntry = {
+        id: data.entry.id,
+        sectionId: data.entry.section_id,
+        offset: data.entry.position_start,
+        label: buildHistoryLabel(data.entry.section_id),
+        pageNumber: data.entry.page_number ?? null,
+        createdAt: data.entry.created_at,
+      };
+      setPageHistory((prev) => {
+        const filtered = prev.filter(
+          (item) =>
+            item.sectionId !== entry.sectionId || Math.abs(item.offset - entry.offset) > 2
+        );
+        return [entry, ...filtered].slice(0, 40);
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  }, [apiBase, buildHistoryLabel, currentPage, documentId, getVisibleOffsets, pageMap.length]);
 
   const buildDraftSelectionFromPosition = useCallback((): DraftSelection | null => {
     const position = getVisibleOffsets();
@@ -1423,6 +1451,40 @@ export default function ReaderClient({
 
     loadPageMap();
   }, [apiBase, documentId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadHistory = async () => {
+      try {
+        const response = await fetch(`${apiBase}/books/${documentId}/history?limit=40`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { entries?: ReadingHistoryEntry[] };
+        if (cancelled) {
+          return;
+        }
+        const entries = (data.entries ?? []).map((entry) => ({
+          id: entry.id,
+          sectionId: entry.section_id,
+          offset: entry.position_start,
+          label: buildHistoryLabel(entry.section_id),
+          pageNumber: entry.page_number ?? null,
+          createdAt: entry.created_at,
+        }));
+        setPageHistory(entries);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase, buildHistoryLabel, documentId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2592,7 +2654,22 @@ export default function ReaderClient({
     setDraftSelection,
   ]);
 
-  const handleOpenGrammar = useCallback(() => {}, []);
+  const handleOpenGrammar = useCallback(async () => {
+    if (isCommitted && activeSelectionId) {
+      setGrammarModalOpen(true);
+      return;
+    }
+    if (!menuState) {
+      return;
+    }
+    setDraftSelection({
+      selector: menuState.selector,
+      selectionText: menuState.selectionText,
+      sectionId: menuState.sectionId,
+    });
+    setMenuState(null);
+    setGrammarModalOpen(true);
+  }, [activeSelectionId, isCommitted, menuState, setDraftSelection]);
 
   const handleOpenAudio = useCallback(async () => {
     if (isCommitted && activeSelectionId) {
@@ -3019,7 +3096,7 @@ export default function ReaderClient({
 
   const handleHistoryJump = useCallback(
     (entry: PageHistoryEntry) => {
-      recordPageHistory();
+      void recordPageHistory();
       scrollToOffsets(entry.sectionId, entry.offset, entry.offset);
     },
     [recordPageHistory, scrollToOffsets]
@@ -3063,7 +3140,7 @@ export default function ReaderClient({
       setEditingNote(null);
       audioSelectionRef.current = null;
 
-      recordPageHistory();
+      void recordPageHistory();
       scrollToOffsets(
         selection.section_id,
         selection.selector.position.start,
@@ -3117,7 +3194,7 @@ export default function ReaderClient({
 
   const handleSearchResultClick = useCallback(
     (result: SearchResult) => {
-      recordPageHistory();
+      void recordPageHistory();
       scrollToOffsets(result.sectionId, result.start, result.end);
     },
     [recordPageHistory, scrollToOffsets]
@@ -3141,7 +3218,7 @@ export default function ReaderClient({
       if (!resolved) {
         return;
       }
-      recordPageHistory();
+      void recordPageHistory();
       pendingPageJumpRef.current = resolved.page_number ?? fallbackIndex + 1;
       scrollToOffsets(
         resolved.section_id,
