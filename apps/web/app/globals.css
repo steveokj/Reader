@@ -375,6 +375,11 @@ a {
   color: rgba(31, 28, 22, 0.55);
 }
 
+.data-card__audio {
+  width: 100%;
+  margin-top: 6px;
+}
+
 .pill {
   background: var(--accent-soft);
   color: var(--ink);

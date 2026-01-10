@@ -167,7 +167,10 @@ export default function ReaderHighlightsPanel({
 
         if (!cancelled) {
           setSectionsById(sectionMap);
-          setBundles(nextBundles);
+          const sortedBundles = [...nextBundles].sort((a, b) => {
+            return new Date(b.selection.created_at).getTime() - new Date(a.selection.created_at).getTime();
+          });
+          setBundles(sortedBundles);
         }
       } catch (error) {
         if (!cancelled) {
@@ -189,8 +192,11 @@ export default function ReaderHighlightsPanel({
   }, [apiBase, documentId, refreshKey, isActive]);
 
   const additions = useMemo(() => {
-    return bundles.flatMap((bundle) =>
+    const items = bundles.flatMap((bundle) =>
       bundle.additions.map((addition) => ({ ...addition, selectionId: bundle.selection.id }))
+    );
+    return items.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
   }, [bundles]);
 
@@ -219,7 +225,9 @@ export default function ReaderHighlightsPanel({
         });
       });
     });
-    return items;
+    return items.sort(
+      (a, b) => new Date(b.marker.created_at).getTime() - new Date(a.marker.created_at).getTime()
+    );
   }, [bundles]);
 
   const tabCounts = {
@@ -304,15 +312,22 @@ export default function ReaderHighlightsPanel({
                 const selectionSnippet = selection
                   ? formatSnippet(selection.selector.quote.exact)
                   : "Selection";
+                const payload = addition.payload as { audio?: { url?: string } } | undefined;
+                const audioUrl = payload?.audio?.url ? `${apiBase}${payload.audio.url}` : null;
+                const additionLabel =
+                  addition.type === "audio"
+                    ? "Audio recording"
+                    : formatSnippet(addition.text_content ?? addition.title ?? addition.type);
                 return (
                   <article key={addition.id} className="data-card">
                     <div className="data-card__meta">
                       <span>{addition.type}</span>
                       <span>{new Date(addition.created_at).toISOString()}</span>
                     </div>
-                    <div className="data-card__title">
-                      {formatSnippet(addition.text_content ?? addition.title ?? addition.type)}
-                    </div>
+                    <div className="data-card__title">{additionLabel}</div>
+                    {audioUrl ? (
+                      <audio className="data-card__audio" controls src={audioUrl} />
+                    ) : null}
                     <div className="data-card__hint">From: {selectionSnippet}</div>
                   </article>
                 );
