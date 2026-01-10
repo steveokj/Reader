@@ -935,7 +935,7 @@ html[data-reader-theme="sepia"] .reader-layout {
 
 .reader-theme--dark,
 html[data-reader-theme="dark"] .reader-layout {
-  --reader-ink: #e2e1de /* #858585;  #bfbdb8; */
+  --reader-ink: #e2e1de; /* #858585;  #bfbdb8; */
   --reader-paper: #424547; /* #45484a;  #45484a; */
   --reader-panel: #3a3d3f;
   --reader-border: rgba(255, 255, 255, 0.14);
@@ -1576,7 +1576,7 @@ html[data-reader-theme="dark"] .reader-layout {
 
 .modal-card {
   width: min(520px, 100%);
-  background: #fffaf5;
+  background: #979492; /* #fffaf5; */
   border-radius: 18px;
   padding: 20px;
   border: 1px solid rgba(31, 28, 22, 0.12);
@@ -1942,6 +1942,7 @@ html[data-reader-theme="dark"] .reader-layout {
   align-self: flex-start;
   border: none;
   background: var(--accent);
+  background: #979492; /* var(--accent); */
   color: white;
   padding: 8px 14px;
   border-radius: 999px;

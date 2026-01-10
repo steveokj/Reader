@@ -16,7 +16,7 @@ from .routes.settings import router as settings_router
 
 app = FastAPI()
 
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3002").split(",")
+cors_origins = os.getenv("CORS_ORIGINS", "https://192.168.2.34:3002").split(",")
 
 app.add_middleware(
     CORSMiddleware,
