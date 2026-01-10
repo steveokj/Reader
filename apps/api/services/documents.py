@@ -216,6 +216,39 @@ def create_reading_history(
     conn, document_id: int, section_id: int, position_start: int, page_number: Optional[int] = None
 ) -> Dict[str, Any]:
     now = _iso_now()
+    recent = conn.execute(
+        """
+        SELECT section_id, position_start, page_number
+        FROM reading_history
+        WHERE document_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        """,
+        (document_id,),
+    ).fetchone()
+    if recent:
+        recent_section = recent["section_id"]
+        recent_pos = recent["position_start"]
+        recent_page = recent["page_number"]
+        if recent_section == section_id:
+            if page_number is not None and recent_page == page_number:
+                return {
+                    "id": None,
+                    "document_id": document_id,
+                    "section_id": section_id,
+                    "position_start": position_start,
+                    "page_number": page_number,
+                    "created_at": now,
+                }
+            if abs(position_start - recent_pos) <= 2:
+                return {
+                    "id": None,
+                    "document_id": document_id,
+                    "section_id": section_id,
+                    "position_start": position_start,
+                    "page_number": page_number,
+                    "created_at": now,
+                }
     cur = conn.execute(
         """
         INSERT INTO reading_history (document_id, section_id, position_start, page_number, created_at)

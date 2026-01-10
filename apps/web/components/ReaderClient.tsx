@@ -1069,7 +1069,7 @@ export default function ReaderClient({
         return;
       }
       const data = (await response.json()) as { entry?: ReadingHistoryEntry };
-      if (!data.entry) {
+      if (!data.entry?.id) {
         return;
       }
       const entry: PageHistoryEntry = {
@@ -3096,10 +3096,9 @@ export default function ReaderClient({
 
   const handleHistoryJump = useCallback(
     (entry: PageHistoryEntry) => {
-      void recordPageHistory();
       scrollToOffsets(entry.sectionId, entry.offset, entry.offset);
     },
-    [recordPageHistory, scrollToOffsets]
+    [scrollToOffsets]
   );
 
   useEffect(() => {
