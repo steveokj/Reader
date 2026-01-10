@@ -1,3 +1,5 @@
+import { formatRelativeTime } from "@/lib/time";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type Document = {
@@ -53,7 +55,7 @@ export default async function BooksPage() {
               <div className="document-card__meta">{doc.source_type}</div>
               <div className="document-card__title">{doc.title}</div>
               <div className="document-card__hint">
-                Added {new Date(doc.created_at).toISOString()}
+                Added {formatRelativeTime(doc.created_at)}
               </div>
             </a>
           ))

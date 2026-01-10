@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 
 import { getClientApiBase } from "@/lib/apiBase";
+import { formatRelativeTime } from "@/lib/time";
 
 type ExploreMode = "mock" | "codex-cli";
 
@@ -210,7 +211,7 @@ export default function ExploreSdkPage() {
               runs.map((run) => (
                 <article key={run.id} className="explore-history__card">
                   <div className="explore-history__meta">
-                    <span>{new Date(run.createdAt).toLocaleString()}</span>
+                    <span>{formatRelativeTime(run.createdAt)}</span>
                     <span>{run.mode}</span>
                   </div>
                   <div className="explore-history__label">Instruction</div>

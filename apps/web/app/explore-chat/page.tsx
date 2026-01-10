@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 
 import { getClientApiBase } from "@/lib/apiBase";
+import { formatRelativeTime } from "@/lib/time";
 
 type ExploreMode = "mock" | "codex-cli";
 
@@ -363,7 +364,7 @@ export default function ExploreChatPage() {
                         {thread.title || `Thread ${thread.id}`}
                       </div>
                       <div className="explore-thread-item__meta">
-                        <span>{new Date(thread.updated_at).toLocaleString()}</span>
+                        <span>{formatRelativeTime(thread.updated_at)}</span>
                         <span>
                           {thread.session_mode === "last"
                             ? "--last"

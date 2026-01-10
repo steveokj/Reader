@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import MarkerToggle from "@/components/MarkerToggle";
 import ReaderHighlightsPanel from "@/components/ReaderHighlightsPanel";
+import { formatRelativeTime } from "@/lib/time";
 
 type Selection = {
   id: number;
@@ -149,7 +150,7 @@ export default function SidePanel({
               </div>
             </div>
             <div className="side-panel__timestamp">
-              Saved {new Date(selection.created_at).toISOString()}
+              Saved {formatRelativeTime(selection.created_at)}
             </div>
             <div className="side-panel__section">
               <div className="side-panel__section-title">Notes</div>

@@ -198,6 +198,18 @@ def get_reading_progress(conn, document_id: int) -> Optional[Dict[str, Any]]:
     return dict(row) if row else None
 
 
+def get_last_reading_progress(conn) -> Optional[Dict[str, Any]]:
+    row = conn.execute(
+        """
+        SELECT document_id, section_id, position_start, position_end, updated_at
+        FROM reading_progress
+        ORDER BY updated_at DESC, document_id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    return dict(row) if row else None
+
+
 def get_reading_history(conn, document_id: int, limit: int = 40) -> List[Dict[str, Any]]:
     rows = conn.execute(
         """

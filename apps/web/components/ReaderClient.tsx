@@ -16,6 +16,7 @@ import AudioRecorderModal from "@/components/modals/AudioRecorderModal";
 import GrammarModal from "@/components/modals/GrammarModal";
 import NoteModal from "@/components/modals/NoteModal";
 import { getClientApiBase } from "@/lib/apiBase";
+import { formatRelativeTime } from "@/lib/time";
 import {
   defaultReaderSettings,
   getFontFamilyCss,
@@ -3500,7 +3501,7 @@ export default function ReaderClient({
                             </span>
                           </div>
                           <div className="data-card__hint">
-                            {new Date(entry.createdAt).toISOString()}
+                            {formatRelativeTime(entry.createdAt)}
                           </div>
                         </article>
                       ))}

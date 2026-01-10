@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 
+import { formatRelativeTime } from "@/lib/time";
+
 type Document = {
   id: number;
   title: string;
@@ -153,7 +155,7 @@ export default function DocumentDetailClient({ document, sections, bundles }: Do
                   <article key={selection.id} className="data-card">
                     <div className="data-card__meta">
                       <span>Section {sectionKey}</span>
-                      <span>{new Date(selection.created_at).toISOString()}</span>
+                      <span>{formatRelativeTime(selection.created_at)}</span>
                     </div>
                     <div className="data-card__title">
                       {formatSnippet(selection.selector.quote.exact)}
@@ -185,7 +187,7 @@ export default function DocumentDetailClient({ document, sections, bundles }: Do
                   <article key={addition.id} className="data-card">
                     <div className="data-card__meta">
                       <span>{addition.type}</span>
-                      <span>{new Date(addition.created_at).toISOString()}</span>
+                      <span>{formatRelativeTime(addition.created_at)}</span>
                     </div>
                     <div className="data-card__title">
                       {formatSnippet(addition.text_content ?? addition.title ?? addition.type)}
@@ -220,7 +222,7 @@ export default function DocumentDetailClient({ document, sections, bundles }: Do
                   <article key={item.marker.id} className="data-card">
                     <div className="data-card__meta">
                       <span className="pill">{item.marker.kind}</span>
-                      <span>{new Date(item.marker.created_at).toISOString()}</span>
+                      <span>{formatRelativeTime(item.marker.created_at)}</span>
                     </div>
                     <div className="data-card__title">{targetLabel}</div>
                   </article>

@@ -116,6 +116,7 @@ export default function ExploreChatModal({
   const messageIdRef = useRef(0);
   const messagesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const storageKey = useMemo(() => {
     if (documentId) {
@@ -225,6 +226,36 @@ export default function ExploreChatModal({
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previous;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const root = document.documentElement;
+    root.classList.add("explore-modal-open");
+    return () => {
+      root.classList.remove("explore-modal-open");
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const panel = panelRef.current;
+    const handleTouchMove = (event: TouchEvent) => {
+      if (!panel) {
+        return;
+      }
+      if (!panel.contains(event.target as Node)) {
+        event.preventDefault();
+      }
+    };
+    document.addEventListener("touchmove", handleTouchMove, { passive: false });
+    return () => {
+      document.removeEventListener("touchmove", handleTouchMove);
     };
   }, [open]);
 
@@ -348,6 +379,7 @@ export default function ExploreChatModal({
     >
       <div
         className="explore-chat-modal__panel"
+        ref={panelRef}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="explore-chat-modal__header">
@@ -393,9 +425,6 @@ export default function ExploreChatModal({
                     >
                       <img src={part.url} alt={part.alt} loading="lazy" />
                     </button>
-                    <a href={part.url} target="_blank" rel="noreferrer">
-                      Open image
-                    </a>
                   </div>
                 ) : (
                   <span className="chat-message__text" key={`${message.id}-text-${index}`}>

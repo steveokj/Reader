@@ -1,4 +1,5 @@
 import DocumentDetailClient from "@/components/DocumentDetailClient";
+import { formatRelativeTime } from "@/lib/time";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -151,7 +152,7 @@ export default async function HighlightsDetailPage({ params }: HighlightsDetailP
         <h1 className="reader-title">{detail.document.title}</h1>
         <div className="document-meta">
           <span>Sections {detail.sections.length}</span>
-          <span>Created {new Date(detail.document.created_at).toISOString()}</span>
+          <span>Created {formatRelativeTime(detail.document.created_at)}</span>
         </div>
         <div className="document-actions">
           <a href={readHref} className="action-link">

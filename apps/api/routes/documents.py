@@ -39,6 +39,16 @@ def list_documents():
         conn.close()
 
 
+@router.get("/last", response_model=ReadingProgressResponse)
+def get_last_document_progress():
+    conn = get_conn()
+    try:
+        progress = documents_service.get_last_reading_progress(conn)
+        return {"progress": progress}
+    finally:
+        conn.close()
+
+
 @router.get("/{document_id}", response_model=DocumentDetailResponse)
 def get_document(document_id: int):
     conn = get_conn()
