@@ -36,6 +36,8 @@ const NAV_SWIPE_ZONE_HEIGHT = 120;
 const NAV_SWIPE_MIN_PX = 60;
 const NAV_SWIPE_MAX_MS = 1200;
 const NAV_SWIPE_HORIZONTAL_RATIO = 1.0;
+const NAV_SWIPE_SEQUENCE_RTL = ["interact", "navigate", "pages"] as const;
+const NAV_SWIPE_SEQUENCE_LTR = ["pages", "navigate", "interact"] as const;
 
 function normalizeBannerText(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -62,6 +64,8 @@ function buildSearchSnippet(text: string, start: number, end: number) {
 
 type CaretPoint = { node: Node; offset: number };
 type NavSwipeStart = { x: number; y: number; time: number; pointerId: number | null };
+type NavDirection = "ltr" | "rtl";
+type MobileNavMode = (typeof NAV_SWIPE_SEQUENCE_RTL)[number];
 
 function getWordAtOffset(text: string, offset: number): string | null {
   if (!text) {
@@ -336,6 +340,15 @@ type PageEntry = {
   position_start: number;
 };
 
+type PageHistoryEntry = {
+  id: number;
+  sectionId: number;
+  offset: number;
+  label: string;
+  pageNumber: number | null;
+  createdAt: string;
+};
+
 type ReadingProgress = {
   document_id: number;
   section_id: number;
@@ -475,6 +488,62 @@ function IconHighlights() {
   );
 }
 
+function IconNote() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 20h16M6 16l9-9 3 3-9 9H6v-3z" />
+    </svg>
+  );
+}
+
+function IconAudio() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3v10" />
+      <path d="M8 7v6" />
+      <path d="M16 7v6" />
+      <path d="M5 11a7 7 0 0014 0" />
+    </svg>
+  );
+}
+
+function IconGrammar() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 6h16M4 10h10M4 14h16M4 18h8" />
+    </svg>
+  );
+}
+
+function IconExplore() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7l4 8-8-4 4-4z" />
+    </svg>
+  );
+}
+
+function IconHistory() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 12a8 8 0 101.8-5" />
+      <path d="M4 5v4h4" />
+      <path d="M12 7v5l4 2" />
+    </svg>
+  );
+}
+
+function IconJump() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 12h10" />
+      <path d="M11 7l5 5-5 5" />
+      <path d="M14 4h5v16h-5" />
+    </svg>
+  );
+}
+
 type CaretRangeFromPoint = (x: number, y: number) => Range | null;
 type CaretPositionFromPoint = (x: number, y: number) => { offsetNode: Node; offset: number } | null;
 
@@ -567,9 +636,9 @@ export default function ReaderClient({
   const scrolledSectionRef = useRef<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [mobileNavMode, setMobileNavMode] = useState<"main" | "pages">("main");
+  const [mobileNavMode, setMobileNavMode] = useState<MobileNavMode>("navigate");
   const [mobilePanel, setMobilePanel] = useState<
-    "chapters" | "highlights" | "search" | "settings" | "selection" | null
+    "chapters" | "highlights" | "search" | "settings" | "history" | "selection" | null
   >(null);
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
   const [searchQuery, setSearchQuery] = useState("");
@@ -580,10 +649,12 @@ export default function ReaderClient({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const [pageMap, setPageMap] = useState<PageEntry[]>([]);
+  const [pageHistory, setPageHistory] = useState<PageHistoryEntry[]>([]);
   const [readingProgress, setReadingProgress] = useState<ReadingProgress | null>(null);
   const [progressLoaded, setProgressLoaded] = useState(false);
   const [initialRestoreComplete, setInitialRestoreComplete] = useState(false);
   const nextWordBannerIdRef = useRef(0);
+  const pageHistoryIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
   const finalizeRangeRef = useRef<((range: Range) => void) | null>(null);
   const [readerSettings, setReaderSettings] = useState<ReaderSettings>(defaultReaderSettings);
@@ -641,6 +712,19 @@ export default function ReaderClient({
     [isMobile]
   );
 
+  const getNextNavMode = useCallback(
+    (direction: NavDirection) => {
+      const sequence = direction === "rtl" ? NAV_SWIPE_SEQUENCE_RTL : NAV_SWIPE_SEQUENCE_LTR;
+      if (!mobileNavOpen) {
+        return sequence[0];
+      }
+      const currentIndex = sequence.indexOf(mobileNavMode);
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % sequence.length;
+      return sequence[nextIndex];
+    },
+    [mobileNavMode, mobileNavOpen]
+  );
+
   const handleNavSwipeEnd = useCallback(
     (x: number, y: number, pointerId: number | null) => {
       const start = navSwipeStartRef.current;
@@ -663,13 +747,14 @@ export default function ReaderClient({
       if (!horizontal) {
         return false;
       }
-      const mode = dx > 0 ? "pages" : "main";
-      setMobileNavMode(mode);
+      const direction: NavDirection = dx > 0 ? "ltr" : "rtl";
+      const nextMode = getNextNavMode(direction);
+      setMobileNavMode(nextMode);
       setMobileNavOpen(true);
       setMobilePanel(null);
       return true;
     },
-    [setMobileNavMode, setMobileNavOpen, setMobilePanel]
+    [getNextNavMode, setMobileNavMode, setMobileNavOpen, setMobilePanel]
   );
 
   const queueSettingsUpdate = useCallback(
@@ -902,6 +987,63 @@ export default function ReaderClient({
     }
     return { sectionId, offset: offsets.start };
   }, [getSectionElementFromNode]);
+
+  const buildHistoryLabel = useCallback(
+    (sectionId: number) => {
+      const section = sectionById.get(sectionId);
+      const title = section?.title?.trim();
+      if (title) {
+        return title;
+      }
+      if (section?.section_key) {
+        return section.section_key;
+      }
+      return `Section ${sectionId}`;
+    },
+    [sectionById]
+  );
+
+  const recordPageHistory = useCallback(() => {
+    const position = getVisibleOffsets();
+    if (!position) {
+      return;
+    }
+    const entry: PageHistoryEntry = {
+      id: pageHistoryIdRef.current++,
+      sectionId: position.sectionId,
+      offset: position.offset,
+      label: buildHistoryLabel(position.sectionId),
+      pageNumber: Number.isFinite(currentPage) ? currentPage : null,
+      createdAt: new Date().toISOString(),
+    };
+    setPageHistory((prev) => {
+      const filtered = prev.filter(
+        (item) =>
+          item.sectionId !== entry.sectionId || Math.abs(item.offset - entry.offset) > 2
+      );
+      return [entry, ...filtered].slice(0, 40);
+    });
+  }, [buildHistoryLabel, currentPage, getVisibleOffsets]);
+
+  const buildDraftSelectionFromPosition = useCallback((): DraftSelection | null => {
+    const position = getVisibleOffsets();
+    if (!position) {
+      return null;
+    }
+    const section = sectionById.get(position.sectionId);
+    const contentText = section?.content_text ?? "";
+    if (!contentText) {
+      return null;
+    }
+    return {
+      selector: {
+        position: { start: position.offset, end: position.offset },
+        quote: buildQuoteSelector(contentText, position.offset, position.offset),
+      },
+      selectionText: "",
+      sectionId: position.sectionId,
+    };
+  }, [getVisibleOffsets, sectionById]);
 
   const saveReadingProgress = useCallback(
     async (sectionId: number, offset: number) => {
@@ -2386,6 +2528,13 @@ export default function ReaderClient({
       return;
     }
     if (!menuState) {
+      const draft = buildDraftSelectionFromPosition();
+      if (!draft) {
+        return;
+      }
+      setDraftSelection(draft);
+      setEditingNote(null);
+      setNoteModalOpen(true);
       return;
     }
     setDraftSelection({
@@ -2398,32 +2547,13 @@ export default function ReaderClient({
     setNoteModalOpen(true);
   }, [
     activeSelectionId,
+    buildDraftSelectionFromPosition,
     isCommitted,
     menuState,
     setDraftSelection,
   ]);
 
-  const handleOpenGrammar = useCallback(async () => {
-    if (isCommitted && activeSelectionId) {
-      setGrammarModalOpen(true);
-      return;
-    }
-    if (!menuState) {
-      return;
-    }
-    setDraftSelection({
-      selector: menuState.selector,
-      selectionText: menuState.selectionText,
-      sectionId: menuState.sectionId,
-    });
-    setMenuState(null);
-    setGrammarModalOpen(true);
-  }, [
-    activeSelectionId,
-    isCommitted,
-    menuState,
-    setDraftSelection,
-  ]);
+  const handleOpenGrammar = useCallback(() => {}, []);
 
   const handleOpenAudio = useCallback(async () => {
     if (isCommitted && activeSelectionId) {
@@ -2432,6 +2562,13 @@ export default function ReaderClient({
       return;
     }
     if (!menuState) {
+      const draft = buildDraftSelectionFromPosition();
+      if (!draft) {
+        return;
+      }
+      setDraftSelection(draft);
+      audioSelectionRef.current = null;
+      setAudioModalOpen(true);
       return;
     }
     setDraftSelection({
@@ -2444,6 +2581,7 @@ export default function ReaderClient({
     setAudioModalOpen(true);
   }, [
     activeSelectionId,
+    buildDraftSelectionFromPosition,
     isCommitted,
     menuState,
     setDraftSelection,
@@ -2461,6 +2599,22 @@ export default function ReaderClient({
     },
     [clearSelection, isMobile]
   );
+
+  const handleOpenNoteFromNav = useCallback(() => {
+    void handleOpenNote();
+    if (isMobile) {
+      setMobilePanel(null);
+      setMobileNavOpen(false);
+    }
+  }, [handleOpenNote, isMobile]);
+
+  const handleOpenAudioFromNav = useCallback(() => {
+    void handleOpenAudio();
+    if (isMobile) {
+      setMobilePanel(null);
+      setMobileNavOpen(false);
+    }
+  }, [handleOpenAudio, isMobile]);
 
   const handleClearAudioSelection = useCallback(async () => {
     const selectionId = audioSelectionRef.current ?? activeSelectionId;
@@ -2752,7 +2906,6 @@ export default function ReaderClient({
   const closeMobileNav = useCallback(() => {
     setMobileNavOpen(false);
     setMobilePanel(null);
-    setMobileNavMode("main");
   }, []);
 
   const handleBodyPointerDown = useCallback(
@@ -2825,6 +2978,18 @@ export default function ReaderClient({
     [getSectionElementById]
   );
 
+  const handleHistoryJump = useCallback(
+    (entry: PageHistoryEntry) => {
+      recordPageHistory();
+      if (isMobile) {
+        setMobilePanel(null);
+        setMobileNavOpen(false);
+      }
+      scrollToOffsets(entry.sectionId, entry.offset, entry.offset);
+    },
+    [isMobile, recordPageHistory, scrollToOffsets]
+  );
+
   useEffect(() => {
     if (progressAppliedRef.current) {
       return;
@@ -2867,13 +3032,14 @@ export default function ReaderClient({
         setMobileNavOpen(false);
       }
 
+      recordPageHistory();
       scrollToOffsets(
         selection.section_id,
         selection.selector.position.start,
         selection.selector.position.end
       );
     },
-    [isMobile, scrollToOffsets]
+    [isMobile, recordPageHistory, scrollToOffsets]
   );
 
   const handleSearchSubmit = useCallback(
@@ -2920,9 +3086,10 @@ export default function ReaderClient({
 
   const handleSearchResultClick = useCallback(
     (result: SearchResult) => {
+      recordPageHistory();
       scrollToOffsets(result.sectionId, result.start, result.end);
     },
-    [scrollToOffsets]
+    [recordPageHistory, scrollToOffsets]
   );
 
   const handlePageJump = useCallback(
@@ -2943,6 +3110,7 @@ export default function ReaderClient({
       if (!resolved) {
         return;
       }
+      recordPageHistory();
       pendingPageJumpRef.current = resolved.page_number ?? fallbackIndex + 1;
       scrollToOffsets(
         resolved.section_id,
@@ -2953,7 +3121,7 @@ export default function ReaderClient({
       const resolvedPage = resolved.page_number ?? fallbackIndex + 1;
       setPageInput(String(resolvedPage));
     },
-    [pageInput, pageMap, scrollToOffsets]
+    [pageInput, pageMap, recordPageHistory, scrollToOffsets]
   );
 
   const selectionMarkerKinds = markers.map((marker) => marker.kind as MarkerKind);
@@ -3198,6 +3366,41 @@ export default function ReaderClient({
                   </div>
                 </div>
               ) : null}
+              {mobilePanel === "history" ? (
+                <div className="mobile-panel__content">
+                  <div className="mobile-panel__title">History</div>
+                  {pageHistory.length === 0 ? (
+                    <div className="empty-state">No history yet.</div>
+                  ) : (
+                    <div className="card-stack">
+                      {pageHistory.map((entry) => (
+                        <article key={entry.id} className="data-card">
+                          <div className="data-card__meta">
+                            <div className="data-card__meta-left">
+                              <span>{entry.label}</span>
+                              <button
+                                type="button"
+                                className="data-card__jump"
+                                onClick={() => handleHistoryJump(entry)}
+                                aria-label="Jump to position"
+                                title="Jump to position"
+                              >
+                                <IconJump />
+                              </button>
+                            </div>
+                            <span>
+                              {entry.pageNumber ? `Page ${entry.pageNumber}` : "Position"}
+                            </span>
+                          </div>
+                          <div className="data-card__hint">
+                            {new Date(entry.createdAt).toISOString()}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
               {mobilePanel === "settings" ? (
                 <div className="mobile-panel__content">
                   <div className="mobile-panel__title">Settings</div>
@@ -3253,6 +3456,62 @@ export default function ReaderClient({
                   </div>
                 </div>
               )
+            ) : mobileNavMode === "interact" ? (
+              <div
+                className="mobile-nav"
+                ref={mobileNavRef}
+                style={mobileNavStyle}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={handleOpenNoteFromNav}
+                  aria-label="Note"
+                  style={navButtonStyle(false)}
+                >
+                  <IconNote />
+                  <span>Note</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenAudioFromNav}
+                  aria-label="Audio"
+                  style={navButtonStyle(false)}
+                >
+                  <IconAudio />
+                  <span>Audio</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenExplore("")}
+                  aria-label="Explore"
+                  style={navButtonStyle(false)}
+                >
+                  <IconExplore />
+                  <span>Explore</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Grammar"
+                  disabled
+                  style={navButtonStyle(false)}
+                >
+                  <IconGrammar />
+                  <span>Grammar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMobilePanel((prev) => (prev === "highlights" ? null : "highlights"))
+                  }
+                  aria-label="Highlights"
+                  className={mobilePanel === "highlights" ? "is-active" : undefined}
+                  style={navButtonStyle(mobilePanel === "highlights")}
+                >
+                  <IconHighlights />
+                  <span>Highlights</span>
+                </button>
+              </div>
             ) : (
               <div
                 className="mobile-nav"
@@ -3287,18 +3546,6 @@ export default function ReaderClient({
                 <button
                   type="button"
                   onClick={() =>
-                    setMobilePanel((prev) => (prev === "highlights" ? null : "highlights"))
-                  }
-                  aria-label="Highlights"
-                  className={mobilePanel === "highlights" ? "is-active" : undefined}
-                  style={navButtonStyle(mobilePanel === "highlights")}
-                >
-                  <IconHighlights />
-                  <span>Highlights</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
                     setMobilePanel((prev) => (prev === "chapters" ? null : "chapters"))
                   }
                   aria-label="Chapters"
@@ -3307,6 +3554,18 @@ export default function ReaderClient({
                 >
                   <IconChapters />
                   <span>Chapters</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMobilePanel((prev) => (prev === "history" ? null : "history"))
+                  }
+                  aria-label="History"
+                  className={mobilePanel === "history" ? "is-active" : undefined}
+                  style={navButtonStyle(mobilePanel === "history")}
+                >
+                  <IconHistory />
+                  <span>History</span>
                 </button>
                 <button
                   type="button"

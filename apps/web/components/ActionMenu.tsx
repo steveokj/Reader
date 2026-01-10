@@ -162,11 +162,11 @@ export default function ActionMenu({
         <button type="button" onClick={onAudio} aria-label="Audio" title="Audio">
           <IconAudio />
         </button>
-        <button type="button" onClick={onGrammar} aria-label="Grammar" title="Grammar">
-          <IconGrammar />
-        </button>
         <button type="button" onClick={onExplore} aria-label="Explore" title="Explore">
           <IconExplore />
+        </button>
+        <button type="button" onClick={onGrammar} aria-label="Grammar" title="Grammar">
+          <IconGrammar />
         </button>
         <button type="button" aria-label="More" title="More">
           <IconMore />
