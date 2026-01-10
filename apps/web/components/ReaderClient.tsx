@@ -3020,13 +3020,9 @@ export default function ReaderClient({
   const handleHistoryJump = useCallback(
     (entry: PageHistoryEntry) => {
       recordPageHistory();
-      if (isMobile) {
-        setMobilePanel(null);
-        setMobileNavOpen(false);
-      }
       scrollToOffsets(entry.sectionId, entry.offset, entry.offset);
     },
-    [isMobile, recordPageHistory, scrollToOffsets]
+    [recordPageHistory, scrollToOffsets]
   );
 
   useEffect(() => {
@@ -3066,10 +3062,6 @@ export default function ReaderClient({
       setAudioModalOpen(false);
       setEditingNote(null);
       audioSelectionRef.current = null;
-      if (isMobile) {
-        setMobilePanel(null);
-        setMobileNavOpen(false);
-      }
 
       recordPageHistory();
       scrollToOffsets(
@@ -3078,7 +3070,7 @@ export default function ReaderClient({
         selection.selector.position.end
       );
     },
-    [isMobile, recordPageHistory, scrollToOffsets]
+    [recordPageHistory, scrollToOffsets]
   );
 
   const handleSearchSubmit = useCallback(

@@ -2205,7 +2205,8 @@ html[data-reader-theme="dark"] .reader-layout {
   background: var(--reader-panel);
   border: 1px solid var(--reader-border);
   border-radius: 18px;
-  padding: 10px 12px;
+  padding: 8px;
+  min-height: 64px;
   box-shadow: 0 18px 30px var(--reader-shadow);
   z-index: 60;
 }
