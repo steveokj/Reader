@@ -37,7 +37,6 @@ const NAV_SWIPE_ZONE_HEIGHT = 120;
 const NAV_SWIPE_MIN_PX = 60;
 const NAV_SWIPE_MAX_MS = 1200;
 const NAV_SWIPE_HORIZONTAL_RATIO = 1.0;
-const NAV_SWIPE_SEQUENCE_RTL = ["interact", "navigate"] as const;
 
 function normalizeBannerText(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -70,9 +69,10 @@ type NavSwipeStart = {
   pointerId: number | null;
   wasOpen: boolean;
   mode: MobileNavMode;
+  pageOpen: boolean;
 };
 type NavDirection = "ltr" | "rtl";
-type MobileNavMode = (typeof NAV_SWIPE_SEQUENCE_RTL)[number];
+type MobileNavMode = "interact" | "navigate";
 
 function getWordAtOffset(text: string, offset: number): string | null {
   if (!text) {
@@ -730,20 +730,11 @@ export default function ReaderClient({
         pointerId,
         wasOpen: mobileNavOpen,
         mode: mobileNavMode,
+        pageOpen: mobilePageNavOpen,
       };
     },
-    [isMobile, mobileNavMode, mobileNavOpen]
+    [isMobile, mobileNavMode, mobileNavOpen, mobilePageNavOpen]
   );
-
-  const getNextNavMode = useCallback((wasOpen: boolean, startMode: MobileNavMode) => {
-    const sequence = NAV_SWIPE_SEQUENCE_RTL;
-    if (!wasOpen) {
-      return sequence[0];
-    }
-    const currentIndex = sequence.indexOf(startMode);
-    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % sequence.length;
-    return sequence[nextIndex];
-  }, []);
 
   const handleNavSwipeEnd = useCallback(
     (x: number, y: number, pointerId: number | null) => {
@@ -768,27 +759,36 @@ export default function ReaderClient({
         return false;
       }
       const direction: NavDirection = dx > 0 ? "ltr" : "rtl";
-      if (direction === "ltr") {
+      const isCombined = start.pageOpen;
+      const isInteract = start.wasOpen && start.mode === "interact" && !start.pageOpen;
+      const showCombined = () => {
         setMobileNavMode("navigate");
         setMobileNavOpen(true);
         setMobilePageNavOpen(true);
         setMobilePanel(null);
+      };
+      const showInteract = () => {
+        setMobileNavMode("interact");
+        setMobileNavOpen(true);
+        setMobilePageNavOpen(false);
+        setMobilePanel(null);
+      };
+      if (direction === "ltr") {
+        if (isCombined) {
+          showInteract();
+        } else {
+          showCombined();
+        }
         return true;
       }
-      const nextMode = getNextNavMode(start.wasOpen, start.mode);
-      setMobileNavMode(nextMode);
-      setMobileNavOpen(true);
-      setMobilePageNavOpen(false);
-      setMobilePanel(null);
+      if (isInteract) {
+        showCombined();
+      } else {
+        showInteract();
+      }
       return true;
     },
-    [
-      getNextNavMode,
-      setMobileNavMode,
-      setMobileNavOpen,
-      setMobilePageNavOpen,
-      setMobilePanel,
-    ]
+    [setMobileNavMode, setMobileNavOpen, setMobilePageNavOpen, setMobilePanel]
   );
 
   const handleNavTouchStart = useCallback(
