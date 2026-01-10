@@ -117,6 +117,7 @@ export default function ExploreChatModal({
   const messagesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const touchStartRef = useRef<number | null>(null);
 
   const storageKey = useMemo(() => {
     if (documentId) {
@@ -256,6 +257,49 @@ export default function ExploreChatModal({
     document.addEventListener("touchmove", handleTouchMove, { passive: false });
     return () => {
       document.removeEventListener("touchmove", handleTouchMove);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const container = messagesRef.current;
+    if (!container) {
+      return;
+    }
+    const handleTouchStart = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch) {
+        return;
+      }
+      touchStartRef.current = touch.clientY;
+    };
+    const handleTouchMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch || touchStartRef.current === null) {
+        return;
+      }
+      const delta = touch.clientY - touchStartRef.current;
+      const atTop = container.scrollTop <= 0;
+      const atBottom =
+        container.scrollTop + container.clientHeight >= container.scrollHeight - 1;
+      if ((atTop && delta > 0) || (atBottom && delta < 0)) {
+        event.preventDefault();
+      }
+    };
+    const handleTouchEnd = () => {
+      touchStartRef.current = null;
+    };
+    container.addEventListener("touchstart", handleTouchStart, { passive: true });
+    container.addEventListener("touchmove", handleTouchMove, { passive: false });
+    container.addEventListener("touchend", handleTouchEnd);
+    container.addEventListener("touchcancel", handleTouchEnd);
+    return () => {
+      container.removeEventListener("touchstart", handleTouchStart);
+      container.removeEventListener("touchmove", handleTouchMove);
+      container.removeEventListener("touchend", handleTouchEnd);
+      container.removeEventListener("touchcancel", handleTouchEnd);
     };
   }, [open]);
 

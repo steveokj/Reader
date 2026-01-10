@@ -37,8 +37,7 @@ const NAV_SWIPE_ZONE_HEIGHT = 120;
 const NAV_SWIPE_MIN_PX = 60;
 const NAV_SWIPE_MAX_MS = 1200;
 const NAV_SWIPE_HORIZONTAL_RATIO = 1.0;
-const NAV_SWIPE_SEQUENCE_RTL = ["interact", "navigate", "pages"] as const;
-const NAV_SWIPE_SEQUENCE_LTR = ["pages", "navigate", "interact"] as const;
+const NAV_SWIPE_SEQUENCE_RTL = ["interact", "navigate"] as const;
 
 function normalizeBannerText(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -653,6 +652,7 @@ export default function ReaderClient({
   const scrolledSectionRef = useRef<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobilePageNavOpen, setMobilePageNavOpen] = useState(false);
   const [mobileNavMode, setMobileNavMode] = useState<MobileNavMode>("navigate");
   const [mobilePanel, setMobilePanel] = useState<
     "chapters" | "highlights" | "search" | "settings" | "history" | "selection" | null
@@ -735,18 +735,15 @@ export default function ReaderClient({
     [isMobile, mobileNavMode, mobileNavOpen]
   );
 
-  const getNextNavMode = useCallback(
-    (direction: NavDirection, wasOpen: boolean, startMode: MobileNavMode) => {
-      const sequence = direction === "rtl" ? NAV_SWIPE_SEQUENCE_RTL : NAV_SWIPE_SEQUENCE_LTR;
-      if (!wasOpen) {
-        return sequence[0];
-      }
-      const currentIndex = sequence.indexOf(startMode);
-      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % sequence.length;
-      return sequence[nextIndex];
-    },
-    []
-  );
+  const getNextNavMode = useCallback((wasOpen: boolean, startMode: MobileNavMode) => {
+    const sequence = NAV_SWIPE_SEQUENCE_RTL;
+    if (!wasOpen) {
+      return sequence[0];
+    }
+    const currentIndex = sequence.indexOf(startMode);
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % sequence.length;
+    return sequence[nextIndex];
+  }, []);
 
   const handleNavSwipeEnd = useCallback(
     (x: number, y: number, pointerId: number | null) => {
@@ -771,13 +768,27 @@ export default function ReaderClient({
         return false;
       }
       const direction: NavDirection = dx > 0 ? "ltr" : "rtl";
-      const nextMode = getNextNavMode(direction, start.wasOpen, start.mode);
+      if (direction === "ltr") {
+        setMobileNavMode("navigate");
+        setMobileNavOpen(true);
+        setMobilePageNavOpen(true);
+        setMobilePanel(null);
+        return true;
+      }
+      const nextMode = getNextNavMode(start.wasOpen, start.mode);
       setMobileNavMode(nextMode);
       setMobileNavOpen(true);
+      setMobilePageNavOpen(false);
       setMobilePanel(null);
       return true;
     },
-    [getNextNavMode, setMobileNavMode, setMobileNavOpen, setMobilePanel]
+    [
+      getNextNavMode,
+      setMobileNavMode,
+      setMobileNavOpen,
+      setMobilePageNavOpen,
+      setMobilePanel,
+    ]
   );
 
   const handleNavTouchStart = useCallback(
@@ -1607,6 +1618,7 @@ export default function ReaderClient({
   useEffect(() => {
     if (!isMobile) {
       setMobileNavOpen(false);
+      setMobilePageNavOpen(false);
       setMobilePanel(null);
     }
   }, [isMobile]);
@@ -1618,6 +1630,7 @@ export default function ReaderClient({
     if (mobilePanel === "selection" && !menuState) {
       setMobilePanel(null);
       setMobileNavOpen(false);
+      setMobilePageNavOpen(false);
     }
   }, [isMobile, menuState, mobilePanel]);
 
@@ -1748,11 +1761,11 @@ export default function ReaderClient({
   }, [flushProgressSave, scheduleProgressSave]);
 
   useEffect(() => {
-    if (!mobileNavOpen || mobileNavMode !== "pages") {
+    if (!mobilePageNavOpen) {
       return;
     }
     setPageInput(String(currentPage));
-  }, [currentPage, mobileNavMode, mobileNavOpen]);
+  }, [currentPage, mobilePageNavOpen]);
 
   const clearSelection = useCallback(() => {
     if (doubleTapInProgressRef.current) {
@@ -1955,6 +1968,7 @@ export default function ReaderClient({
       setPendingMarkerKinds([]);
       if (isMobile) {
         setMobileNavOpen(true);
+        setMobilePageNavOpen(false);
         setMobilePanel("selection");
         const selection = window.getSelection();
         if (selection) {
@@ -2711,6 +2725,7 @@ export default function ReaderClient({
       if (isMobile) {
         setMobilePanel(null);
         setMobileNavOpen(false);
+        setMobilePageNavOpen(false);
       }
       clearSelection();
     },
@@ -2722,6 +2737,7 @@ export default function ReaderClient({
     if (isMobile) {
       setMobilePanel(null);
       setMobileNavOpen(false);
+      setMobilePageNavOpen(false);
     }
   }, [handleOpenNote, isMobile]);
 
@@ -2730,6 +2746,7 @@ export default function ReaderClient({
     if (isMobile) {
       setMobilePanel(null);
       setMobileNavOpen(false);
+      setMobilePageNavOpen(false);
     }
   }, [handleOpenAudio, isMobile]);
 
@@ -3020,14 +3037,15 @@ export default function ReaderClient({
     }
   }, [activeSelectionId]);
 
-  const closeMobileNav = useCallback(() => {
+  const closeMobileBars = useCallback(() => {
     setMobileNavOpen(false);
+    setMobilePageNavOpen(false);
     setMobilePanel(null);
   }, []);
 
   const handleBodyPointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!isMobile || !mobileNavOpen) {
+      if (!isMobile || (!mobileNavOpen && !mobilePageNavOpen)) {
         return;
       }
       const target = event.target as Node;
@@ -3038,9 +3056,9 @@ export default function ReaderClient({
       ) {
         return;
       }
-      closeMobileNav();
+      closeMobileBars();
     },
-    [closeMobileNav, isMobile, mobileNavOpen]
+    [closeMobileBars, isMobile, mobileNavOpen, mobilePageNavOpen]
   );
 
   const handleBodyClick = useCallback(
@@ -3048,7 +3066,7 @@ export default function ReaderClient({
       if (!isMobile) {
         return;
       }
-      if (!mobileNavOpen) {
+      if (!mobileNavOpen && !mobilePageNavOpen) {
         return;
       }
       if (doubleTapInProgressRef.current) {
@@ -3065,9 +3083,9 @@ export default function ReaderClient({
       ) {
         return;
       }
-      closeMobileNav();
+      closeMobileBars();
     },
-    [closeMobileNav, isMobile, mobileNavOpen]
+    [closeMobileBars, isMobile, mobileNavOpen, mobilePageNavOpen]
   );
 
   const scrollToOffsets = useCallback(
@@ -3426,6 +3444,7 @@ export default function ReaderClient({
                   onClose={() => {
                     setMobilePanel(null);
                     setMobileNavOpen(false);
+                    setMobilePageNavOpen(false);
                     clearSelection();
                   }}
                 />
@@ -3521,59 +3540,72 @@ export default function ReaderClient({
               ) : null}
             </div>
           ) : null}
+          {isMobile && mobilePageNavOpen && mobilePanel !== "selection" ? (
+            pageMap.length ? (
+              <div
+                className="mobile-page-nav mobile-page-nav--top"
+                ref={mobilePageNavRef}
+                style={mobileNavStyle}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (mobileNavOpen) {
+                    setMobileNavOpen(false);
+                  }
+                }}
+              >
+                <div className="mobile-page-nav__info">
+                  <div className="mobile-page-nav__label">Page</div>
+                  <div className="mobile-page-nav__value">
+                    {currentPage} / {pageCount}
+                  </div>
+                </div>
+                <form className="mobile-page-nav__form" onSubmit={handlePageJump}>
+                  <input
+                    type="number"
+                    min={1}
+                    max={pageCount}
+                    inputMode="numeric"
+                    className="mobile-page-nav__input"
+                    value={pageInput}
+                    onChange={(event) => setPageInput(event.target.value)}
+                    onFocus={() => setMobileNavOpen(false)}
+                  />
+                  <button type="submit" className="mobile-page-nav__submit">
+                    Go
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div
+                className="mobile-page-nav mobile-page-nav--top"
+                ref={mobilePageNavRef}
+                style={mobileNavStyle}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (mobileNavOpen) {
+                    setMobileNavOpen(false);
+                  }
+                }}
+              >
+                <div className="mobile-page-nav__info">
+                  <div className="mobile-page-nav__label">Pages</div>
+                  <div className="mobile-page-nav__value">Not available</div>
+                </div>
+              </div>
+            )
+          ) : null}
           {isMobile && mobileNavOpen && mobilePanel !== "selection" ? (
-            mobileNavMode === "pages" ? (
-              pageMap.length ? (
-                <div
-                  className="mobile-page-nav"
-                  ref={mobilePageNavRef}
-                  style={mobileNavStyle}
-                  onClick={(event) => event.stopPropagation()}
-                  onTouchStart={handleNavTouchStart}
-                  onTouchEnd={handleNavTouchEnd}
-                >
-                  <div className="mobile-page-nav__info">
-                    <div className="mobile-page-nav__label">Page</div>
-                    <div className="mobile-page-nav__value">
-                      {currentPage} / {pageCount}
-                    </div>
-                  </div>
-                  <form className="mobile-page-nav__form" onSubmit={handlePageJump}>
-                    <input
-                      type="number"
-                      min={1}
-                      max={pageCount}
-                      inputMode="numeric"
-                      className="mobile-page-nav__input"
-                      value={pageInput}
-                      onChange={(event) => setPageInput(event.target.value)}
-                    />
-                    <button type="submit" className="mobile-page-nav__submit">
-                      Go
-                    </button>
-                  </form>
-                </div>
-              ) : (
-                <div
-                  className="mobile-page-nav"
-                  ref={mobilePageNavRef}
-                  style={mobileNavStyle}
-                  onClick={(event) => event.stopPropagation()}
-                  onTouchStart={handleNavTouchStart}
-                  onTouchEnd={handleNavTouchEnd}
-                >
-                  <div className="mobile-page-nav__info">
-                    <div className="mobile-page-nav__label">Pages</div>
-                    <div className="mobile-page-nav__value">Not available</div>
-                  </div>
-                </div>
-              )
-            ) : mobileNavMode === "interact" ? (
+            mobileNavMode === "interact" ? (
               <div
                 className="mobile-nav"
                 ref={mobileNavRef}
                 style={mobileNavStyle}
-                onClick={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (mobilePageNavOpen) {
+                    setMobilePageNavOpen(false);
+                  }
+                }}
                 onTouchStart={handleNavTouchStart}
                 onTouchEnd={handleNavTouchEnd}
               >
@@ -3631,14 +3663,19 @@ export default function ReaderClient({
                 className="mobile-nav"
                 ref={mobileNavRef}
                 style={mobileNavStyle}
-                onClick={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (mobilePageNavOpen) {
+                    setMobilePageNavOpen(false);
+                  }
+                }}
                 onTouchStart={handleNavTouchStart}
                 onTouchEnd={handleNavTouchEnd}
               >
                 <button
                   type="button"
                   onClick={() => {
-                    closeMobileNav();
+                    closeMobileBars();
                     router.push("/books");
                   }}
                   aria-label="Home"

@@ -2222,6 +2222,11 @@ html[data-reader-theme="dark"] .reader-layout {
   z-index: 60;
 }
 
+.mobile-page-nav--top {
+  top: calc(16px + env(safe-area-inset-top));
+  bottom: auto;
+}
+
 .mobile-page-nav__info {
   display: flex;
   flex-direction: column;
