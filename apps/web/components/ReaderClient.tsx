@@ -63,7 +63,14 @@ function buildSearchSnippet(text: string, start: number, end: number) {
 }
 
 type CaretPoint = { node: Node; offset: number };
-type NavSwipeStart = { x: number; y: number; time: number; pointerId: number | null };
+type NavSwipeStart = {
+  x: number;
+  y: number;
+  time: number;
+  pointerId: number | null;
+  wasOpen: boolean;
+  mode: MobileNavMode;
+};
 type NavDirection = "ltr" | "rtl";
 type MobileNavMode = (typeof NAV_SWIPE_SEQUENCE_RTL)[number];
 
@@ -707,22 +714,29 @@ export default function ReaderClient({
         navSwipeStartRef.current = null;
         return;
       }
-      navSwipeStartRef.current = { x, y, time: Date.now(), pointerId };
+      navSwipeStartRef.current = {
+        x,
+        y,
+        time: Date.now(),
+        pointerId,
+        wasOpen: mobileNavOpen,
+        mode: mobileNavMode,
+      };
     },
-    [isMobile]
+    [isMobile, mobileNavMode, mobileNavOpen]
   );
 
   const getNextNavMode = useCallback(
-    (direction: NavDirection) => {
+    (direction: NavDirection, wasOpen: boolean, startMode: MobileNavMode) => {
       const sequence = direction === "rtl" ? NAV_SWIPE_SEQUENCE_RTL : NAV_SWIPE_SEQUENCE_LTR;
-      if (!mobileNavOpen) {
+      if (!wasOpen) {
         return sequence[0];
       }
-      const currentIndex = sequence.indexOf(mobileNavMode);
+      const currentIndex = sequence.indexOf(startMode);
       const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % sequence.length;
       return sequence[nextIndex];
     },
-    [mobileNavMode, mobileNavOpen]
+    []
   );
 
   const handleNavSwipeEnd = useCallback(
@@ -748,13 +762,38 @@ export default function ReaderClient({
         return false;
       }
       const direction: NavDirection = dx > 0 ? "ltr" : "rtl";
-      const nextMode = getNextNavMode(direction);
+      const nextMode = getNextNavMode(direction, start.wasOpen, start.mode);
       setMobileNavMode(nextMode);
       setMobileNavOpen(true);
       setMobilePanel(null);
       return true;
     },
     [getNextNavMode, setMobileNavMode, setMobileNavOpen, setMobilePanel]
+  );
+
+  const handleNavTouchStart = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      const touch = event.touches[0];
+      if (!touch) {
+        return;
+      }
+      startNavSwipe(touch.clientX, touch.clientY, null);
+    },
+    [startNavSwipe]
+  );
+
+  const handleNavTouchEnd = useCallback(
+    (event: React.TouchEvent<HTMLDivElement>) => {
+      const touch = event.changedTouches[0];
+      if (!touch) {
+        return;
+      }
+      if (handleNavSwipeEnd(touch.clientX, touch.clientY, null)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    },
+    [handleNavSwipeEnd]
   );
 
   const queueSettingsUpdate = useCallback(
@@ -3421,6 +3460,8 @@ export default function ReaderClient({
                   ref={mobilePageNavRef}
                   style={mobileNavStyle}
                   onClick={(event) => event.stopPropagation()}
+                  onTouchStart={handleNavTouchStart}
+                  onTouchEnd={handleNavTouchEnd}
                 >
                   <div className="mobile-page-nav__info">
                     <div className="mobile-page-nav__label">Page</div>
@@ -3449,6 +3490,8 @@ export default function ReaderClient({
                   ref={mobilePageNavRef}
                   style={mobileNavStyle}
                   onClick={(event) => event.stopPropagation()}
+                  onTouchStart={handleNavTouchStart}
+                  onTouchEnd={handleNavTouchEnd}
                 >
                   <div className="mobile-page-nav__info">
                     <div className="mobile-page-nav__label">Pages</div>
@@ -3462,6 +3505,8 @@ export default function ReaderClient({
                 ref={mobileNavRef}
                 style={mobileNavStyle}
                 onClick={(event) => event.stopPropagation()}
+                onTouchStart={handleNavTouchStart}
+                onTouchEnd={handleNavTouchEnd}
               >
                 <button
                   type="button"
@@ -3518,6 +3563,8 @@ export default function ReaderClient({
                 ref={mobileNavRef}
                 style={mobileNavStyle}
                 onClick={(event) => event.stopPropagation()}
+                onTouchStart={handleNavTouchStart}
+                onTouchEnd={handleNavTouchEnd}
               >
                 <button
                   type="button"
