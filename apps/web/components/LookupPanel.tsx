@@ -67,7 +67,9 @@ export default function LookupPanel({
     return null;
   }
 
-  const panelClassName = isMobile ? "lookup-panel lookup-panel--mobile" : "lookup-panel";
+  const forceMobile = process.env.NEXT_PUBLIC_LOOKUP_FORCE_MOBILE === "1";
+  const panelClassName =
+    isMobile || forceMobile ? "lookup-panel lookup-panel--mobile" : "lookup-panel";
 
   return (
     <div className={panelClassName} role="dialog" aria-label="Dictionary lookup">
