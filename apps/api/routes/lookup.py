@@ -31,6 +31,14 @@ ALLOWED_HOSTS = {
 }
 DEFAULT_VIEWPORT_WIDTH = 1200
 DEFAULT_VIEWPORT_HEIGHT = 900
+DEFAULT_MOBILE_WIDTH = 390
+DEFAULT_MOBILE_HEIGHT = 844
+DEFAULT_MOBILE_DSF = 3
+DEFAULT_MOBILE_DEVICE = "iPhone 14"
+DEFAULT_MOBILE_UA = (
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) "
+    "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1"
+)
 SNAPSHOT_TTL_SECONDS = int(os.getenv("LOOKUP_SNAPSHOT_TTL", "86400"))
 DEBUG_ERRORS = os.getenv("LOOKUP_SNAPSHOT_DEBUG", "0") == "1"
 PERSISTENT_PROFILE = os.getenv("LOOKUP_SNAPSHOT_PERSISTENT", "0") == "1"
@@ -40,6 +48,15 @@ USER_AGENT = os.getenv("LOOKUP_SNAPSHOT_USER_AGENT")
 CHANNEL = os.getenv("LOOKUP_SNAPSHOT_CHANNEL")
 STEALTH = os.getenv("LOOKUP_SNAPSHOT_STEALTH", "0") == "1"
 WAIT_SELECTOR = os.getenv("LOOKUP_SNAPSHOT_WAIT_SELECTOR")
+FORCE_MOBILE = os.getenv("LOOKUP_SNAPSHOT_MOBILE", "0") == "1"
+MOBILE_WIDTH_ENV = os.getenv("LOOKUP_SNAPSHOT_MOBILE_WIDTH") or None
+MOBILE_HEIGHT_ENV = os.getenv("LOOKUP_SNAPSHOT_MOBILE_HEIGHT") or None
+MOBILE_DSF_ENV = os.getenv("LOOKUP_SNAPSHOT_MOBILE_DSF") or None
+MOBILE_UA_ENV = os.getenv("LOOKUP_SNAPSHOT_MOBILE_UA") or None
+MOBILE_WIDTH = int(MOBILE_WIDTH_ENV) if MOBILE_WIDTH_ENV else DEFAULT_MOBILE_WIDTH
+MOBILE_HEIGHT = int(MOBILE_HEIGHT_ENV) if MOBILE_HEIGHT_ENV else DEFAULT_MOBILE_HEIGHT
+MOBILE_DSF = float(MOBILE_DSF_ENV) if MOBILE_DSF_ENV else DEFAULT_MOBILE_DSF
+MOBILE_UA = MOBILE_UA_ENV or DEFAULT_MOBILE_UA
 
 MEDIA_DIR = Path(__file__).resolve().parents[1] / "media"
 LOOKUP_DIR = MEDIA_DIR / "lookup"
@@ -101,12 +118,32 @@ def render_snapshot(
     width: int,
     height: int,
     full_page: bool,
+    is_mobile: bool,
 ) -> None:
     launch_options = {"headless": HEADLESS}
     if CHANNEL:
         launch_options["channel"] = CHANNEL
     context_options = {"viewport": {"width": width, "height": height}}
-    if USER_AGENT:
+    if is_mobile:
+        device = playwright.devices.get(DEFAULT_MOBILE_DEVICE)
+        if device:
+            context_options = dict(device)
+            context_options.pop("default_browser_type", None)
+        else:
+            context_options["device_scale_factor"] = MOBILE_DSF
+            context_options["user_agent"] = MOBILE_UA
+        context_options.setdefault("viewport", {"width": width, "height": height})
+        context_options.setdefault("is_mobile", True)
+        context_options.setdefault("has_touch", True)
+        if MOBILE_DSF_ENV:
+            context_options["device_scale_factor"] = MOBILE_DSF
+        if MOBILE_UA_ENV:
+            context_options["user_agent"] = MOBILE_UA
+        if MOBILE_WIDTH_ENV:
+            context_options["viewport"]["width"] = MOBILE_WIDTH
+        if MOBILE_HEIGHT_ENV:
+            context_options["viewport"]["height"] = MOBILE_HEIGHT
+    elif USER_AGENT:
         context_options["user_agent"] = USER_AGENT
 
     def apply_stealth(context) -> None:
@@ -165,7 +202,10 @@ async def lookup_snapshot(
     refresh: bool = Query(default=False),
 ):
     target_url = resolve_target_url(word, url, provider)
-    cache_path = build_cache_path(target_url, width, height, full_page)
+    use_mobile = FORCE_MOBILE
+    effective_width = MOBILE_WIDTH if use_mobile else width
+    effective_height = MOBILE_HEIGHT if use_mobile else height
+    cache_path = build_cache_path(target_url, effective_width, effective_height, full_page)
 
     if refresh and cache_path.exists():
         try:
@@ -178,7 +218,13 @@ async def lookup_snapshot(
 
     try:
         await asyncio.to_thread(
-            render_snapshot, target_url, cache_path, width, height, full_page
+            render_snapshot,
+            target_url,
+            cache_path,
+            effective_width,
+            effective_height,
+            full_page,
+            use_mobile,
         )
     except PlaywrightTimeoutError as exc:
         if cache_path.exists():
