@@ -2158,6 +2158,116 @@ html[data-reader-theme="dark"] .reader-layout {
   border: 1px solid var(--reader-border);
 }
 
+.lookup-panel {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  max-height: 60vh;
+  background: var(--reader-panel);
+  border: 1px solid var(--reader-border);
+  border-radius: 18px;
+  box-shadow: 0 18px 30px var(--reader-shadow);
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lookup-panel--mobile {
+  bottom: 96px;
+  max-height: 45vh;
+}
+
+.lookup-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--reader-border);
+  background: var(--reader-panel);
+}
+
+.lookup-panel__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lookup-panel__label {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--reader-ink-muted);
+}
+
+.lookup-panel__word {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--reader-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lookup-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.lookup-panel__actions button,
+.lookup-panel__link {
+  border: 1px solid var(--reader-border);
+  background: transparent;
+  color: var(--reader-ink);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+.lookup-panel__actions button:hover,
+.lookup-panel__link:hover {
+  border-color: var(--reader-accent);
+  color: var(--reader-accent);
+}
+
+.lookup-panel__body {
+  position: relative;
+  flex: 1;
+  overflow: auto;
+  background: #fff;
+}
+
+.lookup-panel__body img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.lookup-panel__status {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(31, 28, 22, 0.85);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  z-index: 2;
+}
+
+.lookup-panel__status--error {
+  background: rgba(171, 30, 30, 0.85);
+}
+
 .mobile-nav {
   position: fixed;
   left: 16px;

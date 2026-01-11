@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import ActionMenu from "@/components/ActionMenu";
 import ExploreChatModal from "@/components/ExploreChatModal";
+import LookupPanel from "@/components/LookupPanel";
 import ReaderDocument from "@/components/ReaderDocument";
 import ReaderHighlightsPanel from "@/components/ReaderHighlightsPanel";
 import ReaderSettingsPanel from "@/components/ReaderSettingsPanel";
@@ -646,6 +647,9 @@ export default function ReaderClient({
   const [noteModalOpen, setNoteModalOpen] = useState(false);
   const [grammarModalOpen, setGrammarModalOpen] = useState(false);
   const [audioModalOpen, setAudioModalOpen] = useState(false);
+  const [lookupPanelOpen, setLookupPanelOpen] = useState(false);
+  const [lookupWord, setLookupWord] = useState("");
+  const [lookupRefreshKey, setLookupRefreshKey] = useState(0);
   const [exploreModalOpen, setExploreModalOpen] = useState(false);
   const [exploreSelectionText, setExploreSelectionText] = useState("");
   const [editingNote, setEditingNote] = useState<Addition | null>(null);
@@ -2686,6 +2690,24 @@ export default function ReaderClient({
     setGrammarModalOpen(true);
   }, [activeSelectionId, isCommitted, menuState, setDraftSelection]);
 
+  const handleOpenLookup = useCallback((word: string) => {
+    const trimmed = word.trim();
+    if (!trimmed) {
+      return;
+    }
+    setLookupWord(trimmed);
+    setLookupRefreshKey(0);
+    setLookupPanelOpen(true);
+  }, []);
+
+  const handleCloseLookup = useCallback(() => {
+    setLookupPanelOpen(false);
+  }, []);
+
+  const handleRefreshLookup = useCallback(() => {
+    setLookupRefreshKey((prev) => prev + 1);
+  }, []);
+
   const handleOpenAudio = useCallback(async () => {
     if (isCommitted && activeSelectionId) {
       audioSelectionRef.current = activeSelectionId;
@@ -2872,6 +2894,9 @@ export default function ReaderClient({
         if (data.addition) {
           setAdditions((prev) => [...prev, data.addition as Addition]);
           setMenuState(null);
+          if (payload.kind === "word" && payload.text) {
+            handleOpenLookup(payload.text);
+          }
           if (payload.kind === "lookup" && payload.lookup_url) {
             window.open(payload.lookup_url, "_blank", "noopener,noreferrer");
           }
@@ -2880,7 +2905,7 @@ export default function ReaderClient({
 
       setGrammarModalOpen(false);
     },
-    [ensureSelectionForAddition]
+    [ensureSelectionForAddition, handleOpenLookup]
   );
 
   const handleSaveAudio = useCallback(
@@ -3806,6 +3831,15 @@ export default function ReaderClient({
           }
           setAudioModalOpen(false);
         }}
+      />
+      <LookupPanel
+        open={lookupPanelOpen}
+        word={lookupWord}
+        provider="merriam"
+        refreshKey={lookupRefreshKey}
+        isMobile={isMobile}
+        onRefresh={handleRefreshLookup}
+        onClose={handleCloseLookup}
       />
     </div>
   );
