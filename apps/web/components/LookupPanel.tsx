@@ -31,6 +31,32 @@ function getProviderUrl(provider: LookupProvider, word: string) {
   return `https://www.vocabulary.com/dictionary/${encoded}`;
 }
 
+function IconExternal() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M14 5h5v5M10 14l9-9M19 14v5h-9" />
+      <path d="M5 10v9h9" />
+    </svg>
+  );
+}
+
+function IconRefresh() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 12a8 8 0 1 1-2.3-5.7" />
+      <path d="M20 4v6h-6" />
+    </svg>
+  );
+}
+
+function IconClose() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 6l12 12M18 6l-12 12" />
+    </svg>
+  );
+}
+
 export default function LookupPanel({
   open,
   word,
@@ -151,20 +177,36 @@ export default function LookupPanel({
                 Merriam
               </button>
             </div>
-            <a
-              className="lookup-panel__link"
-              href={getProviderUrl(activeProvider, trimmed)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open on {getProviderLabel(activeProvider)}
-            </a>
-            <button type="button" onClick={onRefresh}>
-              Refresh
-            </button>
-            <button type="button" onClick={onClose}>
-              Close
-            </button>
+            <div className="lookup-panel__icon-row">
+              <a
+                className="lookup-panel__icon-button"
+                href={getProviderUrl(activeProvider, trimmed)}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Open on ${getProviderLabel(activeProvider)}`}
+                title={`Open on ${getProviderLabel(activeProvider)}`}
+              >
+                <IconExternal />
+              </a>
+              <button
+                type="button"
+                className="lookup-panel__icon-button"
+                onClick={onRefresh}
+                aria-label="Refresh snapshot"
+                title="Refresh"
+              >
+                <IconRefresh />
+              </button>
+              <button
+                type="button"
+                className="lookup-panel__icon-button"
+                onClick={onClose}
+                aria-label="Close lookup"
+                title="Close"
+              >
+                <IconClose />
+              </button>
+            </div>
           </div>
       </div>
       <div className="lookup-panel__body">

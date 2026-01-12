@@ -2220,7 +2220,8 @@ html[data-reader-theme="dark"] .reader-layout {
 
 .lookup-panel__actions {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -2276,6 +2277,40 @@ html[data-reader-theme="dark"] .reader-layout {
   color: var(--reader-accent);
 }
 
+.lookup-panel__icon-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lookup-panel__icon-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--reader-border);
+  background: transparent;
+  color: var(--reader-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.lookup-panel__icon-button:hover {
+  border-color: var(--reader-accent);
+  color: var(--reader-accent);
+}
+
+.lookup-panel__icon-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .lookup-panel__body {
   position: relative;
   flex: 1;
@@ -2297,7 +2332,7 @@ html[data-reader-theme="dark"] .reader-layout {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: rgba(255, 255, 255, 0.85);
+  background: color-mix(in srgb, var(--reader-panel) 85%, transparent);
   color: var(--reader-ink);
   font-size: 13px;
   z-index: 2;
