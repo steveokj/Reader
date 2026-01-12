@@ -42,13 +42,21 @@ export default function LookupPanel({
 }: LookupPanelProps) {
   const apiBase = getClientApiBase();
   const trimmed = word.trim();
+  const [activeProvider, setActiveProvider] = useState<LookupProvider>(provider);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
     if (open) {
       setStatus("loading");
     }
-  }, [open, trimmed, provider, refreshKey]);
+  }, [open, trimmed, refreshKey, activeProvider]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    setActiveProvider(provider);
+  }, [open, provider]);
 
   useEffect(() => {
     if (!open) {
@@ -95,7 +103,7 @@ export default function LookupPanel({
   const snapshotUrl = useMemo(() => {
     const params = new URLSearchParams({
       word: trimmed,
-      provider,
+      provider: activeProvider,
       width: String(DEFAULT_VIEWPORT.width),
       height: String(DEFAULT_VIEWPORT.height),
       full_page: DEFAULT_FULL_PAGE ? "true" : "false",
@@ -103,7 +111,7 @@ export default function LookupPanel({
       v: String(refreshKey),
     });
     return `${apiBase}/lookup/snapshot?${params.toString()}`;
-  }, [apiBase, provider, refreshKey, trimmed]);
+  }, [apiBase, activeProvider, refreshKey, trimmed]);
 
   if (!open || !trimmed) {
     return null;
@@ -127,13 +135,29 @@ export default function LookupPanel({
             <span className="lookup-panel__word">{trimmed}</span>
           </div>
           <div className="lookup-panel__actions">
+            <div className="lookup-panel__provider" role="group" aria-label="Provider">
+              <button
+                type="button"
+                className={activeProvider === "vocabulary" ? "is-active" : ""}
+                onClick={() => setActiveProvider("vocabulary")}
+              >
+                Vocabulary
+              </button>
+              <button
+                type="button"
+                className={activeProvider === "merriam" ? "is-active" : ""}
+                onClick={() => setActiveProvider("merriam")}
+              >
+                Merriam
+              </button>
+            </div>
             <a
               className="lookup-panel__link"
-              href={getProviderUrl(provider, trimmed)}
+              href={getProviderUrl(activeProvider, trimmed)}
               target="_blank"
               rel="noreferrer"
             >
-              Open on {getProviderLabel(provider)}
+              Open on {getProviderLabel(activeProvider)}
             </a>
             <button type="button" onClick={onRefresh}>
               Refresh
@@ -142,19 +166,22 @@ export default function LookupPanel({
               Close
             </button>
           </div>
-        </div>
-        <div className="lookup-panel__body">
-          {status === "loading" ? (
-            <div className="lookup-panel__status">Loading snapshot...</div>
-          ) : null}
-          {status === "error" ? (
-            <div className="lookup-panel__status lookup-panel__status--error">
-              Snapshot failed. Try refresh.
-            </div>
-          ) : null}
-          <img
-            src={snapshotUrl}
-            alt={`Dictionary snapshot for ${trimmed}`}
+      </div>
+      <div className="lookup-panel__body">
+        {status === "loading" ? (
+          <div className="lookup-panel__overlay">
+            <span className="explore-spinner" aria-hidden="true" />
+            <span>Loading snapshot...</span>
+          </div>
+        ) : null}
+        {status === "error" ? (
+          <div className="lookup-panel__overlay lookup-panel__overlay--error">
+            Snapshot failed. Try refresh.
+          </div>
+        ) : null}
+        <img
+          src={snapshotUrl}
+          alt={`Dictionary snapshot for ${trimmed}`}
             onLoad={() => setStatus("ready")}
             onError={() => setStatus("error")}
           />

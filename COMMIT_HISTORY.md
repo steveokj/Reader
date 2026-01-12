@@ -20,3 +20,4 @@
 | pending | Element-based full-page capture for Merriam | nope. now it is back to 3x. | Screenshot the main element for Merriam full-page to avoid duplication | 2026-01-11 21:28:32 |
 | pending | Use Merriam redesign container for full-page | try this element: <div class="redesign-container"> | Use .redesign-container as the Merriam screenshot element | 2026-01-11 21:42:43 |
 | pending | Default lookup provider to Vocabulary | Back to 1.25x. Lets ignnore for now and move from merriam back to vocabulary.com | Switch lookup provider defaults to vocabulary.com | 2026-01-11 21:45:57 |
+| pending | Add lookup provider toggle + centered spinner | perfect. add the toggle. also while waiting for it to load, I current get loading snapshot.. in the top left. Instead lets have a spinner in the middle with loading snapshot. | Add provider switcher and centered loading overlay | 2026-01-11 21:50:43 |
