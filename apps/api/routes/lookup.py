@@ -196,7 +196,7 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
         )
 
     with sync_playwright() as playwright:
-        browser_name = "webkit" if is_mobile else "chromium"
+        browser_name = "chromium"
         browser_type = getattr(playwright, browser_name)
         if CHANNEL and browser_name == "chromium":
             launch_options["channel"] = CHANNEL
