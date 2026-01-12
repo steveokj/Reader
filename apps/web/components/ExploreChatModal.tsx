@@ -19,6 +19,7 @@ type ExploreChatModalProps = {
   bookTitle?: string | null;
   documentId?: number | null;
   selectionText?: string | null;
+  isMobile?: boolean;
   selectionAnchor?: {
     selectionId?: number | null;
     sectionId?: number | null;
@@ -152,6 +153,7 @@ export default function ExploreChatModal({
   bookTitle,
   documentId,
   selectionText,
+  isMobile = false,
   selectionAnchor,
   onRequestAnchor,
   onOpenArtifactNote,
@@ -835,6 +837,7 @@ export default function ExploreChatModal({
             label={artifactMenu.label}
             contextText={artifactMenu.contextText}
             markerKinds={artifactMarkerKinds}
+            variant={isMobile ? "mobile" : "floating"}
             onToggleMarker={toggleArtifactMarker}
             onNote={() => handleArtifactAction("note")}
             onAudio={() => handleArtifactAction("audio")}

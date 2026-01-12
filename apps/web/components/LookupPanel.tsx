@@ -411,6 +411,7 @@ export default function LookupPanel({
             label={artifactMenu.label}
             contextText={artifactMenu.contextText}
             markerKinds={artifactMarkerKinds}
+            variant={isMobile ? "mobile" : "floating"}
             onToggleMarker={toggleArtifactMarker}
             onNote={() => handleArtifactAction("note")}
             onAudio={() => handleArtifactAction("audio")}

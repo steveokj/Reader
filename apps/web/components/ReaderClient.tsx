@@ -4018,6 +4018,7 @@ export default function ReaderClient({
         bookTitle={documentTitle}
         documentId={documentId}
         selectionText={exploreSelectionText}
+        isMobile={isMobile}
         selectionAnchor={exploreAnchor}
         onRequestAnchor={handleRequestExploreAnchor}
         onOpenArtifactNote={handleOpenArtifactNote}
