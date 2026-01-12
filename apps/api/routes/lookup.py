@@ -146,15 +146,19 @@ def render_snapshot(
     elif USER_AGENT:
         context_options["user_agent"] = USER_AGENT
 
-    def apply_stealth(context) -> None:
+    def apply_stealth(context, mobile: bool) -> None:
         if not STEALTH:
             return
+        platform = "iPhone" if mobile else "Win32"
+        vendor = "Apple Computer, Inc." if mobile else "Google Inc."
+        max_touch_points = 5 if mobile else 0
         context.add_init_script(
-            """
+            f"""
 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
 Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
-Object.defineProperty(navigator, 'platform', {get: () => 'Win32'});
-Object.defineProperty(navigator, 'vendor', {get: () => 'Google Inc.'});
+Object.defineProperty(navigator, 'platform', {{get: () => '{platform}'}});
+Object.defineProperty(navigator, 'vendor', {{get: () => '{vendor}'}});
+Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_points}}});
 """
         )
 
@@ -165,7 +169,7 @@ Object.defineProperty(navigator, 'vendor', {get: () => 'Google Inc.'});
                 str(PROFILE_DIR), **launch_options, **context_options
             )
             try:
-                apply_stealth(context)
+                apply_stealth(context, is_mobile)
                 page = context.pages[0] if context.pages else context.new_page()
                 page.goto(url, wait_until="domcontentloaded", timeout=20000)
                 if WAIT_SELECTOR:
@@ -179,7 +183,7 @@ Object.defineProperty(navigator, 'vendor', {get: () => 'Google Inc.'});
             browser = playwright.chromium.launch(**launch_options)
             try:
                 context = browser.new_context(**context_options)
-                apply_stealth(context)
+                apply_stealth(context, is_mobile)
                 page = context.new_page()
                 page.goto(url, wait_until="domcontentloaded", timeout=20000)
                 if WAIT_SELECTOR:
