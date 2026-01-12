@@ -146,6 +146,12 @@ def render_snapshot(
             context_options["viewport"]["width"] = MOBILE_WIDTH
         if MOBILE_HEIGHT_ENV:
             context_options["viewport"]["height"] = MOBILE_HEIGHT
+        if "viewport" in context_options:
+            if "screen" not in context_options:
+                context_options["screen"] = dict(context_options["viewport"])
+            else:
+                context_options["screen"]["width"] = context_options["viewport"]["width"]
+                context_options["screen"]["height"] = context_options["viewport"]["height"]
     elif USER_AGENT:
         context_options["user_agent"] = USER_AGENT
 
@@ -171,6 +177,19 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
 """
         )
 
+    def strip_client_hints(context, mobile: bool) -> None:
+        if not mobile:
+            return
+
+        def handler(route, request) -> None:
+            headers = dict(request.headers)
+            for key in list(headers.keys()):
+                if key.lower().startswith("sec-ch-"):
+                    headers.pop(key, None)
+            route.continue_(headers=headers)
+
+        context.route("**/*", handler)
+
     with sync_playwright() as playwright:
         if PERSISTENT_PROFILE:
             profile_dir = PROFILE_DIR_MOBILE if is_mobile else PROFILE_DIR
@@ -180,6 +199,7 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
             )
             try:
                 apply_stealth(context, is_mobile)
+                strip_client_hints(context, is_mobile)
                 page = context.pages[0] if context.pages else context.new_page()
                 page.goto(url, wait_until="domcontentloaded", timeout=20000)
                 if WAIT_SELECTOR:
@@ -194,6 +214,7 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
             try:
                 context = browser.new_context(**context_options)
                 apply_stealth(context, is_mobile)
+                strip_client_hints(context, is_mobile)
                 page = context.new_page()
                 page.goto(url, wait_until="domcontentloaded", timeout=20000)
                 if WAIT_SELECTOR:
