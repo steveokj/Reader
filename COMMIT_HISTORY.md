@@ -29,3 +29,4 @@
 | 06fe7bb | Set initial theme background inline | do 2 | Inline theme background in layout to avoid flash | 2026-01-11 23:39:08 |
 | 23b3689ab3ba07c6dea48bef7d8184fab27a6938 | Gate reader render on settings load | dont render the reader until /settings loads (option 1) | Gate initial render on settings load with full-screen loading shell | 2026-01-12 00:14:12 |
 | 31b56601c82ff6e64f3341f698ddf3e08784ddd4 | Theme bootstrap for loading shell | loading screen is dark before sepia loads | Use stored theme to color pre-settings loader | 2026-01-12 00:38:50 |
+| b47bdb64fc4b7c8c76eec091857f79807a0ee2cc | Remove pre-settings loading shell | ok..i dont want a presettings loading shell anymore. get from settings | Render nothing until settings load; drop bootstrap loader | 2026-01-12 00:42:50 |
