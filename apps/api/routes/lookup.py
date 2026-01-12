@@ -52,6 +52,7 @@ USER_AGENT = os.getenv("LOOKUP_SNAPSHOT_USER_AGENT")
 CHANNEL = os.getenv("LOOKUP_SNAPSHOT_CHANNEL")
 STEALTH = os.getenv("LOOKUP_SNAPSHOT_STEALTH", "0") == "1"
 WAIT_SELECTOR = os.getenv("LOOKUP_SNAPSHOT_WAIT_SELECTOR")
+DISABLE_STICKY = os.getenv("LOOKUP_SNAPSHOT_DISABLE_STICKY", "1") == "1"
 FULL_PAGE_MODE = os.getenv("LOOKUP_SNAPSHOT_FULL_PAGE_MODE", DEFAULT_FULL_PAGE_MODE).lower()
 FULL_PAGE_MAX_HEIGHT = int(
     os.getenv("LOOKUP_SNAPSHOT_FULL_PAGE_MAX_HEIGHT", str(DEFAULT_FULL_PAGE_MAX_HEIGHT))
@@ -206,6 +207,27 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
         if not full:
             page.screenshot(path=str(path), full_page=False)
             return
+        if DISABLE_STICKY:
+            try:
+                page.evaluate(
+                    """
+() => {
+  const all = document.querySelectorAll('*');
+  for (const el of all) {
+    const style = window.getComputedStyle(el);
+    if (style.position === 'fixed' || style.position === 'sticky') {
+      el.style.position = 'static';
+      el.style.top = 'auto';
+      el.style.bottom = 'auto';
+      el.style.left = 'auto';
+      el.style.right = 'auto';
+    }
+  }
+}
+"""
+                )
+            except Exception:
+                pass
         if FULL_PAGE_MODE == "scroll":
             page.screenshot(path=str(path), full_page=True)
             return

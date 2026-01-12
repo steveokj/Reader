@@ -16,3 +16,4 @@
 | pending | Force .env override of process env | do it. and tell me more about override | Ensure .env wins over existing env vars | 2026-01-11 20:32:35 |
 | pending | Make lookup panel full-screen modal | ok. look at the explore modal that pops up when the explore button is clicked on the navbar. make the modal of this be as full screen and fixed as that. | Switch lookup panel to a full-screen fixed modal like Explore | 2026-01-11 20:52:35 |
 | pending | Avoid duplicate full-page captures | no. i want the full page. just dont wantt it twice | Use tall viewport capture mode for full-page screenshots | 2026-01-11 21:14:09 |
+| pending | Disable sticky/fixed for full-page | still there. now instead of twice it is 1 page and maybe 10% of the same page | Strip sticky/fixed positioning before full-page capture | 2026-01-11 21:20:01 |
