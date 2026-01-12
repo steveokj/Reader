@@ -161,6 +161,39 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
 
         context.route("**/*", handler)
 
+    def apply_mobile_viewport_override(context, mobile: bool) -> None:
+        if not mobile:
+            return
+        context.add_init_script(
+            """
+(() => {
+  const ensureViewport = () => {
+    const head = document.head || document.getElementsByTagName('head')[0];
+    if (!head) return;
+    let meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.name = 'viewport';
+      head.appendChild(meta);
+    }
+    meta.content = 'width=device-width, initial-scale=1';
+    let style = document.getElementById('codex-viewport-style');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'codex-viewport-style';
+      style.textContent = '@viewport { width: device-width; } @-ms-viewport { width: device-width; }';
+      head.appendChild(style);
+    }
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ensureViewport);
+  } else {
+    ensureViewport();
+  }
+})();
+"""
+        )
+
     with sync_playwright() as playwright:
         browser_name = "webkit" if is_mobile else "chromium"
         browser_type = getattr(playwright, browser_name)
@@ -202,6 +235,7 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
             try:
                 apply_stealth(context, is_mobile)
                 strip_client_hints(context, is_mobile)
+                apply_mobile_viewport_override(context, is_mobile)
                 page = context.pages[0] if context.pages else context.new_page()
                 page.goto(url, wait_until="domcontentloaded", timeout=20000)
                 if WAIT_SELECTOR:
@@ -217,6 +251,7 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
                 context = browser.new_context(**context_options)
                 apply_stealth(context, is_mobile)
                 strip_client_hints(context, is_mobile)
+                apply_mobile_viewport_override(context, is_mobile)
                 page = context.new_page()
                 page.goto(url, wait_until="domcontentloaded", timeout=20000)
                 if WAIT_SELECTOR:

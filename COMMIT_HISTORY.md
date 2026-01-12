@@ -7,3 +7,4 @@
 | pending | Strip client hints; sync screen to viewport | maybe it uses the width | Remove sec-ch- headers for mobile and align screen size with viewport | 2026-01-11 19:24:21 |
 | pending | Use WebKit for mobile snapshots | switch | Run mobile snapshots with Playwright WebKit instead of Chromium | 2026-01-11 19:29:22 |
 | pending | Fix WebKit selection scoping bug | {    "detail": "Snapshot failed. (UnboundLocalError: cannot access local variable 'playwright' where it is not associated with a value)" } | Move browser selection inside Playwright context | 2026-01-11 19:31:20 |
+| pending | Inject mobile viewport CSS/meta | add css viewport | Add meta viewport + @viewport CSS for mobile snapshots | 2026-01-11 19:32:55 |
