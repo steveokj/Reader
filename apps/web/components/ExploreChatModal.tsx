@@ -1,14 +1,17 @@
 "use client";
 
-import type { FormEvent } from "react";
+import type { FormEvent, MouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import ArtifactActionMenu from "@/components/ArtifactActionMenu";
 import { getClientApiBase } from "@/lib/apiBase";
 
 type ChatMessage = {
   id: number;
   role: "user" | "assistant";
   content: string;
+  additionId?: number | null;
+  selectionId?: number | null;
 };
 
 type ExploreChatModalProps = {
@@ -16,12 +19,60 @@ type ExploreChatModalProps = {
   bookTitle?: string | null;
   documentId?: number | null;
   selectionText?: string | null;
+  selectionAnchor?: {
+    selectionId?: number | null;
+    sectionId?: number | null;
+    selector?: {
+      position: { start: number; end: number };
+      quote: { exact: string; prefix: string; suffix: string };
+    };
+  } | null;
+  onRequestAnchor?: () => {
+    sectionId: number;
+    selector: {
+      position: { start: number; end: number };
+      quote: { exact: string; prefix: string; suffix: string };
+    };
+  } | null;
+  onOpenArtifactNote?: (source: {
+    additionId: number;
+    selectionId: number;
+    kind: string;
+    previewText?: string;
+  }) => void;
+  onOpenArtifactAudio?: (source: {
+    additionId: number;
+    selectionId: number;
+    kind: string;
+    previewText?: string;
+  }) => void;
+  onOpenArtifactExplore?: (source: {
+    additionId: number;
+    selectionId: number;
+    kind: string;
+    previewText?: string;
+  }) => void;
   onClose: () => void;
 };
 
 type MessagePart =
   | { type: "text"; value: string }
   | { type: "image"; url: string; alt: string };
+
+type AdditionMarker = {
+  id: number;
+  kind: "like" | "highlight" | "todo";
+};
+
+type ArtifactMenuState = {
+  top: number;
+  left: number;
+  label: string;
+  contextText: string;
+  additionId: number;
+  selectionId: number;
+  kind: string;
+};
 
 const CONTEXT_PREVIEW_LIMIT = 140;
 const FALLBACK_BOOK_TITLE = "the current book";
@@ -101,6 +152,11 @@ export default function ExploreChatModal({
   bookTitle,
   documentId,
   selectionText,
+  selectionAnchor,
+  onRequestAnchor,
+  onOpenArtifactNote,
+  onOpenArtifactAudio,
+  onOpenArtifactExplore,
   onClose,
 }: ExploreChatModalProps) {
   const apiBase = getClientApiBase();
@@ -113,6 +169,16 @@ export default function ExploreChatModal({
   const [zoomedImage, setZoomedImage] = useState<{ url: string; alt: string } | null>(
     null
   );
+  const [anchorSelectionId, setAnchorSelectionId] = useState<number | null>(null);
+  const [anchorDraft, setAnchorDraft] = useState<{
+    sectionId: number;
+    selector: {
+      position: { start: number; end: number };
+      quote: { exact: string; prefix: string; suffix: string };
+    };
+  } | null>(null);
+  const [artifactMenu, setArtifactMenu] = useState<ArtifactMenuState | null>(null);
+  const [artifactMarkers, setArtifactMarkers] = useState<AdditionMarker[]>([]);
   const messageIdRef = useRef(0);
   const messagesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -131,6 +197,29 @@ export default function ExploreChatModal({
   }, [bookTitle, documentId]);
 
   const contextPreview = useMemo(() => truncateContext(contextText), [contextText]);
+  const artifactMarkerKinds = useMemo(
+    () => artifactMarkers.map((marker) => marker.kind),
+    [artifactMarkers]
+  );
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    if (selectionAnchor?.selectionId) {
+      setAnchorSelectionId(selectionAnchor.selectionId);
+    } else {
+      setAnchorSelectionId(null);
+    }
+    if (selectionAnchor?.sectionId && selectionAnchor.selector) {
+      setAnchorDraft({
+        sectionId: selectionAnchor.sectionId,
+        selector: selectionAnchor.selector,
+      });
+    } else {
+      setAnchorDraft(null);
+    }
+  }, [open, selectionAnchor]);
 
   useEffect(() => {
     if (!open) {
@@ -356,6 +445,13 @@ export default function ExploreChatModal({
     });
   }, [open]);
 
+  useEffect(() => {
+    if (!open) {
+      setArtifactMenu(null);
+      setArtifactMarkers([]);
+    }
+  }, [open]);
+
   const normalizeError = (err: unknown) => {
     if (err instanceof Error) {
       const message = err.message.toLowerCase();
@@ -366,6 +462,197 @@ export default function ExploreChatModal({
     }
     return "Explore request failed.";
   };
+
+  const ensureAnchorSelectionId = useCallback(async () => {
+    if (anchorSelectionId) {
+      return anchorSelectionId;
+    }
+    const draft = anchorDraft ?? onRequestAnchor?.();
+    if (!draft || !documentId) {
+      return null;
+    }
+    try {
+      const response = await fetch(`${apiBase}/selections`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          document_id: documentId,
+          section_id: draft.sectionId,
+          selector: draft.selector,
+        }),
+      });
+      if (!response.ok) {
+        return null;
+      }
+      const data = (await response.json()) as { selection?: { id?: number } };
+      if (data.selection?.id) {
+        setAnchorSelectionId(data.selection.id);
+        setAnchorDraft(draft);
+        return data.selection.id;
+      }
+    } catch (error) {
+      console.error(error);
+    }
+    return null;
+  }, [anchorDraft, anchorSelectionId, apiBase, documentId, onRequestAnchor]);
+
+  const attachAdditionToMessage = useCallback((messageId: number, additionId: number, selectionId: number) => {
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === messageId ? { ...message, additionId, selectionId } : message
+      )
+    );
+  }, []);
+
+  const saveExploreAddition = useCallback(
+    async (message: ChatMessage, promptText: string) => {
+      if (message.role !== "assistant") {
+        return;
+      }
+      const selectionId = await ensureAnchorSelectionId();
+      if (!selectionId) {
+        return;
+      }
+      try {
+        const response = await fetch(`${apiBase}/additions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            selection_id: selectionId,
+            type: "explore",
+            text_content: message.content,
+            payload: {
+              thread_id: threadId,
+              message_id: message.id,
+              role: message.role,
+              prompt: promptText,
+              content: message.content,
+              context_text: contextText,
+            },
+          }),
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { addition?: { id?: number; selection_id?: number } };
+        if (data.addition?.id && data.addition?.selection_id) {
+          attachAdditionToMessage(message.id, data.addition.id, data.addition.selection_id);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [apiBase, attachAdditionToMessage, contextText, ensureAnchorSelectionId, threadId]
+  );
+
+  const loadArtifactMarkers = useCallback(
+    async (additionId: number) => {
+      try {
+        const response = await fetch(
+          `${apiBase}/markers?target_type=addition&target_id=${additionId}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { markers?: AdditionMarker[] };
+        setArtifactMarkers(data.markers ?? []);
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [apiBase]
+  );
+
+  const toggleArtifactMarker = useCallback(
+    async (kind: "like" | "highlight" | "todo") => {
+      if (!artifactMenu) {
+        return;
+      }
+      const existing = artifactMarkers.find((marker) => marker.kind === kind);
+      if (existing) {
+        try {
+          const response = await fetch(`${apiBase}/markers/${existing.id}`, {
+            method: "DELETE",
+          });
+          if (response.ok) {
+            setArtifactMarkers((prev) => prev.filter((marker) => marker.id !== existing.id));
+          }
+        } catch (error) {
+          console.error(error);
+        }
+        return;
+      }
+      try {
+        const response = await fetch(`${apiBase}/markers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            target_type: "addition",
+            target_id: artifactMenu.additionId,
+            kind,
+          }),
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { marker?: AdditionMarker };
+        if (data.marker) {
+          setArtifactMarkers((prev) => [...prev, data.marker as AdditionMarker]);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [apiBase, artifactMarkers, artifactMenu]
+  );
+
+  const handleArtifactAction = useCallback(
+    (action: "note" | "audio" | "explore") => {
+      if (!artifactMenu) {
+        return;
+      }
+      const source = {
+        additionId: artifactMenu.additionId,
+        selectionId: artifactMenu.selectionId,
+        kind: artifactMenu.kind,
+        previewText: artifactMenu.contextText,
+      };
+      if (action === "note") {
+        onOpenArtifactNote?.(source);
+      } else if (action === "audio") {
+        onOpenArtifactAudio?.(source);
+      } else {
+        onOpenArtifactExplore?.(source);
+      }
+      setArtifactMenu(null);
+    },
+    [artifactMenu, onOpenArtifactAudio, onOpenArtifactExplore, onOpenArtifactNote]
+  );
+
+  const handleMessageDoubleClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>, message: ChatMessage) => {
+      if (message.role !== "assistant" || !message.additionId || !message.selectionId) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const menuTop = Math.max(12, rect.top - 72);
+      const menuLeft = Math.max(12, rect.left);
+      setArtifactMenu({
+        top: menuTop,
+        left: menuLeft,
+        label: "Explore response",
+        contextText: message.content,
+        additionId: message.additionId,
+        selectionId: message.selectionId,
+        kind: "explore",
+      });
+      void loadArtifactMarkers(message.additionId);
+    },
+    [loadArtifactMarkers]
+  );
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -414,10 +701,13 @@ export default function ExploreChatModal({
         };
         const assistantText = data.messages?.[0]?.content ?? "";
         if (assistantText) {
-          setMessages((prev) => [
-            ...prev,
-            { id: Date.now() + messageIdRef.current++, role: "assistant", content: assistantText },
-          ]);
+          const assistantMessage: ChatMessage = {
+            id: Date.now() + messageIdRef.current++,
+            role: "assistant",
+            content: assistantText,
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+          void saveExploreAddition(assistantMessage, trimmed);
         }
         if (data.thread?.id && !threadId) {
           setThreadId(data.thread.id);
@@ -428,7 +718,16 @@ export default function ExploreChatModal({
         setIsSubmitting(false);
       }
     },
-    [apiBase, bookTitle, contextText, documentId, draftMessage, isSubmitting, threadId]
+    [
+      apiBase,
+      bookTitle,
+      contextText,
+      documentId,
+      draftMessage,
+      isSubmitting,
+      saveExploreAddition,
+      threadId,
+    ]
   );
 
   return (
@@ -478,6 +777,7 @@ export default function ExploreChatModal({
             <div
               key={message.id}
               className={`chat-message chat-message--${message.role}`}
+              onDoubleClick={(event) => handleMessageDoubleClick(event, message)}
             >
               {parseMessageParts(message.content).map((part, index) =>
                 part.type === "image" ? (
@@ -522,6 +822,20 @@ export default function ExploreChatModal({
             {isSubmitting ? "Sending..." : "Send"}
           </button>
         </form>
+        {artifactMenu ? (
+          <ArtifactActionMenu
+            top={artifactMenu.top}
+            left={artifactMenu.left}
+            label={artifactMenu.label}
+            contextText={artifactMenu.contextText}
+            markerKinds={artifactMarkerKinds}
+            onToggleMarker={toggleArtifactMarker}
+            onNote={() => handleArtifactAction("note")}
+            onAudio={() => handleArtifactAction("audio")}
+            onExplore={() => handleArtifactAction("explore")}
+            onClose={() => setArtifactMenu(null)}
+          />
+        ) : null}
       </div>
       {zoomedImage ? (
         <div

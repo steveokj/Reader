@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { MouseEvent } from "react";
 
+import ArtifactActionMenu from "@/components/ArtifactActionMenu";
 import { getClientApiBase } from "@/lib/apiBase";
 
 type LookupProvider = "merriam" | "vocabulary";
@@ -12,8 +14,46 @@ type LookupPanelProps = {
   provider?: LookupProvider;
   refreshKey: number;
   isMobile?: boolean;
+  sourceAdditionId?: number | null;
+  sourceSelectionId?: number | null;
+  onOpenArtifactNote?: (source: {
+    additionId: number;
+    selectionId: number;
+    kind: string;
+    previewText?: string;
+    snapshotUrl?: string;
+  }) => void;
+  onOpenArtifactAudio?: (source: {
+    additionId: number;
+    selectionId: number;
+    kind: string;
+    previewText?: string;
+    snapshotUrl?: string;
+  }) => void;
+  onOpenArtifactExplore?: (source: {
+    additionId: number;
+    selectionId: number;
+    kind: string;
+    previewText?: string;
+    snapshotUrl?: string;
+  }) => void;
   onRefresh: () => void;
   onClose: () => void;
+};
+
+type AdditionMarker = {
+  id: number;
+  kind: "like" | "highlight" | "todo";
+};
+
+type ArtifactMenuState = {
+  top: number;
+  left: number;
+  label: string;
+  contextText: string;
+  additionId: number;
+  selectionId: number;
+  snapshotUrl: string;
 };
 
 const DEFAULT_VIEWPORT = { width: 1200, height: 900 };
@@ -63,6 +103,11 @@ export default function LookupPanel({
   provider = "vocabulary",
   refreshKey,
   isMobile,
+  sourceAdditionId,
+  sourceSelectionId,
+  onOpenArtifactNote,
+  onOpenArtifactAudio,
+  onOpenArtifactExplore,
   onRefresh,
   onClose,
 }: LookupPanelProps) {
@@ -70,6 +115,8 @@ export default function LookupPanel({
   const trimmed = word.trim();
   const [activeProvider, setActiveProvider] = useState<LookupProvider>(provider);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [artifactMenu, setArtifactMenu] = useState<ArtifactMenuState | null>(null);
+  const [artifactMarkers, setArtifactMarkers] = useState<AdditionMarker[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -83,6 +130,13 @@ export default function LookupPanel({
     }
     setActiveProvider(provider);
   }, [open, provider]);
+
+  useEffect(() => {
+    if (!open) {
+      setArtifactMenu(null);
+      setArtifactMarkers([]);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -138,6 +192,121 @@ export default function LookupPanel({
     });
     return `${apiBase}/lookup/snapshot?${params.toString()}`;
   }, [apiBase, activeProvider, refreshKey, trimmed]);
+
+  const artifactMarkerKinds = useMemo(
+    () => artifactMarkers.map((marker) => marker.kind),
+    [artifactMarkers]
+  );
+
+  const loadArtifactMarkers = useCallback(
+    async (additionId: number) => {
+      try {
+        const response = await fetch(
+          `${apiBase}/markers?target_type=addition&target_id=${additionId}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { markers?: AdditionMarker[] };
+        setArtifactMarkers(data.markers ?? []);
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [apiBase]
+  );
+
+  const toggleArtifactMarker = useCallback(
+    async (kind: "like" | "highlight" | "todo") => {
+      if (!artifactMenu) {
+        return;
+      }
+      const existing = artifactMarkers.find((marker) => marker.kind === kind);
+      if (existing) {
+        try {
+          const response = await fetch(`${apiBase}/markers/${existing.id}`, {
+            method: "DELETE",
+          });
+          if (response.ok) {
+            setArtifactMarkers((prev) => prev.filter((marker) => marker.id !== existing.id));
+          }
+        } catch (error) {
+          console.error(error);
+        }
+        return;
+      }
+      try {
+        const response = await fetch(`${apiBase}/markers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            target_type: "addition",
+            target_id: artifactMenu.additionId,
+            kind,
+          }),
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { marker?: AdditionMarker };
+        if (data.marker) {
+          setArtifactMarkers((prev) => [...prev, data.marker as AdditionMarker]);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [apiBase, artifactMarkers, artifactMenu]
+  );
+
+  const handleArtifactAction = useCallback(
+    (action: "note" | "audio" | "explore") => {
+      if (!artifactMenu) {
+        return;
+      }
+      const source = {
+        additionId: artifactMenu.additionId,
+        selectionId: artifactMenu.selectionId,
+        kind: "grammar-snapshot",
+        previewText: artifactMenu.contextText,
+        snapshotUrl: artifactMenu.snapshotUrl,
+      };
+      if (action === "note") {
+        onOpenArtifactNote?.(source);
+      } else if (action === "audio") {
+        onOpenArtifactAudio?.(source);
+      } else {
+        onOpenArtifactExplore?.(source);
+      }
+      setArtifactMenu(null);
+    },
+    [artifactMenu, onOpenArtifactAudio, onOpenArtifactExplore, onOpenArtifactNote]
+  );
+
+  const handleSnapshotDoubleClick = useCallback(
+    (event: MouseEvent<HTMLImageElement>) => {
+      if (!sourceAdditionId || !sourceSelectionId) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const menuTop = Math.max(12, rect.top - 72);
+      const menuLeft = Math.max(12, rect.left);
+      setArtifactMenu({
+        top: menuTop,
+        left: menuLeft,
+        label: "Dictionary snapshot",
+        contextText: `Dictionary snapshot for ${trimmed}`,
+        additionId: sourceAdditionId,
+        selectionId: sourceSelectionId,
+        snapshotUrl,
+      });
+      void loadArtifactMarkers(sourceAdditionId);
+    },
+    [loadArtifactMarkers, snapshotUrl, sourceAdditionId, sourceSelectionId, trimmed]
+  );
 
   if (!open || !trimmed) {
     return null;
@@ -208,26 +377,41 @@ export default function LookupPanel({
               </button>
             </div>
           </div>
-      </div>
-      <div className="lookup-panel__body">
-        {status === "loading" ? (
-          <div className="lookup-panel__overlay">
-            <span className="explore-spinner" aria-hidden="true" />
-            <span>Loading snapshot...</span>
-          </div>
-        ) : null}
-        {status === "error" ? (
-          <div className="lookup-panel__overlay lookup-panel__overlay--error">
-            Snapshot failed. Try refresh.
-          </div>
-        ) : null}
-        <img
-          src={snapshotUrl}
-          alt={`Dictionary snapshot for ${trimmed}`}
+        </div>
+        <div className="lookup-panel__body">
+          {status === "loading" ? (
+            <div className="lookup-panel__overlay">
+              <span className="explore-spinner" aria-hidden="true" />
+              <span>Loading snapshot...</span>
+            </div>
+          ) : null}
+          {status === "error" ? (
+            <div className="lookup-panel__overlay lookup-panel__overlay--error">
+              Snapshot failed. Try refresh.
+            </div>
+          ) : null}
+          <img
+            src={snapshotUrl}
+            alt={`Dictionary snapshot for ${trimmed}`}
             onLoad={() => setStatus("ready")}
             onError={() => setStatus("error")}
+            onDoubleClick={handleSnapshotDoubleClick}
           />
         </div>
+        {artifactMenu ? (
+          <ArtifactActionMenu
+            top={artifactMenu.top}
+            left={artifactMenu.left}
+            label={artifactMenu.label}
+            contextText={artifactMenu.contextText}
+            markerKinds={artifactMarkerKinds}
+            onToggleMarker={toggleArtifactMarker}
+            onNote={() => handleArtifactAction("note")}
+            onAudio={() => handleArtifactAction("audio")}
+            onExplore={() => handleArtifactAction("explore")}
+            onClose={() => setArtifactMenu(null)}
+          />
+        ) : null}
       </div>
     </div>
   );

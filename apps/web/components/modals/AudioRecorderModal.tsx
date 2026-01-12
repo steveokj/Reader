@@ -18,6 +18,7 @@ type AudioRecorderModalProps = {
   onSave: (payload: AudioPayload) => void;
   onClearSelection: () => void;
   onClose: () => void;
+  showMarkers?: boolean;
 };
 
 type RecorderState = "idle" | "recording" | "paused" | "recorded" | "uploading";
@@ -112,6 +113,7 @@ export default function AudioRecorderModal({
   onSave,
   onClearSelection,
   onClose,
+  showMarkers = true,
 }: AudioRecorderModalProps) {
   const [state, setState] = useState<RecorderState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -303,9 +305,11 @@ export default function AudioRecorderModal({
           </button>
         </div>
 
-        <div className="modal-markers">
-          <MarkerToggle activeKinds={markerKinds} onToggle={onToggleMarker} compact />
-        </div>
+        {showMarkers ? (
+          <div className="modal-markers">
+            <MarkerToggle activeKinds={markerKinds} onToggle={onToggleMarker} compact />
+          </div>
+        ) : null}
 
         <div className="modal-section">
           <div className="audio-status">

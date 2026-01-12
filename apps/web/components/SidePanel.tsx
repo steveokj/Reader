@@ -96,6 +96,7 @@ export default function SidePanel({
   const notes = additions.filter((addition) => addition.type === "note");
   const grammarItems = additions.filter((addition) => addition.type === "grammar");
   const audioItems = additions.filter((addition) => addition.type === "audio");
+  const exploreItems = additions.filter((addition) => addition.type === "explore");
   const markerKinds = markers.map((marker) => marker.kind as "like" | "highlight" | "todo");
 
   return (
@@ -231,6 +232,23 @@ export default function SidePanel({
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+            <div className="side-panel__section">
+              <div className="side-panel__section-title">Explore</div>
+              {exploreItems.length === 0 ? (
+                <div className="side-panel__empty">No explore responses yet.</div>
+              ) : (
+                <div className="note-list">
+                  {exploreItems.map((item) => (
+                    <div key={item.id} className="note-card">
+                      <div className="note-card__tag">Explore</div>
+                      {item.text_content ? (
+                        <div className="note-card__text">{item.text_content}</div>
+                      ) : null}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

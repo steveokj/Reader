@@ -12,6 +12,7 @@ type NoteModalProps = {
   onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
   onSave: (text: string) => void;
   onClose: () => void;
+  showMarkers?: boolean;
 };
 
 export default function NoteModal({
@@ -22,6 +23,7 @@ export default function NoteModal({
   onToggleMarker,
   onSave,
   onClose,
+  showMarkers = true,
 }: NoteModalProps) {
   const [text, setText] = useState(initialText);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -55,9 +57,11 @@ export default function NoteModal({
             Close
           </button>
         </div>
-        <div className="modal-markers">
-          <MarkerToggle activeKinds={markerKinds} onToggle={onToggleMarker} compact />
-        </div>
+        {showMarkers ? (
+          <div className="modal-markers">
+            <MarkerToggle activeKinds={markerKinds} onToggle={onToggleMarker} compact />
+          </div>
+        ) : null}
         <textarea
           className="modal-textarea"
           ref={textareaRef}

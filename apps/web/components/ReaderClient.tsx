@@ -446,6 +446,21 @@ type DraftSelection = {
   sectionId: number;
 };
 
+type ExploreAnchor = {
+  selectionId: number | null;
+  sectionId: number;
+  selector: MenuState["selector"];
+  selectionText: string;
+};
+
+type ArtifactSource = {
+  additionId: number;
+  selectionId: number;
+  kind: string;
+  previewText?: string;
+  snapshotUrl?: string;
+};
+
 type GrammarPayload = {
   kind: "word" | "bars" | "structure" | "lookup";
   text?: string;
@@ -652,7 +667,14 @@ export default function ReaderClient({
   const [lookupRefreshKey, setLookupRefreshKey] = useState(0);
   const [exploreModalOpen, setExploreModalOpen] = useState(false);
   const [exploreSelectionText, setExploreSelectionText] = useState("");
+  const [exploreAnchor, setExploreAnchor] = useState<ExploreAnchor | null>(null);
   const [editingNote, setEditingNote] = useState<Addition | null>(null);
+  const [artifactNoteOpen, setArtifactNoteOpen] = useState(false);
+  const [artifactNoteSource, setArtifactNoteSource] = useState<ArtifactSource | null>(null);
+  const [artifactAudioOpen, setArtifactAudioOpen] = useState(false);
+  const [artifactAudioSource, setArtifactAudioSource] = useState<ArtifactSource | null>(null);
+  const [lookupSourceAdditionId, setLookupSourceAdditionId] = useState<number | null>(null);
+  const [lookupSourceSelectionId, setLookupSourceSelectionId] = useState<number | null>(null);
   const scrolledSectionRef = useRef<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -1377,6 +1399,15 @@ export default function ReaderClient({
     draftSelection?.selectionText ??
     activeSelection?.selector.quote.exact ??
     "";
+  const buildExploreAnchorFromSelection = useCallback(
+    (selection: Selection): ExploreAnchor => ({
+      selectionId: selection.id,
+      sectionId: selection.section_id,
+      selector: selection.selector,
+      selectionText: selection.selector.quote.exact,
+    }),
+    []
+  );
 
   const refreshAdditionMarkers = useCallback(async (items: Addition[]) => {
     if (items.length === 0) {
@@ -2709,18 +2740,25 @@ export default function ReaderClient({
     setGrammarModalOpen(true);
   }, [activeSelectionId, isCommitted, menuState, setDraftSelection]);
 
-  const handleOpenLookup = useCallback((word: string) => {
+  const handleOpenLookup = useCallback(
+    (word: string, source?: { additionId?: number | null; selectionId?: number | null }) => {
     const trimmed = word.trim();
     if (!trimmed) {
       return;
     }
     setLookupWord(trimmed);
     setLookupRefreshKey(0);
+    setLookupSourceAdditionId(source?.additionId ?? null);
+    setLookupSourceSelectionId(source?.selectionId ?? null);
     setLookupPanelOpen(true);
-  }, []);
+  },
+    []
+  );
 
   const handleCloseLookup = useCallback(() => {
     setLookupPanelOpen(false);
+    setLookupSourceAdditionId(null);
+    setLookupSourceSelectionId(null);
   }, []);
 
   const handleRefreshLookup = useCallback(() => {
@@ -2760,8 +2798,33 @@ export default function ReaderClient({
   ]);
 
   const handleOpenExplore = useCallback(
-    (selectionText: string) => {
-      setExploreSelectionText(selectionText);
+    (selectionText: string, anchorOverride?: ExploreAnchor | null) => {
+      let anchor: ExploreAnchor | null = anchorOverride ?? null;
+      if (!anchor && menuState) {
+        anchor = {
+          selectionId: isCommitted ? activeSelectionId : null,
+          sectionId: menuState.sectionId,
+          selector: menuState.selector,
+          selectionText: menuState.selectionText,
+        };
+      }
+      if (!anchor && activeSelection) {
+        anchor = buildExploreAnchorFromSelection(activeSelection);
+      }
+      if (!anchor) {
+        const draft = buildDraftSelectionFromPosition();
+        if (draft) {
+          anchor = {
+            selectionId: null,
+            sectionId: draft.sectionId,
+            selector: draft.selector,
+            selectionText: draft.selectionText,
+          };
+        }
+      }
+      const resolvedText = selectionText?.trim() ? selectionText : anchor?.selectionText ?? "";
+      setExploreSelectionText(resolvedText);
+      setExploreAnchor(anchor);
       setExploreModalOpen(true);
       if (isMobile) {
         setMobilePanel(null);
@@ -2770,7 +2833,130 @@ export default function ReaderClient({
       }
       clearSelection();
     },
-    [clearSelection, isMobile]
+    [
+      activeSelection,
+      activeSelectionId,
+      buildDraftSelectionFromPosition,
+      buildExploreAnchorFromSelection,
+      clearSelection,
+      isCommitted,
+      isMobile,
+      menuState,
+    ]
+  );
+
+  const handleRequestExploreAnchor = useCallback(() => {
+    const draft = buildDraftSelectionFromPosition();
+    if (!draft) {
+      return null;
+    }
+    return {
+      sectionId: draft.sectionId,
+      selector: draft.selector,
+    };
+  }, [buildDraftSelectionFromPosition]);
+
+  const handleOpenArtifactNote = useCallback((source: ArtifactSource) => {
+    setArtifactNoteSource(source);
+    setArtifactNoteOpen(true);
+  }, []);
+
+  const handleOpenArtifactAudio = useCallback((source: ArtifactSource) => {
+    setArtifactAudioSource(source);
+    setArtifactAudioOpen(true);
+  }, []);
+
+  const handleOpenExploreFromArtifact = useCallback(
+    (source: ArtifactSource) => {
+      const selection = selections.find((item) => item.id === source.selectionId);
+      const anchor = selection ? buildExploreAnchorFromSelection(selection) : null;
+      handleOpenExplore(source.previewText ?? "", anchor);
+    },
+    [buildExploreAnchorFromSelection, handleOpenExplore, selections]
+  );
+
+  const handleSaveArtifactNote = useCallback(
+    async (text: string) => {
+      if (!artifactNoteSource) {
+        return;
+      }
+      if (!text.trim()) {
+        setArtifactNoteOpen(false);
+        setArtifactNoteSource(null);
+        return;
+      }
+      try {
+        const response = await fetch(`${apiBase}/additions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            selection_id: artifactNoteSource.selectionId,
+            type: "note",
+            text_content: text,
+            payload: {
+              text,
+              source: {
+                type: "addition",
+                id: artifactNoteSource.additionId,
+                kind: artifactNoteSource.kind,
+                preview_text: artifactNoteSource.previewText,
+                snapshot_url: artifactNoteSource.snapshotUrl ?? null,
+              },
+            },
+          }),
+        });
+        if (response.ok) {
+          const data = (await response.json()) as { addition?: Addition };
+          if (data.addition && artifactNoteSource.selectionId === activeSelectionId) {
+            setAdditions((prev) => [...prev, data.addition as Addition]);
+          }
+        }
+      } catch (error) {
+        console.error(error);
+      }
+      setArtifactNoteOpen(false);
+      setArtifactNoteSource(null);
+    },
+    [activeSelectionId, apiBase, artifactNoteSource]
+  );
+
+  const handleSaveArtifactAudio = useCallback(
+    async (payload: AudioPayload) => {
+      if (!artifactAudioSource) {
+        return;
+      }
+      try {
+        const response = await fetch(`${apiBase}/additions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            selection_id: artifactAudioSource.selectionId,
+            type: "audio",
+            payload: {
+              audio: payload,
+              source: {
+                type: "addition",
+                id: artifactAudioSource.additionId,
+                kind: artifactAudioSource.kind,
+                preview_text: artifactAudioSource.previewText,
+                snapshot_url: artifactAudioSource.snapshotUrl ?? null,
+              },
+            },
+          }),
+        });
+        if (response.ok) {
+          const data = (await response.json()) as { addition?: Addition };
+          if (data.addition && artifactAudioSource.selectionId === activeSelectionId) {
+            setAdditions((prev) => [...prev, data.addition as Addition]);
+          }
+        }
+      } catch (error) {
+        console.error(error);
+      }
+      setArtifactAudioOpen(false);
+      setArtifactAudioSource(null);
+    },
+    [activeSelectionId, apiBase, artifactAudioSource]
   );
 
   const handleOpenNoteFromNav = useCallback(() => {
@@ -2914,7 +3100,10 @@ export default function ReaderClient({
           setAdditions((prev) => [...prev, data.addition as Addition]);
           setMenuState(null);
           if (payload.kind === "word" && payload.text) {
-            handleOpenLookup(payload.text);
+            handleOpenLookup(payload.text, {
+              additionId: data.addition.id,
+              selectionId: data.addition.selection_id,
+            });
           }
           if (payload.kind === "lookup" && payload.lookup_url) {
             window.open(payload.lookup_url, "_blank", "noopener,noreferrer");
@@ -3829,7 +4018,15 @@ export default function ReaderClient({
         bookTitle={documentTitle}
         documentId={documentId}
         selectionText={exploreSelectionText}
-        onClose={() => setExploreModalOpen(false)}
+        selectionAnchor={exploreAnchor}
+        onRequestAnchor={handleRequestExploreAnchor}
+        onOpenArtifactNote={handleOpenArtifactNote}
+        onOpenArtifactAudio={handleOpenArtifactAudio}
+        onOpenArtifactExplore={handleOpenExploreFromArtifact}
+        onClose={() => {
+          setExploreModalOpen(false);
+          setExploreAnchor(null);
+        }}
       />
       <NoteModal
         isOpen={noteModalOpen}
@@ -3845,6 +4042,19 @@ export default function ReaderClient({
           setNoteModalOpen(false);
           setEditingNote(null);
         }}
+      />
+      <NoteModal
+        isOpen={artifactNoteOpen}
+        initialText=""
+        title="New note"
+        markerKinds={[]}
+        onToggleMarker={() => {}}
+        onSave={handleSaveArtifactNote}
+        onClose={() => {
+          setArtifactNoteOpen(false);
+          setArtifactNoteSource(null);
+        }}
+        showMarkers={false}
       />
       <GrammarModal
         isOpen={grammarModalOpen}
@@ -3873,12 +4083,30 @@ export default function ReaderClient({
           setAudioModalOpen(false);
         }}
       />
+      <AudioRecorderModal
+        isOpen={artifactAudioOpen}
+        apiBase={apiBase}
+        markerKinds={[]}
+        onToggleMarker={() => {}}
+        onSave={handleSaveArtifactAudio}
+        onClearSelection={() => {}}
+        onClose={() => {
+          setArtifactAudioOpen(false);
+          setArtifactAudioSource(null);
+        }}
+        showMarkers={false}
+      />
       <LookupPanel
         open={lookupPanelOpen}
         word={lookupWord}
         provider="vocabulary"
         refreshKey={lookupRefreshKey}
         isMobile={isMobile}
+        sourceAdditionId={lookupSourceAdditionId}
+        sourceSelectionId={lookupSourceSelectionId}
+        onOpenArtifactNote={handleOpenArtifactNote}
+        onOpenArtifactAudio={handleOpenArtifactAudio}
+        onOpenArtifactExplore={handleOpenExploreFromArtifact}
         onRefresh={handleRefreshLookup}
         onClose={handleCloseLookup}
       />
