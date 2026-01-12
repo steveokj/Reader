@@ -41,6 +41,8 @@ DEFAULT_MOBILE_UA = (
 )
 DEFAULT_FULL_PAGE_MODE = "viewport"
 DEFAULT_FULL_PAGE_MAX_HEIGHT = 16000
+DEFAULT_FULL_PAGE_SELECTOR = "main"
+DEFAULT_FULL_PAGE_SELECTOR_HOSTS = "www.merriam-webster.com,merriam-webster.com"
 SNAPSHOT_TTL_SECONDS = int(os.getenv("LOOKUP_SNAPSHOT_TTL", "86400"))
 DEBUG_ERRORS = os.getenv("LOOKUP_SNAPSHOT_DEBUG", "0") == "1"
 LOG_SNAPSHOT = os.getenv("LOOKUP_SNAPSHOT_LOG", "0") == "1"
@@ -57,6 +59,15 @@ FULL_PAGE_MODE = os.getenv("LOOKUP_SNAPSHOT_FULL_PAGE_MODE", DEFAULT_FULL_PAGE_M
 FULL_PAGE_MAX_HEIGHT = int(
     os.getenv("LOOKUP_SNAPSHOT_FULL_PAGE_MAX_HEIGHT", str(DEFAULT_FULL_PAGE_MAX_HEIGHT))
 )
+FULL_PAGE_SELECTOR = os.getenv("LOOKUP_SNAPSHOT_FULL_PAGE_SELECTOR", DEFAULT_FULL_PAGE_SELECTOR).strip() or None
+FULL_PAGE_SELECTOR_HOSTS = {
+    host.strip().lower()
+    for host in os.getenv(
+        "LOOKUP_SNAPSHOT_FULL_PAGE_SELECTOR_HOSTS",
+        DEFAULT_FULL_PAGE_SELECTOR_HOSTS,
+    ).split(",")
+    if host.strip()
+}
 FORCE_MOBILE = os.getenv("LOOKUP_SNAPSHOT_MOBILE", "0") == "1"
 MOBILE_WIDTH_ENV = os.getenv("LOOKUP_SNAPSHOT_MOBILE_WIDTH") or None
 MOBILE_HEIGHT_ENV = os.getenv("LOOKUP_SNAPSHOT_MOBILE_HEIGHT") or None
@@ -203,7 +214,14 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
 """
         )
 
-    def capture_snapshot(page, path: Path, full: bool, viewport_width: int, viewport_height: int) -> None:
+    def capture_snapshot(
+        page,
+        path: Path,
+        full: bool,
+        viewport_width: int,
+        viewport_height: int,
+        host: str | None,
+    ) -> None:
         if not full:
             page.screenshot(path=str(path), full_page=False)
             return
@@ -226,6 +244,16 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
 }
 """
                 )
+            except Exception:
+                pass
+        if FULL_PAGE_SELECTOR and (
+            FULL_PAGE_MODE == "element" or (host and host in FULL_PAGE_SELECTOR_HOSTS)
+        ):
+            try:
+                locator = page.locator(FULL_PAGE_SELECTOR).first
+                locator.wait_for(state="attached", timeout=20000)
+                locator.screenshot(path=str(path))
+                return
             except Exception:
                 pass
         if FULL_PAGE_MODE == "scroll":
@@ -292,6 +320,7 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
                     "persistent": PERSISTENT_PROFILE,
                 },
             )
+        host = urlparse(url).netloc.lower() if url else None
         if PERSISTENT_PROFILE:
             profile_dir = PROFILE_DIR_MOBILE if is_mobile else PROFILE_DIR
             profile_dir.mkdir(parents=True, exist_ok=True)
@@ -308,7 +337,7 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
                     page.wait_for_selector(WAIT_SELECTOR, timeout=20000)
                 if WAIT_MS > 0:
                     page.wait_for_timeout(WAIT_MS)
-                capture_snapshot(page, cache_path, full_page, width, height)
+                capture_snapshot(page, cache_path, full_page, width, height, host)
             finally:
                 context.close()
         else:
@@ -324,7 +353,7 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
                     page.wait_for_selector(WAIT_SELECTOR, timeout=20000)
                 if WAIT_MS > 0:
                     page.wait_for_timeout(WAIT_MS)
-                capture_snapshot(page, cache_path, full_page, width, height)
+                capture_snapshot(page, cache_path, full_page, width, height, host)
             finally:
                 browser.close()
 
