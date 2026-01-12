@@ -941,21 +941,22 @@ export default function ReaderClient({
       sepia: { ink: "theme_sepia_ink", paper: "theme_sepia_paper" },
       dark: { ink: "theme_dark_ink", paper: "theme_dark_paper" },
     } as const;
+    const normalize = (value: string) => value.trim().toLowerCase();
     const activeKeys = themeKeys[readerSettings.theme];
-    const currentInk = String(readerSettings[activeKeys.ink]);
-    const currentPaper = String(readerSettings[activeKeys.paper]);
-    const defaultInk = String(defaultReaderSettings[activeKeys.ink]);
-    const defaultPaper = String(defaultReaderSettings[activeKeys.paper]);
-    const matchesOtherTheme =
-      (readerSettings.theme !== "light" &&
-        currentInk === defaultReaderSettings.theme_light_ink &&
-        currentPaper === defaultReaderSettings.theme_light_paper) ||
-      (readerSettings.theme !== "sepia" &&
-        currentInk === defaultReaderSettings.theme_sepia_ink &&
-        currentPaper === defaultReaderSettings.theme_sepia_paper) ||
-      (readerSettings.theme !== "dark" &&
-        currentInk === defaultReaderSettings.theme_dark_ink &&
-        currentPaper === defaultReaderSettings.theme_dark_paper);
+    const currentInk = normalize(String(readerSettings[activeKeys.ink]));
+    const currentPaper = normalize(String(readerSettings[activeKeys.paper]));
+    const defaultInk = normalize(String(defaultReaderSettings[activeKeys.ink]));
+    const defaultPaper = normalize(String(defaultReaderSettings[activeKeys.paper]));
+    const otherThemes = (Object.keys(themeKeys) as ReaderTheme[]).filter(
+      (theme) => theme !== readerSettings.theme
+    );
+    const matchesOtherTheme = otherThemes.some((theme) => {
+      const keys = themeKeys[theme];
+      return (
+        currentInk === normalize(String(readerSettings[keys.ink])) &&
+        currentPaper === normalize(String(readerSettings[keys.paper]))
+      );
+    });
     if (!matchesOtherTheme) {
       return;
     }
