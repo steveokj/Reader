@@ -25,6 +25,7 @@ import {
   getThemeTokens,
   getTextWidthStyles,
   type ReaderSettings,
+  type ReaderTheme,
   type ReaderSettingsUpdate,
 } from "@/lib/reader/settings";
 import { buildQuoteSelector } from "@/lib/selection/buildQuoteSelector";
@@ -60,6 +61,10 @@ function buildSearchSnippet(text: string, start: number, end: number) {
   const prefix = snippetStart > 0 ? "..." : "";
   const suffix = snippetEnd < text.length ? "..." : "";
   return `${prefix}${normalized}${suffix}`;
+}
+
+function isReaderTheme(value?: string | null): value is ReaderTheme {
+  return value === "light" || value === "dark" || value === "sepia";
 }
 
 type CaretPoint = { node: Node; offset: number };
@@ -861,6 +866,35 @@ export default function ReaderClient({
     },
     [apiBase]
   );
+
+  const bootstrapTheme = useMemo<ReaderTheme>(() => {
+    if (typeof window === "undefined") {
+      return defaultReaderSettings.theme;
+    }
+    const datasetTheme = document.documentElement.dataset.readerTheme;
+    if (isReaderTheme(datasetTheme)) {
+      return datasetTheme;
+    }
+    try {
+      const stored = window.localStorage.getItem("reader-theme");
+      if (isReaderTheme(stored)) {
+        return stored;
+      }
+    } catch (error) {
+      // ignore
+    }
+    const cookieMatch = document.cookie.match(/(?:^|; )reader-theme=([^;]+)/);
+    const cookieTheme = cookieMatch ? decodeURIComponent(cookieMatch[1]) : null;
+    if (isReaderTheme(cookieTheme)) {
+      return cookieTheme;
+    }
+    return defaultReaderSettings.theme;
+  }, []);
+
+  const bootstrapThemeTokens = useMemo(() => {
+    const settings = { ...defaultReaderSettings, theme: bootstrapTheme };
+    return getThemeTokens(settings.theme, getThemeOverride(settings));
+  }, [bootstrapTheme]);
 
   const readerSettings = readerSettingsState ?? defaultReaderSettings;
   const themeOverride = useMemo(() => getThemeOverride(readerSettings), [readerSettings]);
@@ -3331,11 +3365,11 @@ export default function ReaderClient({
         aria-live="polite"
         aria-busy="true"
         style={{
-          backgroundColor: "#2f3133",
-          color: "#e2e1de",
-          ["--reader-border" as any]: "rgba(255, 255, 255, 0.18)",
-          ["--reader-accent" as any]: "#f29b7c",
-          ["--reader-ink-muted" as any]: "rgba(226, 225, 222, 0.6)",
+          backgroundColor: bootstrapThemeTokens.paper,
+          color: bootstrapThemeTokens.ink,
+          ["--reader-border" as any]: bootstrapThemeTokens.border,
+          ["--reader-accent" as any]: bootstrapThemeTokens.accent,
+          ["--reader-ink-muted" as any]: bootstrapThemeTokens.inkMuted,
         }}
       >
         <div className="reader-loading-overlay__content">
