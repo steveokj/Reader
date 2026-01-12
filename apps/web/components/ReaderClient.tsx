@@ -912,11 +912,14 @@ export default function ReaderClient({
   const shouldPersistTheme = settingsStatus === "idle" || settingsStatus === "saving";
 
   useEffect(() => {
+    document.documentElement.dataset.readerTheme = readerSettings.theme;
+  }, [readerSettings.theme]);
+
+  useEffect(() => {
     if (!shouldPersistTheme) {
       return;
     }
     const theme = readerSettings.theme;
-    document.documentElement.dataset.readerTheme = theme;
     try {
       window.localStorage.setItem("reader-theme", theme);
     } catch (error) {
