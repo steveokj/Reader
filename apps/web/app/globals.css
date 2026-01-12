@@ -1578,6 +1578,11 @@ html[data-reader-theme="dark"] .reader-layout {
 
 .action-menu--artifact {
   z-index: 80;
+  max-width: 320px;
+  min-width: 240px;
+  background: #fffaf5;
+  border: 1px solid rgba(31, 28, 22, 0.12);
+  box-shadow: 0 12px 30px var(--shadow);
 }
 
 .modal-backdrop {

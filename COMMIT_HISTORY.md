@@ -29,3 +29,4 @@
 | 06fe7bb | Set initial theme background inline | do 2 | Inline theme background in layout to avoid flash | 2026-01-11 23:39:08 |
 | pending | Artifact action menus + explore persistence | saved automatically; use position; double click only | Add artifact menus, auto-save explore responses, child additions | 2026-01-12 17:28:29 |
 | pending | Fix artifact menu layering + styling | adjust artifact menu style/position; modals should not be hidden; how to save highlights | Raise z-index, add artifact menu class; markers save instantly | 2026-01-12 18:35:36 |
+| pending | Align artifact menu + marker labels | fix artifact menu position/size/colors; artifact markers show as selection | Clamp menu position + style; label addition markers as artifacts | 2026-01-12 18:45:27 |

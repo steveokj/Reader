@@ -350,10 +350,15 @@ export default function ReaderHighlightsPanel({
                   ? formatSnippet(selection.selector.quote.exact)
                   : "Selection";
                 const addition = item.additionId ? additionById.get(item.additionId) : null;
+                const additionLabel = addition
+                  ? formatSnippet(addition.text_content ?? addition.title ?? addition.type)
+                  : "";
+                const payload = (addition?.payload ?? {}) as { source?: { kind?: string } };
+                const artifactLabel = payload.source?.kind
+                  ? `${payload.source.kind}`
+                  : addition?.type ?? "addition";
                 const targetLabel = addition
-                  ? `${addition.type}: ${formatSnippet(
-                      addition.text_content ?? addition.title ?? addition.type
-                    )}`
+                  ? `Artifact (${artifactLabel}): ${additionLabel}`
                   : `Selection: ${selectionSnippet}`;
                 return (
                   <article key={item.marker.id} className="data-card">

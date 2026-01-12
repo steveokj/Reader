@@ -638,8 +638,14 @@ export default function ExploreChatModal({
       event.preventDefault();
       event.stopPropagation();
       const rect = event.currentTarget.getBoundingClientRect();
-      const menuTop = Math.max(12, rect.top - 72);
-      const menuLeft = Math.max(12, rect.left);
+      const menuWidth = 320;
+      const padding = 16;
+      const aboveTop = rect.top - 56;
+      const menuTop = aboveTop > padding ? aboveTop : rect.bottom + 12;
+      const menuLeft = Math.min(
+        Math.max(padding, rect.left),
+        window.innerWidth - menuWidth - padding
+      );
       setArtifactMenu({
         top: menuTop,
         left: menuLeft,
