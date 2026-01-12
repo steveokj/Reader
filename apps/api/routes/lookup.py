@@ -155,6 +155,11 @@ def render_snapshot(
         platform = "iPhone" if mobile else "Win32"
         vendor = "Apple Computer, Inc." if mobile else "Google Inc."
         max_touch_points = 5 if mobile else 0
+        user_agent_data_line = (
+            "Object.defineProperty(navigator, 'userAgentData', {get: () => undefined});"
+            if mobile
+            else ""
+        )
         context.add_init_script(
             f"""
 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
@@ -162,6 +167,7 @@ Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
 Object.defineProperty(navigator, 'platform', {{get: () => '{platform}'}});
 Object.defineProperty(navigator, 'vendor', {{get: () => '{vendor}'}});
 Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_points}}});
+{user_agent_data_line}
 """
         )
 
