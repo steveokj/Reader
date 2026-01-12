@@ -677,7 +677,23 @@ export default function ReaderClient({
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
   const finalizeRangeRef = useRef<((range: Range) => void) | null>(null);
-  const [readerSettings, setReaderSettings] = useState<ReaderSettings>(defaultReaderSettings);
+  const [readerSettings, setReaderSettings] = useState<ReaderSettings>(() => {
+    if (typeof window === "undefined") {
+      return defaultReaderSettings;
+    }
+    const dataTheme = document.documentElement.dataset.readerTheme;
+    let storedTheme: string | null = null;
+    try {
+      storedTheme = window.localStorage.getItem("reader-theme");
+    } catch (error) {
+      storedTheme = null;
+    }
+    const initialTheme = dataTheme || storedTheme;
+    if (initialTheme === "light" || initialTheme === "dark" || initialTheme === "sepia") {
+      return { ...defaultReaderSettings, theme: initialTheme };
+    }
+    return defaultReaderSettings;
+  });
   const [settingsStatus, setSettingsStatus] = useState<"idle" | "loading" | "saving" | "error">(
     "loading"
   );
