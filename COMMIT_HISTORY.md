@@ -5,3 +5,4 @@
 | pending | Separate persistent profile for mobile snapshots | do any. still shows the side bars that are not present on mobile | Isolate mobile profile data so desktop cookies/flags don't force desktop layout | 2026-01-11 19:18:35 |
 | pending | Remove userAgentData for mobile stealth | not working. still get sidebars | Hide Chromium UA-CH to mimic Safari and force UA fallback | 2026-01-11 19:21:51 |
 | pending | Strip client hints; sync screen to viewport | maybe it uses the width | Remove sec-ch- headers for mobile and align screen size with viewport | 2026-01-11 19:24:21 |
+| pending | Use WebKit for mobile snapshots | switch | Run mobile snapshots with Playwright WebKit instead of Chromium | 2026-01-11 19:29:22 |

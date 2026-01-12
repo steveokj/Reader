@@ -123,8 +123,10 @@ def render_snapshot(
     full_page: bool,
     is_mobile: bool,
 ) -> None:
+    browser_name = "webkit" if is_mobile else "chromium"
+    browser_type = getattr(playwright, browser_name)
     launch_options = {"headless": HEADLESS}
-    if CHANNEL:
+    if CHANNEL and browser_name == "chromium":
         launch_options["channel"] = CHANNEL
     context_options = {"viewport": {"width": width, "height": height}}
     if is_mobile:
@@ -194,7 +196,7 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
         if PERSISTENT_PROFILE:
             profile_dir = PROFILE_DIR_MOBILE if is_mobile else PROFILE_DIR
             profile_dir.mkdir(parents=True, exist_ok=True)
-            context = playwright.chromium.launch_persistent_context(
+            context = browser_type.launch_persistent_context(
                 str(profile_dir), **launch_options, **context_options
             )
             try:
@@ -210,7 +212,7 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
             finally:
                 context.close()
         else:
-            browser = playwright.chromium.launch(**launch_options)
+            browser = browser_type.launch(**launch_options)
             try:
                 context = browser.new_context(**context_options)
                 apply_stealth(context, is_mobile)
