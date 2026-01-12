@@ -39,6 +39,8 @@ DEFAULT_MOBILE_UA = (
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) "
     "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1"
 )
+DEFAULT_FULL_PAGE_MODE = "viewport"
+DEFAULT_FULL_PAGE_MAX_HEIGHT = 16000
 SNAPSHOT_TTL_SECONDS = int(os.getenv("LOOKUP_SNAPSHOT_TTL", "86400"))
 DEBUG_ERRORS = os.getenv("LOOKUP_SNAPSHOT_DEBUG", "0") == "1"
 LOG_SNAPSHOT = os.getenv("LOOKUP_SNAPSHOT_LOG", "0") == "1"
@@ -50,6 +52,10 @@ USER_AGENT = os.getenv("LOOKUP_SNAPSHOT_USER_AGENT")
 CHANNEL = os.getenv("LOOKUP_SNAPSHOT_CHANNEL")
 STEALTH = os.getenv("LOOKUP_SNAPSHOT_STEALTH", "0") == "1"
 WAIT_SELECTOR = os.getenv("LOOKUP_SNAPSHOT_WAIT_SELECTOR")
+FULL_PAGE_MODE = os.getenv("LOOKUP_SNAPSHOT_FULL_PAGE_MODE", DEFAULT_FULL_PAGE_MODE).lower()
+FULL_PAGE_MAX_HEIGHT = int(
+    os.getenv("LOOKUP_SNAPSHOT_FULL_PAGE_MAX_HEIGHT", str(DEFAULT_FULL_PAGE_MAX_HEIGHT))
+)
 FORCE_MOBILE = os.getenv("LOOKUP_SNAPSHOT_MOBILE", "0") == "1"
 MOBILE_WIDTH_ENV = os.getenv("LOOKUP_SNAPSHOT_MOBILE_WIDTH") or None
 MOBILE_HEIGHT_ENV = os.getenv("LOOKUP_SNAPSHOT_MOBILE_HEIGHT") or None
@@ -196,6 +202,25 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
 """
         )
 
+    def capture_snapshot(page, path: Path, full: bool, viewport_width: int, viewport_height: int) -> None:
+        if not full:
+            page.screenshot(path=str(path), full_page=False)
+            return
+        if FULL_PAGE_MODE == "scroll":
+            page.screenshot(path=str(path), full_page=True)
+            return
+        try:
+            full_height = page.evaluate(
+                "() => Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)"
+            )
+        except Exception:
+            full_height = viewport_height
+        if FULL_PAGE_MAX_HEIGHT > 0:
+            full_height = min(full_height, FULL_PAGE_MAX_HEIGHT)
+        page.set_viewport_size({"width": viewport_width, "height": int(full_height)})
+        page.wait_for_timeout(200)
+        page.screenshot(path=str(path), full_page=False)
+
     with sync_playwright() as playwright:
         browser_name = "chromium"
         browser_type = getattr(playwright, browser_name)
@@ -261,7 +286,7 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
                     page.wait_for_selector(WAIT_SELECTOR, timeout=20000)
                 if WAIT_MS > 0:
                     page.wait_for_timeout(WAIT_MS)
-                page.screenshot(path=str(cache_path), full_page=full_page)
+                capture_snapshot(page, cache_path, full_page, width, height)
             finally:
                 context.close()
         else:
@@ -277,7 +302,7 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
                     page.wait_for_selector(WAIT_SELECTOR, timeout=20000)
                 if WAIT_MS > 0:
                     page.wait_for_timeout(WAIT_MS)
-                page.screenshot(path=str(cache_path), full_page=full_page)
+                capture_snapshot(page, cache_path, full_page, width, height)
             finally:
                 browser.close()
 
