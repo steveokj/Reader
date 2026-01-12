@@ -140,8 +140,8 @@ def render_snapshot(
         )
         context.add_init_script(
             f"""
-Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+Object.defineProperty(navigator, 'webdriver', {{get: () => undefined}});
+Object.defineProperty(navigator, 'languages', {{get: () => ['en-US', 'en']}});
 Object.defineProperty(navigator, 'platform', {{get: () => '{platform}'}});
 Object.defineProperty(navigator, 'vendor', {{get: () => '{vendor}'}});
 Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_points}}});
