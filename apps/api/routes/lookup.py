@@ -123,39 +123,8 @@ def render_snapshot(
     full_page: bool,
     is_mobile: bool,
 ) -> None:
-    browser_name = "webkit" if is_mobile else "chromium"
-    browser_type = getattr(playwright, browser_name)
     launch_options = {"headless": HEADLESS}
-    if CHANNEL and browser_name == "chromium":
-        launch_options["channel"] = CHANNEL
     context_options = {"viewport": {"width": width, "height": height}}
-    if is_mobile:
-        device = playwright.devices.get(DEFAULT_MOBILE_DEVICE)
-        if device:
-            context_options = dict(device)
-            context_options.pop("default_browser_type", None)
-        else:
-            context_options["device_scale_factor"] = MOBILE_DSF
-            context_options["user_agent"] = MOBILE_UA
-        context_options.setdefault("viewport", {"width": width, "height": height})
-        context_options.setdefault("is_mobile", True)
-        context_options.setdefault("has_touch", True)
-        if MOBILE_DSF_ENV:
-            context_options["device_scale_factor"] = MOBILE_DSF
-        if MOBILE_UA_ENV:
-            context_options["user_agent"] = MOBILE_UA
-        if MOBILE_WIDTH_ENV:
-            context_options["viewport"]["width"] = MOBILE_WIDTH
-        if MOBILE_HEIGHT_ENV:
-            context_options["viewport"]["height"] = MOBILE_HEIGHT
-        if "viewport" in context_options:
-            if "screen" not in context_options:
-                context_options["screen"] = dict(context_options["viewport"])
-            else:
-                context_options["screen"]["width"] = context_options["viewport"]["width"]
-                context_options["screen"]["height"] = context_options["viewport"]["height"]
-    elif USER_AGENT:
-        context_options["user_agent"] = USER_AGENT
 
     def apply_stealth(context, mobile: bool) -> None:
         if not STEALTH:
@@ -193,6 +162,37 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
         context.route("**/*", handler)
 
     with sync_playwright() as playwright:
+        browser_name = "webkit" if is_mobile else "chromium"
+        browser_type = getattr(playwright, browser_name)
+        if CHANNEL and browser_name == "chromium":
+            launch_options["channel"] = CHANNEL
+        if is_mobile:
+            device = playwright.devices.get(DEFAULT_MOBILE_DEVICE)
+            if device:
+                context_options = dict(device)
+                context_options.pop("default_browser_type", None)
+            else:
+                context_options["device_scale_factor"] = MOBILE_DSF
+                context_options["user_agent"] = MOBILE_UA
+            context_options.setdefault("viewport", {"width": width, "height": height})
+            context_options.setdefault("is_mobile", True)
+            context_options.setdefault("has_touch", True)
+            if MOBILE_DSF_ENV:
+                context_options["device_scale_factor"] = MOBILE_DSF
+            if MOBILE_UA_ENV:
+                context_options["user_agent"] = MOBILE_UA
+            if MOBILE_WIDTH_ENV:
+                context_options["viewport"]["width"] = MOBILE_WIDTH
+            if MOBILE_HEIGHT_ENV:
+                context_options["viewport"]["height"] = MOBILE_HEIGHT
+            if "viewport" in context_options:
+                if "screen" not in context_options:
+                    context_options["screen"] = dict(context_options["viewport"])
+                else:
+                    context_options["screen"]["width"] = context_options["viewport"]["width"]
+                    context_options["screen"]["height"] = context_options["viewport"]["height"]
+        elif USER_AGENT:
+            context_options["user_agent"] = USER_AGENT
         if PERSISTENT_PROFILE:
             profile_dir = PROFILE_DIR_MOBILE if is_mobile else PROFILE_DIR
             profile_dir.mkdir(parents=True, exist_ok=True)
