@@ -27,3 +27,4 @@
 | 751bb59 | Auto-reset mismatched theme colors | still shows sepia. i clicked on sepia in settings, refreshed and got sepia. i clicked dark, refreshed and got sepia while dark is still selected | Fix theme color values if they match another theme's defaults | 2026-01-11 22:16:56 |
 | b752d0d | Detect theme colors copied from another theme | still happening. look carefully..why does it switch when colors are changed, inline styles right? then how come it is different on reload | Reset theme colors if they match another theme's current colors | 2026-01-11 22:22:26 |
 | 06fe7bb | Set initial theme background inline | do 2 | Inline theme background in layout to avoid flash | 2026-01-11 23:39:08 |
+| 23b3689ab3ba07c6dea48bef7d8184fab27a6938 | Gate reader render on settings load | dont render the reader until /settings loads (option 1) | Gate initial render on settings load with full-screen loading shell | 2026-01-12 00:14:12 |
