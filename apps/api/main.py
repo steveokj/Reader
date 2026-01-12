@@ -1,6 +1,7 @@
 ﻿import os
 import sys
 import asyncio
+from pathlib import Path
 from dotenv import load_dotenv
 
 from fastapi import FastAPI
@@ -8,15 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .db.init import init_db
-from .routes.additions import router as additions_router
-from .routes.documents import router as documents_router
-from .routes.explore import router as explore_router
-from .routes.explore_chat import router as explore_chat_router
-from .routes.lookup import router as lookup_router
-from .routes.markers import router as markers_router
-from .routes.media import router as media_router
-from .routes.selections import router as selections_router
-from .routes.settings import router as settings_router
 
 if sys.platform.startswith("win"):
     try:
@@ -26,8 +18,19 @@ if sys.platform.startswith("win"):
 
 app = FastAPI()
 
-# Load environment variables from .env file in project folder not folder with main.py, otherwise pass in the absolute path load_env("C:/Users/Steve")
-load_dotenv() 
+# Load environment variables from the repo root before importing modules that read envs.
+ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(dotenv_path=ENV_PATH)
+
+from .routes.additions import router as additions_router
+from .routes.documents import router as documents_router
+from .routes.explore import router as explore_router
+from .routes.explore_chat import router as explore_chat_router
+from .routes.lookup import router as lookup_router
+from .routes.markers import router as markers_router
+from .routes.media import router as media_router
+from .routes.selections import router as selections_router
+from .routes.settings import router as settings_router
 
 cors_origins = os.getenv("CORS_ORIGINS").split(",")
 
