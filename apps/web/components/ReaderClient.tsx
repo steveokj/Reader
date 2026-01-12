@@ -677,7 +677,7 @@ export default function ReaderClient({
   const nextWordBannerIdRef = useRef(0);
   const lastSelectableWordRef = useRef<WordSelectionTap | null>(null);
   const finalizeRangeRef = useRef<((range: Range) => void) | null>(null);
-  const [readerSettings, setReaderSettings] = useState<ReaderSettings>(defaultReaderSettings);
+  const [readerSettingsState, setReaderSettings] = useState<ReaderSettings | null>(null);
   const [settingsStatus, setSettingsStatus] = useState<"idle" | "loading" | "saving" | "error">(
     "loading"
   );
@@ -823,7 +823,7 @@ export default function ReaderClient({
   const queueSettingsUpdate = useCallback(
     (update: ReaderSettingsUpdate) => {
       settingsTouchedRef.current = true;
-      setReaderSettings((prev) => ({ ...prev, ...update }));
+      setReaderSettings((prev) => ({ ...(prev ?? defaultReaderSettings), ...update }));
       pendingSettingsRef.current = { ...pendingSettingsRef.current, ...update };
 
       if (settingsSaveTimerRef.current !== null) {
@@ -848,7 +848,10 @@ export default function ReaderClient({
           }
           const data = (await response.json()) as { settings?: ReaderSettings };
           if (data.settings) {
-            setReaderSettings((prev) => ({ ...prev, ...data.settings }));
+            setReaderSettings((prev) => ({
+              ...(prev ?? defaultReaderSettings),
+              ...data.settings,
+            }));
           }
           setSettingsStatus("idle");
         } catch (error) {
@@ -859,6 +862,7 @@ export default function ReaderClient({
     [apiBase]
   );
 
+  const readerSettings = readerSettingsState ?? defaultReaderSettings;
   const themeOverride = useMemo(() => getThemeOverride(readerSettings), [readerSettings]);
 
   const themeTokens = useMemo(
@@ -870,6 +874,8 @@ export default function ReaderClient({
     () => getTextWidthStyles(readerSettings.text_width),
     [readerSettings.text_width]
   );
+
+  console.log('seeeeeeee', themeOverride.paper);
 
   const readerStyle = useMemo<CSSProperties>(() => {
     return {
@@ -899,6 +905,9 @@ export default function ReaderClient({
     if (!shouldPersistTheme) {
       return;
     }
+    if (!readerSettingsState) {
+      return;
+    }
     const theme = readerSettings.theme;
     document.documentElement.dataset.readerTheme = theme;
     try {
@@ -911,7 +920,7 @@ export default function ReaderClient({
     } catch (error) {
       // ignore
     }
-  }, [readerSettings.theme, shouldPersistTheme]);
+  }, [readerSettings.theme, readerSettingsState, shouldPersistTheme]);
 
   const readerScrollStyle = useMemo<CSSProperties>(
     () => ({
@@ -1576,12 +1585,19 @@ export default function ReaderClient({
         }
         if (data.settings) {
           setReaderSettings((prev) =>
-            settingsTouchedRef.current ? { ...data.settings, ...prev } : { ...prev, ...data.settings }
+            prev
+              ? settingsTouchedRef.current
+                ? { ...data.settings, ...prev }
+                : { ...prev, ...data.settings }
+              : { ...defaultReaderSettings, ...data.settings }
           );
+        } else {
+          setReaderSettings((prev) => prev ?? defaultReaderSettings);
         }
         setSettingsStatus("idle");
       } catch (error) {
         if (!cancelled) {
+          setReaderSettings((prev) => prev ?? defaultReaderSettings);
           setSettingsStatus("error");
         }
       }
@@ -1603,6 +1619,9 @@ export default function ReaderClient({
   }, []);
 
   useEffect(() => {
+    if (!readerSettingsState) {
+      return;
+    }
     const bodyStyle = document.body.style;
     const previous = {
       backgroundColor: bodyStyle.backgroundColor,
@@ -1617,7 +1636,7 @@ export default function ReaderClient({
       bodyStyle.backgroundImage = previous.backgroundImage;
       bodyStyle.color = previous.color;
     };
-  }, [themeTokens]);
+  }, [readerSettingsState, themeTokens]);
 
   useEffect(() => {
     if (!isMobile) {
@@ -3305,6 +3324,28 @@ export default function ReaderClient({
     [handleSelectHighlight]
   );
 
+  if (settingsStatus === "loading" || !readerSettingsState) {
+    return (
+      <div
+        className="reader-loading-overlay"
+        aria-live="polite"
+        aria-busy="true"
+        style={{
+          backgroundColor: "#2f3133",
+          color: "#e2e1de",
+          ["--reader-border" as any]: "rgba(255, 255, 255, 0.18)",
+          ["--reader-accent" as any]: "#f29b7c",
+          ["--reader-ink-muted" as any]: "rgba(226, 225, 222, 0.6)",
+        }}
+      >
+        <div className="reader-loading-overlay__content">
+          <span className="reader-loading-overlay__spinner" aria-hidden="true" />
+          <div className="reader-loading-overlay__text">Loading your place...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`reader-layout reader-layout--columns reader-theme--${readerSettings.theme}`}
@@ -3321,7 +3362,7 @@ export default function ReaderClient({
             color: "var(--reader-ink, #1f1c16)",
           }}
         >
-          <div className="reader-loading-overlay__content">
+          <div className={"reader-loading-overlay__content"}>
             <span className="reader-loading-overlay__spinner" aria-hidden="true" />
             <div className="reader-loading-overlay__text">Loading your place...</div>
           </div>
