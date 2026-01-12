@@ -34,7 +34,7 @@ function getProviderUrl(provider: LookupProvider, word: string) {
 export default function LookupPanel({
   open,
   word,
-  provider = "merriam",
+  provider = "vocabulary",
   refreshKey,
   isMobile,
   onRefresh,

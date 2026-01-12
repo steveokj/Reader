@@ -3835,7 +3835,7 @@ export default function ReaderClient({
       <LookupPanel
         open={lookupPanelOpen}
         word={lookupWord}
-        provider="merriam"
+        provider="vocabulary"
         refreshKey={lookupRefreshKey}
         isMobile={isMobile}
         onRefresh={handleRefreshLookup}
