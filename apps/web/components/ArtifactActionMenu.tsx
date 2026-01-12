@@ -90,7 +90,10 @@ export default function ArtifactActionMenu({
 }: ArtifactActionMenuProps) {
   const previewText = contextText ? truncateContext(contextText) : "";
   const fullContext = contextText ? contextText.replace(/\s+/g, " ").trim() : "";
-  const menuClassName = variant === "mobile" ? "action-menu action-menu--mobile" : "action-menu";
+  const menuClassName =
+    variant === "mobile"
+      ? "action-menu action-menu--mobile action-menu--artifact"
+      : "action-menu action-menu--artifact";
   const menuStyle = variant === "mobile" ? undefined : { top, left };
   const stopEvent = (event: { stopPropagation: () => void }) => {
     event.stopPropagation();

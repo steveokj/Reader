@@ -1576,6 +1576,10 @@ html[data-reader-theme="dark"] .reader-layout {
   stroke: none;
 }
 
+.action-menu--artifact {
+  z-index: 80;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1583,7 +1587,7 @@ html[data-reader-theme="dark"] .reader-layout {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 50;
+  z-index: 90;
   padding: 20px;
 }
 
