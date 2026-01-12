@@ -12,3 +12,4 @@
 | pending | Load .env before route imports | this is wild! so it is ignoring the vars set. look at the env. | Make main load repo .env before reading envs in routes | 2026-01-11 19:44:14 |
 | pending | Keep mobile snapshots on Chromium | keep on chromium | Force Chromium for mobile snapshots to avoid WebKit install | 2026-01-11 19:48:00 |
 | pending | Fix stealth script braces | [api] NameError: name 'get' is not defined. Did you mean: 'set'? | Escape JS object braces in init script | 2026-01-11 19:53:53 |
+| pending | Allow empty WAIT_MS | [api] ValueError: invalid literal for int() with base 10: '' | Treat empty WAIT_MS as default 800 | 2026-01-11 20:06:20 |
