@@ -62,6 +62,9 @@ MEDIA_DIR = Path(__file__).resolve().parents[1] / "media"
 LOOKUP_DIR = MEDIA_DIR / "lookup"
 LOOKUP_DIR.mkdir(parents=True, exist_ok=True)
 PROFILE_DIR = Path(os.getenv("LOOKUP_SNAPSHOT_PROFILE_DIR") or (LOOKUP_DIR / "profile"))
+PROFILE_DIR_MOBILE = Path(
+    os.getenv("LOOKUP_SNAPSHOT_PROFILE_DIR_MOBILE") or (PROFILE_DIR / "mobile")
+)
 
 
 def resolve_target_url(word: str | None, url: str | None, provider: str | None) -> str:
@@ -164,9 +167,10 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
 
     with sync_playwright() as playwright:
         if PERSISTENT_PROFILE:
-            PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+            profile_dir = PROFILE_DIR_MOBILE if is_mobile else PROFILE_DIR
+            profile_dir.mkdir(parents=True, exist_ok=True)
             context = playwright.chromium.launch_persistent_context(
-                str(PROFILE_DIR), **launch_options, **context_options
+                str(profile_dir), **launch_options, **context_options
             )
             try:
                 apply_stealth(context, is_mobile)
