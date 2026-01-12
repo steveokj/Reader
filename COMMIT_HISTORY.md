@@ -13,3 +13,4 @@
 | pending | Keep mobile snapshots on Chromium | keep on chromium | Force Chromium for mobile snapshots to avoid WebKit install | 2026-01-11 19:48:00 |
 | pending | Fix stealth script braces | [api] NameError: name 'get' is not defined. Did you mean: 'set'? | Escape JS object braces in init script | 2026-01-11 19:53:53 |
 | pending | Allow empty WAIT_MS | [api] ValueError: invalid literal for int() with base 10: '' | Treat empty WAIT_MS as default 800 | 2026-01-11 20:06:20 |
+| pending | Force .env override of process env | do it. and tell me more about override | Ensure .env wins over existing env vars | 2026-01-11 20:32:35 |

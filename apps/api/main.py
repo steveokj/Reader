@@ -20,7 +20,7 @@ app = FastAPI()
 
 # Load environment variables from the repo root before importing modules that read envs.
 ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
-load_dotenv(dotenv_path=ENV_PATH)
+load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 from .routes.additions import router as additions_router
 from .routes.documents import router as documents_router
