@@ -41,6 +41,7 @@ DEFAULT_MOBILE_UA = (
 )
 SNAPSHOT_TTL_SECONDS = int(os.getenv("LOOKUP_SNAPSHOT_TTL", "86400"))
 DEBUG_ERRORS = os.getenv("LOOKUP_SNAPSHOT_DEBUG", "0") == "1"
+LOG_SNAPSHOT = os.getenv("LOOKUP_SNAPSHOT_LOG", "0") == "1"
 PERSISTENT_PROFILE = os.getenv("LOOKUP_SNAPSHOT_PERSISTENT", "0") == "1"
 HEADLESS = os.getenv("LOOKUP_SNAPSHOT_HEADLESS", "1") != "0"
 WAIT_MS = int(os.getenv("LOOKUP_SNAPSHOT_WAIT_MS", "800"))
@@ -226,6 +227,23 @@ Object.defineProperty(navigator, 'maxTouchPoints', {{get: () => {max_touch_point
                     context_options["screen"]["height"] = context_options["viewport"]["height"]
         elif USER_AGENT:
             context_options["user_agent"] = USER_AGENT
+        if LOG_SNAPSHOT or DEBUG_ERRORS:
+            viewport = context_options.get("viewport")
+            screen = context_options.get("screen")
+            print(
+                "lookup.snapshot",
+                {
+                    "url": url,
+                    "mobile": is_mobile,
+                    "browser": browser_name,
+                    "viewport": viewport,
+                    "screen": screen,
+                    "ua": context_options.get("user_agent"),
+                    "dsf": context_options.get("device_scale_factor"),
+                    "channel": launch_options.get("channel"),
+                    "persistent": PERSISTENT_PROFILE,
+                },
+            )
         if PERSISTENT_PROFILE:
             profile_dir = PROFILE_DIR_MOBILE if is_mobile else PROFILE_DIR
             profile_dir.mkdir(parents=True, exist_ok=True)
