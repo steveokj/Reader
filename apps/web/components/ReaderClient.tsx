@@ -932,6 +932,52 @@ export default function ReaderClient({
     }
   }, [readerSettings.theme, shouldPersistTheme]);
 
+  useEffect(() => {
+    if (settingsStatus !== "idle") {
+      return;
+    }
+    const themeKeys = {
+      light: { ink: "theme_light_ink", paper: "theme_light_paper" },
+      sepia: { ink: "theme_sepia_ink", paper: "theme_sepia_paper" },
+      dark: { ink: "theme_dark_ink", paper: "theme_dark_paper" },
+    } as const;
+    const activeKeys = themeKeys[readerSettings.theme];
+    const currentInk = String(readerSettings[activeKeys.ink]);
+    const currentPaper = String(readerSettings[activeKeys.paper]);
+    const defaultInk = String(defaultReaderSettings[activeKeys.ink]);
+    const defaultPaper = String(defaultReaderSettings[activeKeys.paper]);
+    const matchesOtherTheme =
+      (readerSettings.theme !== "light" &&
+        currentInk === defaultReaderSettings.theme_light_ink &&
+        currentPaper === defaultReaderSettings.theme_light_paper) ||
+      (readerSettings.theme !== "sepia" &&
+        currentInk === defaultReaderSettings.theme_sepia_ink &&
+        currentPaper === defaultReaderSettings.theme_sepia_paper) ||
+      (readerSettings.theme !== "dark" &&
+        currentInk === defaultReaderSettings.theme_dark_ink &&
+        currentPaper === defaultReaderSettings.theme_dark_paper);
+    if (!matchesOtherTheme) {
+      return;
+    }
+    if (currentInk === defaultInk && currentPaper === defaultPaper) {
+      return;
+    }
+    queueSettingsUpdate({
+      [activeKeys.ink]: defaultInk,
+      [activeKeys.paper]: defaultPaper,
+    });
+  }, [
+    queueSettingsUpdate,
+    readerSettings.theme,
+    readerSettings.theme_dark_ink,
+    readerSettings.theme_dark_paper,
+    readerSettings.theme_light_ink,
+    readerSettings.theme_light_paper,
+    readerSettings.theme_sepia_ink,
+    readerSettings.theme_sepia_paper,
+    settingsStatus,
+  ]);
+
   const readerScrollStyle = useMemo<CSSProperties>(
     () => ({
       paddingLeft: widthStyles.sidePadding,
