@@ -130,9 +130,15 @@ export default function MapPage() {
       });
       mapRef.current = map;
       window.setTimeout(() => {
-        map.resize();
+        if (mapRef.current && !cancelled) {
+          mapRef.current.resize();
+        }
       }, 100);
-      handleResize = () => map.resize();
+      handleResize = () => {
+        if (mapRef.current && !cancelled) {
+          mapRef.current.resize();
+        }
+      };
       window.addEventListener("resize", handleResize);
     };
 
