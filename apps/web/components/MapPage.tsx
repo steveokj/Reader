@@ -467,6 +467,8 @@ export default function MapPage() {
             "text-size": 10,
             "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
             "text-offset": [0, 0.6],
+            "text-allow-overlap": false,
+            "text-ignore-placement": false,
           },
           paint: {
             "text-color": "#544036",
@@ -520,6 +522,8 @@ export default function MapPage() {
             "text-size": 11,
             "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
             "text-offset": [0, 0.6],
+            "text-allow-overlap": true,
+            "text-ignore-placement": true,
           },
           paint: {
             "text-color": "#6b4c3b",
@@ -685,8 +689,14 @@ export default function MapPage() {
         {dataStatus === "error" ? (
           <div className="map-toast map-toast--error">Failed to load map data.</div>
         ) : null}
+        {citiesStatus === "loading" ? (
+          <div className="map-toast">Loading city labels...</div>
+        ) : null}
         {citiesStatus === "error" ? (
           <div className="map-toast map-toast--error">Failed to load city labels.</div>
+        ) : null}
+        {statesStatus === "loading" ? (
+          <div className="map-toast">Loading state labels...</div>
         ) : null}
         {statesStatus === "error" ? (
           <div className="map-toast map-toast--error">Failed to load state labels.</div>
@@ -724,11 +734,6 @@ function applyStateFilter(
   if (!map.getLayer("state-labels")) {
     return;
   }
-  if (mode === "none") {
-    map.setLayoutProperty("state-labels", "visibility", "none");
-    return;
-  }
-  map.setLayoutProperty("state-labels", "visibility", "visible");
   if (mode === "selected") {
     if (selectedIso2.length === 0) {
       map.setFilter("state-labels", ["==", ["get", "iso_a2"], ""]);
