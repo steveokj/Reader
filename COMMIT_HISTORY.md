@@ -73,3 +73,4 @@
 | ccbf3e5 | Keep state borders always visible | yes.always on. cant even see them | Always show state borders while keeping label filter for selection. | 2026-01-13 00:55:55 |
 
 
+| f547923 | Increase state border contrast | still cant see them. might be the color? | Increase state border contrast for state borders. | 2026-01-13 00:59:24 |
