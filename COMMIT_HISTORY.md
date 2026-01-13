@@ -76,3 +76,4 @@
 | f547923 | Increase state border contrast | still cant see them. might be the color? | Increase state border contrast for state borders. | 2026-01-13 00:59:24 |
 | 82bf598 | Fix state borders source | theres a problem. cant see country borders and state borders. reason why. dont thinl it is opacity or color related as that was changed | Use the full state geometry for borders (not label points) and slightly strengthen country outlines. | 2026-01-13 01:02:56 |
 | b92f791 | Use label_x for state labels | 1 | Use Natural Earth label_x/label_y for state label placement with bbox fallback. | 2026-01-13 01:09:55 |
+| 1ffe6a8 | Use latitude/longitude for state labels | didnt work. | Use Natural Earth longitude/latitude fields for state label placement (label_x fallback). | 2026-01-13 01:12:50 |
