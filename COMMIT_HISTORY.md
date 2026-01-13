@@ -70,5 +70,6 @@
 | 95dd20c | Show global state labels | -I want all states for all countries...if selected only is on... | Make state labels global by default and add loading toasts. | 2026-01-13 00:41:11 |
 | d53cd46 | Update states dataset | State labels not working | Replace states dataset with full global admin-1 boundaries. | 2026-01-13 00:48:26 |
 | 15a9474 | Add state border lines | perfect. can i get lines now. like demarcation of states just like in google maps | Add state/province border line layer and tie it to the toggle. | 2026-01-13 00:52:13 |
+| ccbf3e5 | Keep state borders always visible | yes.always on. cant even see them | Always show state borders while keeping label filter for selection. | 2026-01-13 00:55:55 |
 
 
