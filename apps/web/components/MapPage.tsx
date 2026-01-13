@@ -38,43 +38,7 @@ export default function MapPage() {
     let cancelled = false;
     let maplibre: MapLibreModule | null = null;
 
-    const init = async () => {
-      if (!containerRef.current || mapRef.current) {
-        return;
-      }
-      maplibre = await import("maplibre-gl");
-      if (cancelled || !containerRef.current) {
-        return;
-      }
-      const map = new maplibre.Map({
-        container: containerRef.current,
-        style: baseStyle,
-        center: DEFAULT_CENTER,
-        zoom: DEFAULT_ZOOM,
-        attributionControl: false,
-      });
-      map.addControl(new maplibre.NavigationControl(), "top-right");
-      mapRef.current = map;
-    };
-
-    void init();
-
-    return () => {
-      cancelled = true;
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) {
-      return;
-    }
-    let cancelled = false;
-    const addCountries = async () => {
+    const addCountries = async (map: MapLibreMap) => {
       if (map.getSource("countries")) {
         return;
       }
@@ -123,18 +87,36 @@ export default function MapPage() {
       }
     };
 
-    const handleLoad = () => {
-      void addCountries();
+    const init = async () => {
+      if (!containerRef.current || mapRef.current) {
+        return;
+      }
+      maplibre = await import("maplibre-gl");
+      if (cancelled || !containerRef.current) {
+        return;
+      }
+      const map = new maplibre.Map({
+        container: containerRef.current,
+        style: baseStyle,
+        center: DEFAULT_CENTER,
+        zoom: DEFAULT_ZOOM,
+        attributionControl: false,
+      });
+      map.addControl(new maplibre.NavigationControl(), "top-right");
+      map.on("load", () => {
+        void addCountries(map);
+      });
+      mapRef.current = map;
     };
 
-    map.on("load", handleLoad);
-    if (map.isStyleLoaded()) {
-      void addCountries();
-    }
+    void init();
 
     return () => {
       cancelled = true;
-      map.off("load", handleLoad);
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
     };
   }, []);
 
