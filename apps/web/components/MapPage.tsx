@@ -135,6 +135,55 @@ function buildLabelCollection(features: GeoFeature[]) {
   } as GeoFeatureCollection;
 }
 
+function buildStateLabelCollection(features: GeoFeature[]) {
+  const bestByName = new Map<
+    string,
+    { bounds: Bounds; area: number; name: string; iso2: string }
+  >();
+  features.forEach((feature) => {
+    const props = feature.properties ?? {};
+    const iso2 = String(props.iso_a2 ?? props["iso_a2"] ?? "").trim().toUpperCase();
+    const adm0 = String(props.adm0_a3 ?? "").trim().toUpperCase();
+    if (iso2 !== "US" && adm0 !== "USA") {
+      return;
+    }
+    const name = String(props.name ?? "").trim();
+    if (!name || !feature.geometry) {
+      return;
+    }
+    const bounds = boundsFromGeometry(feature.geometry);
+    if (!bounds) {
+      return;
+    }
+    const area = Math.abs((bounds.east - bounds.west) * (bounds.north - bounds.south));
+    const key = name.toLowerCase();
+    const existing = bestByName.get(key);
+    if (!existing || area > existing.area) {
+      bestByName.set(key, { bounds, area, name, iso2: "US" });
+    }
+  });
+
+  const labelFeatures: GeoFeature[] = [];
+  bestByName.forEach((entry) => {
+    labelFeatures.push({
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [(entry.bounds.west + entry.bounds.east) / 2, (entry.bounds.south + entry.bounds.north) / 2],
+      },
+      properties: {
+        name: entry.name,
+        iso_a2: entry.iso2,
+      },
+    });
+  });
+
+  return {
+    type: "FeatureCollection",
+    features: labelFeatures,
+  } as GeoFeatureCollection;
+}
+
 function unionBounds(features: GeoFeature[]): Bounds | null {
   if (features.length === 0) {
     return null;
@@ -252,6 +301,10 @@ export default function MapPage() {
   const [selectedIso2, setSelectedIso2] = useState<string[]>([]);
   const [citiesVisible, setCitiesVisible] = useState(false);
   const [citiesStatus, setCitiesStatus] = useState<"idle" | "loading" | "ready" | "error">(
+    "idle"
+  );
+  const [statesVisible, setStatesVisible] = useState(false);
+  const [statesStatus, setStatesStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle"
   );
 
@@ -392,6 +445,7 @@ export default function MapPage() {
     const ensureCities = async () => {
       if (map.getSource("cities")) {
         map.setLayoutProperty("city-labels", "visibility", citiesVisible ? "visible" : "none");
+        applyCityFilter(map, labelsMode, selectedIso2);
         return;
       }
       if (!citiesVisible) {
@@ -425,6 +479,7 @@ export default function MapPage() {
           },
         });
         map.setLayoutProperty("city-labels", "visibility", "visible");
+        applyCityFilter(map, labelsMode, selectedIso2);
         setCitiesStatus("ready");
       } catch (error) {
         console.error(error);
@@ -432,7 +487,60 @@ export default function MapPage() {
       }
     };
     void ensureCities();
-  }, [citiesVisible, dataStatus, mapReady]);
+  }, [citiesVisible, dataStatus, labelsMode, mapReady, selectedIso2]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || dataStatus !== "ready" || !map) {
+      return;
+    }
+    const ensureStates = async () => {
+      if (map.getSource("state-labels")) {
+        map.setLayoutProperty("state-labels", "visibility", statesVisible ? "visible" : "none");
+        applyStateFilter(map, labelsMode, selectedIso2);
+        return;
+      }
+      if (!statesVisible) {
+        return;
+      }
+      setStatesStatus("loading");
+      try {
+        const response = await fetch("/data/states.geojson");
+        if (!response.ok) {
+          throw new Error("Failed to load states");
+        }
+        const data = await response.json();
+        const stateLabels = buildStateLabelCollection(data.features ?? []);
+        map.addSource("state-labels", {
+          type: "geojson",
+          data: stateLabels,
+        });
+        map.addLayer({
+          id: "state-labels",
+          type: "symbol",
+          source: "state-labels",
+          layout: {
+            "text-field": ["get", "name"],
+            "text-size": 11,
+            "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
+            "text-offset": [0, 0.6],
+          },
+          paint: {
+            "text-color": "#6b4c3b",
+            "text-halo-color": "#f3efe6",
+            "text-halo-width": 1,
+          },
+        });
+        map.setLayoutProperty("state-labels", "visibility", "visible");
+        applyStateFilter(map, labelsMode, selectedIso2);
+        setStatesStatus("ready");
+      } catch (error) {
+        console.error(error);
+        setStatesStatus("error");
+      }
+    };
+    void ensureStates();
+  }, [dataStatus, labelsMode, mapReady, selectedIso2, statesVisible]);
 
   const handleSubmit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
@@ -559,6 +667,14 @@ export default function MapPage() {
               />
               <span>City labels</span>
             </label>
+            <label className="map-toggle">
+              <input
+                type="checkbox"
+                checked={statesVisible}
+                onChange={(event) => setStatesVisible(event.target.checked)}
+              />
+              <span>State labels (US)</span>
+            </label>
           </div>
         </aside>
         {!mapReady ? (
@@ -576,7 +692,45 @@ export default function MapPage() {
         {citiesStatus === "error" ? (
           <div className="map-toast map-toast--error">Failed to load city labels.</div>
         ) : null}
+        {statesStatus === "error" ? (
+          <div className="map-toast map-toast--error">Failed to load state labels.</div>
+        ) : null}
       </div>
     </div>
   );
+}
+
+function applyCityFilter(
+  map: MapLibreMap,
+  mode: "none" | "selected" | "all",
+  selectedIso2: string[]
+) {
+  if (!map.getLayer("city-labels")) {
+    return;
+  }
+  if (mode === "selected" && selectedIso2.length > 0) {
+    const normalized = selectedIso2.map((code) => code.toUpperCase());
+    map.setFilter("city-labels", [
+      "in",
+      ["get", "iso_a2"],
+      ["literal", normalized],
+    ]);
+  } else {
+    map.setFilter("city-labels", null);
+  }
+}
+
+function applyStateFilter(
+  map: MapLibreMap,
+  mode: "none" | "selected" | "all",
+  selectedIso2: string[]
+) {
+  if (!map.getLayer("state-labels")) {
+    return;
+  }
+  if (mode === "selected" && selectedIso2.length > 0 && !selectedIso2.includes("US")) {
+    map.setLayoutProperty("state-labels", "visibility", "none");
+    return;
+  }
+  map.setLayoutProperty("state-labels", "visibility", "visible");
 }
