@@ -64,5 +64,6 @@
 | 02e25cb | Add country label toggles | 1 | Add label layers and toggles (none/selected/all), plus selected-country filters. | 2026-01-13 00:12:43 |
 | 2ff1a96 | Normalize map query parsing | ensureLabelLayers is not defined | Clean query normalization + loading label string to avoid non-ASCII artifacts. | 2026-01-13 00:16:01 |
 | 226f08f | Deduplicate country labels | yes- | Build label point source per ISO2 to avoid duplicate labels. | 2026-01-13 00:21:04 |
+| 54958f1 | Add city labels toggle | Ok. Add cities now | Load city GeoJSON on demand and toggle city labels. | 2026-01-13 00:24:26 |
 
 
