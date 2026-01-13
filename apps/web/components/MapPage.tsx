@@ -30,9 +30,7 @@ export default function MapPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string | null>(null);
-  const [dataStatus, setDataStatus] = useState<"idle" | "loading" | "ready" | "error">(
-    "idle"
-  );
+  const [dataStatus, setDataStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   useEffect(() => {
     let cancelled = false;
@@ -62,8 +60,8 @@ export default function MapPage() {
             type: "fill",
             source: "countries",
             paint: {
-              "fill-color": "#e4c8ad",
-              "fill-opacity": 0.38,
+              "fill-color": "#d9b895",
+              "fill-opacity": 0.6,
             },
           });
         }
@@ -73,8 +71,8 @@ export default function MapPage() {
             type: "line",
             source: "countries",
             paint: {
-              "line-color": "#9c6f52",
-              "line-width": 1,
+              "line-color": "#6b4c3b",
+              "line-width": 1.4,
             },
           });
         }
@@ -86,6 +84,8 @@ export default function MapPage() {
         }
       }
     };
+
+    let handleResize: (() => void) | null = null;
 
     const init = async () => {
       if (!containerRef.current || mapRef.current) {
@@ -103,16 +103,34 @@ export default function MapPage() {
         attributionControl: false,
       });
       map.addControl(new maplibre.NavigationControl(), "top-right");
+      map.setRenderWorldCopies(false);
+      map.setMaxBounds([
+        [-180, -85],
+        [180, 85],
+      ]);
       map.on("load", () => {
         void addCountries(map);
+        map.resize();
+      });
+      map.on("error", (event) => {
+        console.error(event?.error ?? event);
+        setDataStatus("error");
       });
       mapRef.current = map;
+      window.setTimeout(() => {
+        map.resize();
+      }, 100);
+      handleResize = () => map.resize();
+      window.addEventListener("resize", handleResize);
     };
 
     void init();
 
     return () => {
       cancelled = true;
+      if (handleResize) {
+        window.removeEventListener("resize", handleResize);
+      }
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
