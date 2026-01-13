@@ -59,5 +59,6 @@
 | 19a60f5 | Add map loading modal | doesnt disappear. give me a loading modal and spinner | Show centered loading modal with spinner overlay. | 2026-01-12 23:57:09 |
 | 830355d | Defer map max bounds until load | still spiinning. Map bounds not ready yet TypeError... | Remove pre-load maxBounds call; set bounds only after map load. | 2026-01-13 00:01:22 |
 | 008b778 | Guard map resize on load | Cannot read properties of null (reading '0') ... map.resize | Wrap resize in try/catch to avoid maplibre null error. | 2026-01-13 00:04:42 |
+| 26f8f73 | Remove map bounds and resize hooks | Map bounds failed on load ... Map resize failed on load | Drop bounds/resize hooks entirely to avoid maplibre null errors. | 2026-01-13 00:06:54 |
 
 
