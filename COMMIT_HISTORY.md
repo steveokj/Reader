@@ -67,5 +67,6 @@
 | 54958f1 | Add city labels toggle | Ok. Add cities now | Load city GeoJSON on demand and toggle city labels. | 2026-01-13 00:24:26 |
 | ad56af2 | Add city and state label filtering | Nice, city labels should befor only selected country if thats selected. also add state labels too | Filter city labels by selected countries and add US state label toggle. | 2026-01-13 00:30:54 |
 | 581a09b | Filter state labels by selection | -I want all states for all countries... | Show global state/province labels and filter by selected countries when needed. | 2026-01-13 00:35:00 |
+| 95dd20c | Show global state labels | -I want all states for all countries...if selected only is on... | Make state labels global by default and add loading toasts. | 2026-01-13 00:41:11 |
 
 
