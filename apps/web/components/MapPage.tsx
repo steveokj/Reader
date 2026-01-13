@@ -34,7 +34,7 @@ function normalizeKey(value: string) {
 }
 
 function parsePlaces(value: string) {
-  const normalized = value.replace(/[–—-]+/g, " to ");
+  const normalized = value.replace(/-+/g, " to ");
   return normalized
     .split(/\s+to\s+|,|&|\/|\s+and\s+|\+/i)
     .map((part) => part.trim())
@@ -438,7 +438,7 @@ export default function MapPage() {
           <div className="map-loading">
             <div className="map-loading__card">
               <span className="explore-spinner" aria-hidden="true" />
-              <div>Loading map…</div>
+              <div>Loading map...</div>
             </div>
           </div>
         ) : null}
