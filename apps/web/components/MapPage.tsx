@@ -138,12 +138,23 @@ function buildLabelCollection(features: GeoFeature[]) {
 function buildStateLabelCollection(features: GeoFeature[]) {
   const bestByKey = new Map<
     string,
-    { bounds: Bounds; area: number; name: string; iso2: string }
+    {
+      bounds: Bounds;
+      area: number;
+      name: string;
+      iso2: string;
+      labelX?: number;
+      labelY?: number;
+      hasLabel: boolean;
+    }
   >();
   features.forEach((feature) => {
     const props = feature.properties ?? {};
     const iso2 = String(props.iso_a2 ?? props["iso_a2"] ?? "").trim().toUpperCase();
     const name = String(props.name ?? "").trim();
+    const labelX = Number(props.label_x ?? props["label_x"]);
+    const labelY = Number(props.label_y ?? props["label_y"]);
+    const hasLabel = Number.isFinite(labelX) && Number.isFinite(labelY);
     if (!iso2 || !name || !feature.geometry) {
       return;
     }
@@ -154,18 +165,29 @@ function buildStateLabelCollection(features: GeoFeature[]) {
     const area = Math.abs((bounds.east - bounds.west) * (bounds.north - bounds.south));
     const key = `${iso2}:${name.toLowerCase()}`;
     const existing = bestByKey.get(key);
-    if (!existing || area > existing.area) {
-      bestByKey.set(key, { bounds, area, name, iso2 });
+    if (!existing || area > existing.area || (!existing.hasLabel && hasLabel)) {
+      bestByKey.set(key, {
+        bounds,
+        area,
+        name,
+        iso2,
+        labelX: hasLabel ? labelX : undefined,
+        labelY: hasLabel ? labelY : undefined,
+        hasLabel,
+      });
     }
   });
 
   const labelFeatures: GeoFeature[] = [];
   bestByKey.forEach((entry) => {
+    const hasLabel = entry.hasLabel && Number.isFinite(entry.labelX) && Number.isFinite(entry.labelY);
     labelFeatures.push({
       type: "Feature",
       geometry: {
         type: "Point",
-        coordinates: [(entry.bounds.west + entry.bounds.east) / 2, (entry.bounds.south + entry.bounds.north) / 2],
+        coordinates: hasLabel
+          ? [entry.labelX as number, entry.labelY as number]
+          : [(entry.bounds.west + entry.bounds.east) / 2, (entry.bounds.south + entry.bounds.north) / 2],
       },
       properties: {
         name: entry.name,
