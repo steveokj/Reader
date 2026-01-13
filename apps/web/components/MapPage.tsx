@@ -111,6 +111,72 @@ function applySelection(map: MapLibreMap, iso2Codes: string[]) {
   ]);
 }
 
+function ensureLabelLayers(map: MapLibreMap) {
+  if (map.getLayer("country-labels-all")) {
+    return;
+  }
+  map.addLayer({
+    id: "country-labels-all",
+    type: "symbol",
+    source: "countries",
+    layout: {
+      "text-field": ["get", "name"],
+      "text-size": 11,
+      "text-transform": "uppercase",
+      "text-letter-spacing": 0.08,
+      "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
+    },
+    paint: {
+      "text-color": "#614438",
+      "text-halo-color": "#f3efe6",
+      "text-halo-width": 1,
+    },
+  });
+  map.addLayer({
+    id: "country-labels-selected",
+    type: "symbol",
+    source: "countries",
+    layout: {
+      "text-field": ["get", "name"],
+      "text-size": 12,
+      "text-transform": "uppercase",
+      "text-letter-spacing": 0.08,
+      "text-font": ["Open Sans Bold", "Arial Unicode MS Regular"],
+    },
+    paint: {
+      "text-color": "#b34c28",
+      "text-halo-color": "#fff3e6",
+      "text-halo-width": 1.2,
+    },
+  });
+}
+
+function applyLabelState(
+  map: MapLibreMap,
+  mode: "none" | "selected" | "all",
+  selectedIso2: string[]
+) {
+  if (!map.getLayer("country-labels-all") || !map.getLayer("country-labels-selected")) {
+    return;
+  }
+  const selectedNormalized = selectedIso2.map((code) => code.toUpperCase());
+  map.setFilter("country-labels-selected", [
+    "in",
+    ["get", "ISO3166-1-Alpha-2"],
+    ["literal", selectedNormalized],
+  ]);
+  map.setLayoutProperty(
+    "country-labels-all",
+    "visibility",
+    mode === "all" ? "visible" : "none"
+  );
+  map.setLayoutProperty(
+    "country-labels-selected",
+    "visibility",
+    mode === "selected" ? "visible" : "none"
+  );
+}
+
 export default function MapPage() {
   const mapRef = useRef<MapLibreMap | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -120,6 +186,8 @@ export default function MapPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [dataStatus, setDataStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [mapReady, setMapReady] = useState(false);
+  const [labelsMode, setLabelsMode] = useState<"none" | "selected" | "all">("selected");
+  const [selectedIso2, setSelectedIso2] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -183,6 +251,7 @@ export default function MapPage() {
             },
           });
         }
+        ensureLabelLayers(map);
         setDataStatus("ready");
       } catch (error) {
         console.error(error);
@@ -233,6 +302,15 @@ export default function MapPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || dataStatus !== "ready" || !map) {
+      return;
+    }
+    ensureLabelLayers(map);
+    applyLabelState(map, labelsMode, selectedIso2);
+  }, [dataStatus, labelsMode, mapReady, selectedIso2]);
+
   const handleSubmit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -267,10 +345,12 @@ export default function MapPage() {
         window.setTimeout(() => setStatus(null), 2000);
         return;
       }
-      const selectedIso2 = matches
+      const iso2Codes = matches
         .map((feature) => String(feature.properties?.["ISO3166-1-Alpha-2"] ?? "").trim())
         .filter(Boolean);
-      applySelection(map, selectedIso2);
+      setSelectedIso2(iso2Codes);
+      applySelection(map, iso2Codes);
+      applyLabelState(map, labelsMode, iso2Codes);
       map.fitBounds(
         [
           [bbox.west, bbox.south],
@@ -278,10 +358,10 @@ export default function MapPage() {
         ],
         { padding: 60, duration: 800 }
       );
-      setStatus(`Showing ${selectedIso2.join(", ") || matches.length} countries.`);
+      setStatus(`Showing ${iso2Codes.join(", ") || matches.length} countries.`);
       window.setTimeout(() => setStatus(null), 2000);
     },
-    [dataStatus, mapReady, query]
+    [dataStatus, labelsMode, mapReady, query]
   );
 
   return (
@@ -316,13 +396,41 @@ export default function MapPage() {
           </div>
           <div className="map-sidepanel__section">
             <div className="map-sidepanel__title">Layers</div>
+            <div className="map-sidepanel__subtitle">Country labels</div>
             <label className="map-toggle">
-              <input type="checkbox" disabled />
-              <span>City labels</span>
+              <input
+                type="radio"
+                name="country-labels"
+                value="none"
+                checked={labelsMode === "none"}
+                onChange={() => setLabelsMode("none")}
+              />
+              <span>None</span>
             </label>
             <label className="map-toggle">
+              <input
+                type="radio"
+                name="country-labels"
+                value="selected"
+                checked={labelsMode === "selected"}
+                onChange={() => setLabelsMode("selected")}
+              />
+              <span>Selected only</span>
+            </label>
+            <label className="map-toggle">
+              <input
+                type="radio"
+                name="country-labels"
+                value="all"
+                checked={labelsMode === "all"}
+                onChange={() => setLabelsMode("all")}
+              />
+              <span>All countries</span>
+            </label>
+            <div className="map-sidepanel__divider" />
+            <label className="map-toggle map-toggle--disabled">
               <input type="checkbox" disabled />
-              <span>Selected country labels</span>
+              <span>City labels (soon)</span>
             </label>
           </div>
         </aside>

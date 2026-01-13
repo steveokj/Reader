@@ -1915,6 +1915,20 @@ html[data-reader-theme="dark"] .reader-layout {
   gap: 8px;
 }
 
+.map-sidepanel__subtitle {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--reader-ink-muted, rgba(31, 28, 22, 0.55));
+  margin-top: 6px;
+}
+
+.map-sidepanel__divider {
+  height: 1px;
+  background: var(--reader-border, rgba(31, 28, 22, 0.12));
+  margin: 4px 0;
+}
+
 .map-sidepanel__title {
   font-size: 11px;
   text-transform: uppercase;
@@ -1933,6 +1947,10 @@ html[data-reader-theme="dark"] .reader-layout {
   gap: 8px;
   font-size: 12px;
   color: var(--reader-ink, var(--ink));
+}
+
+.map-toggle--disabled {
+  opacity: 0.6;
 }
 
 .map-toggle input {
