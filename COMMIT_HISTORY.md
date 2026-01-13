@@ -55,5 +55,6 @@
 | 81c227a | Guard map max bounds | Cannot read properties of null (reading '0') ... setMaxBounds | Defer max bounds with try/catch and retry on load. | 2026-01-12 23:44:41 |
 | b3a35bc | Guard map resize timing | Cannot read properties of null (reading '0') ... map.resize | Only resize when mapRef exists and not cancelled. | 2026-01-12 23:45:32 |
 | 46b78f3 | Remove map resize timeout | Cannot read properties of null (reading '0') ... map.resize | Drop delayed resize and use load/resize handler only. | 2026-01-12 23:46:34 |
+| c97cb86 | Add map loading indicator | cant see anything.does it take time to load? | Show loading toast and ensure map canvas fills the shell. | 2026-01-12 23:53:56 |
 
 
