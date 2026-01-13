@@ -381,6 +381,7 @@ export default function MapPage() {
     "idle"
   );
   const [statesVisible, setStatesVisible] = useState(false);
+  const [stateBordersVisible, setStateBordersVisible] = useState(true);
   const [statesStatus, setStatesStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle"
   );
@@ -591,9 +592,16 @@ export default function MapPage() {
       if (map.getSource("state-labels") && map.getSource("states")) {
         map.setLayoutProperty("state-labels", "visibility", statesVisible ? "visible" : "none");
         if (map.getLayer("state-borders")) {
-          map.setLayoutProperty("state-borders", "visibility", "visible");
+          map.setLayoutProperty(
+            "state-borders",
+            "visibility",
+            stateBordersVisible ? "visible" : "none"
+          );
         }
         applyStateFilter(map, labelsMode, selectedIso2);
+        return;
+      }
+      if (!statesVisible && !stateBordersVisible) {
         return;
       }
       setStatesStatus("loading");
@@ -656,7 +664,11 @@ export default function MapPage() {
           );
         }
         map.setLayoutProperty("state-labels", "visibility", statesVisible ? "visible" : "none");
-        map.setLayoutProperty("state-borders", "visibility", "visible");
+        map.setLayoutProperty(
+          "state-borders",
+          "visibility",
+          stateBordersVisible ? "visible" : "none"
+        );
         applyStateFilter(map, labelsMode, selectedIso2);
         setStatesStatus("ready");
       } catch (error) {
@@ -665,7 +677,7 @@ export default function MapPage() {
       }
     };
     void ensureStates();
-  }, [dataStatus, labelsMode, mapReady, selectedIso2, statesVisible]);
+  }, [dataStatus, labelsMode, mapReady, selectedIso2, stateBordersVisible, statesVisible]);
 
   const handleSubmit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
@@ -799,6 +811,14 @@ export default function MapPage() {
                 onChange={(event) => setStatesVisible(event.target.checked)}
               />
               <span>State/Province labels</span>
+            </label>
+            <label className="map-toggle">
+              <input
+                type="checkbox"
+                checked={stateBordersVisible}
+                onChange={(event) => setStateBordersVisible(event.target.checked)}
+              />
+              <span>State/Province borders</span>
             </label>
           </div>
         </aside>
