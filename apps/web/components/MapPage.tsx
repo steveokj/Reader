@@ -520,9 +520,9 @@ export default function MapPage() {
             type: "line",
             source: "state-labels",
             paint: {
-              "line-color": "#b48b6a",
-              "line-width": 1.1,
-              "line-opacity": 0.7,
+              "line-color": "#7a4a33",
+              "line-width": 1.6,
+              "line-opacity": 0.9,
             },
           },
           labelBefore
