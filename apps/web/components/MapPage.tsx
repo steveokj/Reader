@@ -31,6 +31,7 @@ export default function MapPage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [dataStatus, setDataStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,6 +114,7 @@ export default function MapPage() {
         console.warn("Map bounds not ready yet", error);
       }
       map.on("load", () => {
+        setMapReady(true);
         void addCountries(map);
         try {
           map.setMaxBounds([
@@ -202,6 +204,7 @@ export default function MapPage() {
             </label>
           </div>
         </aside>
+        {!mapReady ? <div className="map-toast">Loading map...</div> : null}
         {status ? <div className="map-toast">{status}</div> : null}
         {dataStatus === "error" ? (
           <div className="map-toast map-toast--error">Failed to load map data.</div>

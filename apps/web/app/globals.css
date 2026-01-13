@@ -1882,11 +1882,15 @@ html[data-reader-theme="dark"] .reader-layout {
   position: relative;
   flex: 1;
   min-height: 0;
+  height: 100%;
 }
 
 .map-canvas {
   position: absolute;
   inset: 0;
+  min-height: 100%;
+  min-width: 100%;
+  background: #f3efe6;
 }
 
 .map-sidepanel {
