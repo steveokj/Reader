@@ -1600,6 +1600,12 @@ html[data-reader-theme="dark"] .reader-layout {
   padding: 20px;
 }
 
+.modal-backdrop--fullscreen {
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+}
+
 .modal-card {
   width: min(520px, 100%);
   background: #979492; /* #fffaf5; */
@@ -1625,6 +1631,31 @@ html[data-reader-theme="dark"] .reader-layout {
   flex-direction: column;
   gap: 16px;
   color: var(--reader-ink, var(--ink));
+}
+
+.highlight-detail-modal--fullscreen {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  padding: 0;
+  gap: 0;
+}
+
+.highlight-detail-modal__top {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--reader-border, rgba(31, 28, 22, 0.12));
+  background: var(--reader-panel, #fffaf5);
+}
+
+.highlight-detail-modal__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .highlight-detail-modal__header {
