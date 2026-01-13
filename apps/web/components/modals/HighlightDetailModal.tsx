@@ -213,7 +213,11 @@ export default function HighlightDetailModal({
       className="modal-backdrop modal-backdrop--fullscreen"
       role="dialog"
       aria-modal="true"
-      onClick={onClose}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
     >
       <div
         className="highlight-detail-modal highlight-detail-modal--fullscreen"
