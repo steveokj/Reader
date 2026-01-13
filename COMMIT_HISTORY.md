@@ -85,3 +85,4 @@
 | c3b4133 | Add ocean labels | yes | Add ocean name labels from marine polys and render them on the map. | 2026-01-13 01:34:22 |
 | b72af38 | Add seas and gulfs labels | add seas and gulfs. also name positioning sucks | Use marine polys directly for labels (ocean/sea/gulf) so placement uses polygon centroids instead of bbox. | 2026-01-13 01:39:07 |
 | bad5106 | Add focus seas toggle | --give mea toggle...Gulf of Mexico and Mediteranen only... | Add a seas focus toggle that filters marine labels to Gulf of Mexico + Mediterranean (oceans still show). | 2026-01-13 01:47:17 |
+| a4a19c1 | Adopt Google-style map styling | seas toggle is already done. begin the editing for the google maps styling. dont stop until done | Switched map to OSM Liberty style + Google-like land/water colors; Roboto labels + transparent country fill. | 2026-01-13 02:06:44 |
