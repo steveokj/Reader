@@ -48,5 +48,6 @@
 | 97d6fcb | Refine highlight detail modal layout | nice. move the markers to the top under the close icon... | Move markers into top bar, tighten padding, enable snapshot scroll, match reader colors. | 2026-01-12 22:29:02 |
 | 9ce1f1e | Fix highlight detail modal JSX | [web] Parsing ecmascript source code failed ... Unterminated regexp literal | Rewrote highlight modal JSX block to resolve parse error. | 2026-01-12 22:37:21 |
 | 09e05bf | Add initial map page shell | map is good. standalone for now. add. global but i want to save searches to a book just like grammar. hold off. | Add /map route with MapLibre shell, search bar, and placeholder panels. | 2026-01-12 23:17:38 |
+| e7a88b4 | Bump maplibre-gl to available version | npm install failed (No matching version found for maplibre-gl@^4.7.2). | Update maplibre-gl to ^5.16.0 (latest available). | 2026-01-12 23:28:08 |
 
 
