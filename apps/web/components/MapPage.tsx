@@ -250,6 +250,10 @@ export default function MapPage() {
   const [mapReady, setMapReady] = useState(false);
   const [labelsMode, setLabelsMode] = useState<"none" | "selected" | "all">("selected");
   const [selectedIso2, setSelectedIso2] = useState<string[]>([]);
+  const [citiesVisible, setCitiesVisible] = useState(false);
+  const [citiesStatus, setCitiesStatus] = useState<"idle" | "loading" | "ready" | "error">(
+    "idle"
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -380,6 +384,56 @@ export default function MapPage() {
     applyLabelState(map, labelsMode, selectedIso2);
   }, [dataStatus, labelsMode, mapReady, selectedIso2]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || dataStatus !== "ready" || !map) {
+      return;
+    }
+    const ensureCities = async () => {
+      if (map.getSource("cities")) {
+        map.setLayoutProperty("city-labels", "visibility", citiesVisible ? "visible" : "none");
+        return;
+      }
+      if (!citiesVisible) {
+        return;
+      }
+      setCitiesStatus("loading");
+      try {
+        const response = await fetch("/data/cities.geojson");
+        if (!response.ok) {
+          throw new Error("Failed to load cities");
+        }
+        const data = await response.json();
+        map.addSource("cities", {
+          type: "geojson",
+          data,
+        });
+        map.addLayer({
+          id: "city-labels",
+          type: "symbol",
+          source: "cities",
+          layout: {
+            "text-field": ["get", "name"],
+            "text-size": 10,
+            "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+            "text-offset": [0, 0.6],
+          },
+          paint: {
+            "text-color": "#544036",
+            "text-halo-color": "#f3efe6",
+            "text-halo-width": 1,
+          },
+        });
+        map.setLayoutProperty("city-labels", "visibility", "visible");
+        setCitiesStatus("ready");
+      } catch (error) {
+        console.error(error);
+        setCitiesStatus("error");
+      }
+    };
+    void ensureCities();
+  }, [citiesVisible, dataStatus, mapReady]);
+
   const handleSubmit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -497,9 +551,13 @@ export default function MapPage() {
               <span>All countries</span>
             </label>
             <div className="map-sidepanel__divider" />
-            <label className="map-toggle map-toggle--disabled">
-              <input type="checkbox" disabled />
-              <span>City labels (soon)</span>
+            <label className="map-toggle">
+              <input
+                type="checkbox"
+                checked={citiesVisible}
+                onChange={(event) => setCitiesVisible(event.target.checked)}
+              />
+              <span>City labels</span>
             </label>
           </div>
         </aside>
@@ -514,6 +572,9 @@ export default function MapPage() {
         {status ? <div className="map-toast">{status}</div> : null}
         {dataStatus === "error" ? (
           <div className="map-toast map-toast--error">Failed to load map data.</div>
+        ) : null}
+        {citiesStatus === "error" ? (
+          <div className="map-toast map-toast--error">Failed to load city labels.</div>
         ) : null}
       </div>
     </div>
