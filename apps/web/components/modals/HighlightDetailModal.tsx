@@ -251,22 +251,23 @@ export default function HighlightDetailModal({
             >
               <IconClose />
             </button>
+          </div>
+          <div className="highlight-detail-modal__markers highlight-detail-modal__markers--top">
+            <MarkerToggle
+              activeKinds={activeMarkers}
+              onToggle={(kind) => {
+                if (isAddition) {
+                  onToggleAdditionMarker?.(kind);
+                } else {
+                  onToggleSelectionMarker?.(kind);
+                }
+              }}
+              compact
+            />
+          </div>
         </div>
 
         <div className="highlight-detail-modal__body">
-            <div className="highlight-detail-modal__markers">
-              <MarkerToggle
-                activeKinds={activeMarkers}
-                onToggle={(kind) => {
-                  if (isAddition) {
-                    onToggleAdditionMarker?.(kind);
-                  } else {
-                    onToggleSelectionMarker?.(kind);
-                  }
-                }}
-                compact
-              />
-            </div>
 
             {showBanner ? (
               <div className="highlight-detail-modal__banner">

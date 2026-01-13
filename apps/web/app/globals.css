@@ -1643,10 +1643,11 @@ html[data-reader-theme="dark"] .reader-layout {
   gap: 0;
   border: none;
   box-shadow: none;
+  background: var(--reader-paper, #f6f1e9);
 }
 
 .highlight-detail-modal__top {
-  padding: 16px 20px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--reader-border, rgba(31, 28, 22, 0.12));
   background: var(--reader-panel, #fffaf5);
 }
@@ -1654,10 +1655,11 @@ html[data-reader-theme="dark"] .reader-layout {
 .highlight-detail-modal__body {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px 24px;
+  padding: 10px 12px 18px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background: var(--reader-paper, #f6f1e9);
 }
 
 .highlight-detail-modal__header {
@@ -1708,6 +1710,11 @@ html[data-reader-theme="dark"] .reader-layout {
 .highlight-detail-modal__markers {
   display: flex;
   justify-content: flex-start;
+}
+
+.highlight-detail-modal__markers--top {
+  justify-content: flex-end;
+  margin-top: 8px;
 }
 
 .highlight-detail-modal__banner {
@@ -1781,7 +1788,7 @@ html[data-reader-theme="dark"] .reader-layout {
 .highlight-detail-modal__snapshot {
   position: relative;
   border-radius: 14px;
-  overflow: hidden;
+  overflow: auto;
   border: 1px solid var(--reader-border, rgba(31, 28, 22, 0.12));
   background: var(--reader-paper, #f6f1e9);
 }
