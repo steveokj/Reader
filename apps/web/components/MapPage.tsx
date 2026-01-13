@@ -136,19 +136,15 @@ function buildLabelCollection(features: GeoFeature[]) {
 }
 
 function buildStateLabelCollection(features: GeoFeature[]) {
-  const bestByName = new Map<
+  const bestByKey = new Map<
     string,
     { bounds: Bounds; area: number; name: string; iso2: string }
   >();
   features.forEach((feature) => {
     const props = feature.properties ?? {};
     const iso2 = String(props.iso_a2 ?? props["iso_a2"] ?? "").trim().toUpperCase();
-    const adm0 = String(props.adm0_a3 ?? "").trim().toUpperCase();
-    if (iso2 !== "US" && adm0 !== "USA") {
-      return;
-    }
     const name = String(props.name ?? "").trim();
-    if (!name || !feature.geometry) {
+    if (!iso2 || !name || !feature.geometry) {
       return;
     }
     const bounds = boundsFromGeometry(feature.geometry);
@@ -156,15 +152,15 @@ function buildStateLabelCollection(features: GeoFeature[]) {
       return;
     }
     const area = Math.abs((bounds.east - bounds.west) * (bounds.north - bounds.south));
-    const key = name.toLowerCase();
-    const existing = bestByName.get(key);
+    const key = `${iso2}:${name.toLowerCase()}`;
+    const existing = bestByKey.get(key);
     if (!existing || area > existing.area) {
-      bestByName.set(key, { bounds, area, name, iso2: "US" });
+      bestByKey.set(key, { bounds, area, name, iso2 });
     }
   });
 
   const labelFeatures: GeoFeature[] = [];
-  bestByName.forEach((entry) => {
+  bestByKey.forEach((entry) => {
     labelFeatures.push({
       type: "Feature",
       geometry: {
@@ -673,7 +669,7 @@ export default function MapPage() {
                 checked={statesVisible}
                 onChange={(event) => setStatesVisible(event.target.checked)}
               />
-              <span>State labels (US)</span>
+              <span>State/Province labels</span>
             </label>
           </div>
         </aside>
@@ -708,16 +704,16 @@ function applyCityFilter(
   if (!map.getLayer("city-labels")) {
     return;
   }
-  if (mode === "selected" && selectedIso2.length > 0) {
+  if (mode === "selected") {
+    if (selectedIso2.length === 0) {
+      map.setFilter("city-labels", ["==", ["get", "iso_a2"], ""]);
+      return;
+    }
     const normalized = selectedIso2.map((code) => code.toUpperCase());
-    map.setFilter("city-labels", [
-      "in",
-      ["get", "iso_a2"],
-      ["literal", normalized],
-    ]);
-  } else {
-    map.setFilter("city-labels", null);
+    map.setFilter("city-labels", ["in", ["get", "iso_a2"], ["literal", normalized]]);
+    return;
   }
+  map.setFilter("city-labels", null);
 }
 
 function applyStateFilter(
@@ -728,9 +724,19 @@ function applyStateFilter(
   if (!map.getLayer("state-labels")) {
     return;
   }
-  if (mode === "selected" && selectedIso2.length > 0 && !selectedIso2.includes("US")) {
+  if (mode === "none") {
     map.setLayoutProperty("state-labels", "visibility", "none");
     return;
   }
   map.setLayoutProperty("state-labels", "visibility", "visible");
+  if (mode === "selected") {
+    if (selectedIso2.length === 0) {
+      map.setFilter("state-labels", ["==", ["get", "iso_a2"], ""]);
+      return;
+    }
+    const normalized = selectedIso2.map((code) => code.toUpperCase());
+    map.setFilter("state-labels", ["in", ["get", "iso_a2"], ["literal", normalized]]);
+    return;
+  }
+  map.setFilter("state-labels", null);
 }
