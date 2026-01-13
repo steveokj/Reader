@@ -52,5 +52,6 @@
 | 3b6444a | Add countries dataset to map | ok. next phase | Load countries GeoJSON + layers, add map toast error style, update lockfile. | 2026-01-12 23:32:49 |
 | 67655df | Load countries after map init | ----cant see countries | Attach country layer load to map init so data renders. | 2026-01-12 23:37:06 |
 | ad65625 | Fix map sizing and world wrap | works now. it starts off small in a way. can see africa twicwe | Disable world copies, constrain bounds, ensure resize + CSS import. | 2026-01-12 23:43:22 |
+| 81c227a | Guard map max bounds | Cannot read properties of null (reading '0') ... setMaxBounds | Defer max bounds with try/catch and retry on load. | 2026-01-12 23:44:41 |
 
 
