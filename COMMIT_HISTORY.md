@@ -84,3 +84,4 @@
 | 2b956d4 | Add ocean fill layer | --perfect. can i get oceans? | Add Natural Earth ocean polygons and render a light ocean fill. | 2026-01-13 01:28:20 |
 | c3b4133 | Add ocean labels | yes | Add ocean name labels from marine polys and render them on the map. | 2026-01-13 01:34:22 |
 | b72af38 | Add seas and gulfs labels | add seas and gulfs. also name positioning sucks | Use marine polys directly for labels (ocean/sea/gulf) so placement uses polygon centroids instead of bbox. | 2026-01-13 01:39:07 |
+| bad5106 | Add focus seas toggle | --give mea toggle...Gulf of Mexico and Mediteranen only... | Add a seas focus toggle that filters marine labels to Gulf of Mexico + Mediterranean (oceans still show). | 2026-01-13 01:47:17 |
