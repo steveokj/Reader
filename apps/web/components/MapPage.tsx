@@ -381,6 +381,7 @@ export default function MapPage() {
     "idle"
   );
   const [statesVisible, setStatesVisible] = useState(false);
+  const [focusSeasOnly, setFocusSeasOnly] = useState(false);
   const [statesStatus, setStatesStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle"
   );
@@ -607,6 +608,14 @@ export default function MapPage() {
     ensureLabelLayers(map);
     applyLabelState(map, labelsMode, selectedIso2);
   }, [dataStatus, labelsMode, mapReady, selectedIso2]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || dataStatus !== "ready" || !map) {
+      return;
+    }
+    applyMarineFilter(map, focusSeasOnly);
+  }, [dataStatus, focusSeasOnly, mapReady]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -883,6 +892,14 @@ export default function MapPage() {
               />
               <span>State/Province labels + borders</span>
             </label>
+            <label className="map-toggle">
+              <input
+                type="checkbox"
+                checked={focusSeasOnly}
+                onChange={(event) => setFocusSeasOnly(event.target.checked)}
+              />
+              <span>Focus seas: Gulf of Mexico + Mediterranean</span>
+            </label>
           </div>
         </aside>
         {!mapReady ? (
@@ -969,4 +986,27 @@ function applyStateFilter(
   if (hasBorders) {
     map.setFilter("state-borders", null);
   }
+}
+
+function applyMarineFilter(map: MapLibreMap, focusSeasOnly: boolean) {
+  if (!map.getLayer("marine-labels")) {
+    return;
+  }
+  if (!focusSeasOnly) {
+    map.setFilter("marine-labels", [
+      "in",
+      ["get", "featurecla"],
+      ["literal", ["ocean", "sea", "gulf"]],
+    ]);
+    return;
+  }
+  map.setFilter("marine-labels", [
+    "any",
+    ["==", ["get", "featurecla"], "ocean"],
+    [
+      "all",
+      ["in", ["get", "featurecla"], ["literal", ["sea", "gulf"]]],
+      ["in", ["get", "name"], ["literal", ["Gulf of Mexico", "Mediterranean Sea"]]],
+    ],
+  ]);
 }
