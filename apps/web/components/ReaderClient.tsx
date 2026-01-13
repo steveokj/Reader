@@ -3346,6 +3346,9 @@ export default function ReaderClient({
       if (!isMobile || (!mobileNavOpen && !mobilePageNavOpen)) {
         return;
       }
+      if (document.documentElement.classList.contains("highlight-detail-modal-open")) {
+        return;
+      }
       const target = event.target as Node;
       if (
         mobileNavRef.current?.contains(target) ||
@@ -3365,6 +3368,9 @@ export default function ReaderClient({
         return;
       }
       if (!mobileNavOpen && !mobilePageNavOpen) {
+        return;
+      }
+      if (document.documentElement.classList.contains("highlight-detail-modal-open")) {
         return;
       }
       if (doubleTapInProgressRef.current) {

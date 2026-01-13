@@ -186,6 +186,21 @@ export default function HighlightDetailModal({
   }, [grammarSnapshotUrl, open]);
 
   useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const root = document.documentElement;
+    const body = document.body;
+    const previousOverflow = body.style.overflow;
+    root.classList.add("highlight-detail-modal-open");
+    body.style.overflow = "hidden";
+    return () => {
+      root.classList.remove("highlight-detail-modal-open");
+      body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  useEffect(() => {
     setMounted(true);
   }, []);
 
