@@ -129,14 +129,9 @@ export default function MapPage() {
         setDataStatus("error");
       });
       mapRef.current = map;
-      window.setTimeout(() => {
-        if (mapRef.current && !cancelled) {
-          mapRef.current.resize();
-        }
-      }, 100);
       handleResize = () => {
-        if (mapRef.current && !cancelled) {
-          mapRef.current.resize();
+        if (!cancelled) {
+          map.resize();
         }
       };
       window.addEventListener("resize", handleResize);
