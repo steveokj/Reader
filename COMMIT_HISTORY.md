@@ -74,3 +74,4 @@
 
 
 | f547923 | Increase state border contrast | still cant see them. might be the color? | Increase state border contrast for state borders. | 2026-01-13 00:59:24 |
+| 82bf598 | Fix state borders source | theres a problem. cant see country borders and state borders. reason why. dont thinl it is opacity or color related as that was changed | Use the full state geometry for borders (not label points) and slightly strengthen country outlines. | 2026-01-13 01:02:56 |
