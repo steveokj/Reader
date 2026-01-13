@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 import MarkerToggle from "@/components/MarkerToggle";
 import { getClientApiBase } from "@/lib/apiBase";
@@ -121,6 +122,7 @@ export default function HighlightDetailModal({
   const [snapshotStatus, setSnapshotStatus] = useState<"loading" | "ready" | "error">(
     "loading"
   );
+  const [mounted, setMounted] = useState(false);
 
   const isAddition = mode === "addition" && addition;
   const activeMarkers = useMemo(() => {
@@ -183,7 +185,11 @@ export default function HighlightDetailModal({
     }
   }, [grammarSnapshotUrl, open]);
 
-  if (!open) {
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!open || !mounted) {
     return null;
   }
 
@@ -202,7 +208,7 @@ export default function HighlightDetailModal({
 
   const showBanner = noteItems.length > 0 || audioItems.length > 0;
 
-  return (
+  return createPortal(
     <div
       className="modal-backdrop modal-backdrop--fullscreen"
       role="dialog"
@@ -376,6 +382,7 @@ export default function HighlightDetailModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

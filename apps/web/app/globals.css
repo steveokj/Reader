@@ -1641,6 +1641,8 @@ html[data-reader-theme="dark"] .reader-layout {
   border-radius: 0;
   padding: 0;
   gap: 0;
+  border: none;
+  box-shadow: none;
 }
 
 .highlight-detail-modal__top {
