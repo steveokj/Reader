@@ -82,3 +82,4 @@
 | 45e8d62 | Tie state borders to labels toggle | yes i want | Tie state borders visibility to the state labels toggle and update toggle text. | 2026-01-13 01:23:42 |
 | 1b6dedb | Filter state borders by selection | for selected only..it shows states for selected only but state borders for every county | Apply selected-country filter to state borders alongside state labels. | 2026-01-13 01:25:17 |
 | 2b956d4 | Add ocean fill layer | --perfect. can i get oceans? | Add Natural Earth ocean polygons and render a light ocean fill. | 2026-01-13 01:28:20 |
+| c3b4133 | Add ocean labels | yes | Add ocean name labels from marine polys and render them on the map. | 2026-01-13 01:34:22 |
