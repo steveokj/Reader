@@ -40,5 +40,6 @@
 | pending | Avoid reprocessing refresh signal | reopen highlights re-fetches selection | Track last refresh key to prevent replay on reopen | 2026-01-12 19:46:27 |
 | pending | Persist highlights refresh key | reopen replays last refresh signal | Cache last refresh key per document to avoid reprocessing | 2026-01-12 19:49:50 |
 | 39652dc | Add highlight detail modal for highlights items | Double-click highlights items to open type-specific detail modal with notes/audio/explore/grammar and markers. | Added highlight detail modal, wired double-click, marker toggles, banner notes/audio, and styling. | 2026-01-12 21:48:09 |
+| 5b8a0c3 | Make highlight detail modal fullscreen | nice job. make the highlight detail modal full page like the explore and grammar modal... | Fullscreen highlight detail modal with top header + close icon. | 2026-01-12 21:59:27 |
 
 
