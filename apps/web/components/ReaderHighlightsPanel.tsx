@@ -99,6 +99,7 @@ export default function ReaderHighlightsPanel({
   const [hasLoaded, setHasLoaded] = useState(false);
   const bundlesRef = useRef<SelectionBundle[]>([]);
   const sectionsByIdRef = useRef<Map<number, string>>(new Map());
+  const lastRefreshKeyRef = useRef<number | null>(null);
 
   useEffect(() => {
     const cached = HIGHLIGHTS_CACHE.get(documentId);
@@ -297,6 +298,10 @@ export default function ReaderHighlightsPanel({
     if (!isActive || !refreshSignal) {
       return;
     }
+    if (lastRefreshKeyRef.current === refreshSignal.key) {
+      return;
+    }
+    lastRefreshKeyRef.current = refreshSignal.key;
     if (refreshSignal.type === "delete" && refreshSignal.selectionId) {
       setBundles((prev) => {
         const next = prev.filter((bundle) => bundle.selection.id !== refreshSignal.selectionId);
