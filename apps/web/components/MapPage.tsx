@@ -104,12 +104,24 @@ export default function MapPage() {
       });
       map.addControl(new maplibre.NavigationControl(), "top-right");
       map.setRenderWorldCopies(false);
-      map.setMaxBounds([
-        [-180, -85],
-        [180, 85],
-      ]);
+      try {
+        map.setMaxBounds([
+          [-180, -85],
+          [180, 85],
+        ]);
+      } catch (error) {
+        console.warn("Map bounds not ready yet", error);
+      }
       map.on("load", () => {
         void addCountries(map);
+        try {
+          map.setMaxBounds([
+            [-180, -85],
+            [180, 85],
+          ]);
+        } catch (error) {
+          console.warn("Map bounds failed on load", error);
+        }
         map.resize();
       });
       map.on("error", (event) => {
