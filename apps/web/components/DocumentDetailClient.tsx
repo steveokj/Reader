@@ -183,6 +183,10 @@ export default function DocumentDetailClient({ document, sections, bundles }: Do
                 const selectionSnippet = selection
                   ? formatSnippet(selection.selector.quote.exact)
                   : "Selection";
+                const sourcePayload = (addition.payload ?? {}) as { source?: { kind?: string } };
+                const sourceLabel = sourcePayload.source?.kind
+                  ? `Artifact (${sourcePayload.source.kind})`
+                  : null;
                 return (
                   <article key={addition.id} className="data-card">
                     <div className="data-card__meta">
@@ -192,7 +196,9 @@ export default function DocumentDetailClient({ document, sections, bundles }: Do
                     <div className="data-card__title">
                       {formatSnippet(addition.text_content ?? addition.title ?? addition.type)}
                     </div>
-                    <div className="data-card__hint">From: {selectionSnippet}</div>
+                    <div className="data-card__hint">
+                      From: {sourceLabel ?? selectionSnippet}
+                    </div>
                   </article>
                 );
               })}

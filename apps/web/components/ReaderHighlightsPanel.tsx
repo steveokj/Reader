@@ -313,8 +313,14 @@ export default function ReaderHighlightsPanel({
                 const selectionSnippet = selection
                   ? formatSnippet(selection.selector.quote.exact)
                   : "Selection";
-                const payload = addition.payload as { audio?: { url?: string } } | undefined;
-                const audioUrl = payload?.audio?.url ? `${apiBase}${payload.audio.url}` : null;
+                const sourcePayload = (addition.payload ?? {}) as { source?: { kind?: string } };
+                const sourceLabel = sourcePayload.source?.kind
+                  ? `Artifact (${sourcePayload.source.kind})`
+                  : null;
+                const audioPayload = addition.payload as { audio?: { url?: string } } | undefined;
+                const audioUrl = audioPayload?.audio?.url
+                  ? `${apiBase}${audioPayload.audio.url}`
+                  : null;
                 const additionLabel =
                   addition.type === "audio"
                     ? "Audio recording"
@@ -329,7 +335,9 @@ export default function ReaderHighlightsPanel({
                     {audioUrl ? (
                       <audio className="data-card__audio" controls src={audioUrl} />
                     ) : null}
-                    <div className="data-card__hint">From: {selectionSnippet}</div>
+                    <div className="data-card__hint">
+                      From: {sourceLabel ?? selectionSnippet}
+                    </div>
                   </article>
                 );
               })}
