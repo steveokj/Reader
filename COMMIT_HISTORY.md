@@ -58,5 +58,6 @@
 | c97cb86 | Add map loading indicator | cant see anything.does it take time to load? | Show loading toast and ensure map canvas fills the shell. | 2026-01-12 23:53:56 |
 | 19a60f5 | Add map loading modal | doesnt disappear. give me a loading modal and spinner | Show centered loading modal with spinner overlay. | 2026-01-12 23:57:09 |
 | 830355d | Defer map max bounds until load | still spiinning. Map bounds not ready yet TypeError... | Remove pre-load maxBounds call; set bounds only after map load. | 2026-01-13 00:01:22 |
+| 008b778 | Guard map resize on load | Cannot read properties of null (reading '0') ... map.resize | Wrap resize in try/catch to avoid maplibre null error. | 2026-01-13 00:04:42 |
 
 
