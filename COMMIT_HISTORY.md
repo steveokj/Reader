@@ -61,5 +61,6 @@
 | 008b778 | Guard map resize on load | Cannot read properties of null (reading '0') ... map.resize | Wrap resize in try/catch to avoid maplibre null error. | 2026-01-13 00:04:42 |
 | 26f8f73 | Remove map bounds and resize hooks | Map bounds failed on load ... Map resize failed on load | Drop bounds/resize hooks entirely to avoid maplibre null errors. | 2026-01-13 00:06:54 |
 | 0626c00 | Add query fit bounds for countries | perfect. can see them now. implement next phase | Parse query, resolve countries, fit bounds, and highlight selections. | 2026-01-13 00:09:19 |
+| 02e25cb | Add country label toggles | 1 | Add label layers and toggles (none/selected/all), plus selected-country filters. | 2026-01-13 00:12:43 |
 
 
