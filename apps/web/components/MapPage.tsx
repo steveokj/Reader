@@ -859,17 +859,34 @@ function applyStateFilter(
   mode: "none" | "selected" | "all",
   selectedIso2: string[]
 ) {
-  if (!map.getLayer("state-labels")) {
+  const hasLabels = map.getLayer("state-labels");
+  const hasBorders = map.getLayer("state-borders");
+  if (!hasLabels && !hasBorders) {
     return;
   }
   if (mode === "selected") {
     if (selectedIso2.length === 0) {
-      map.setFilter("state-labels", ["==", ["get", "iso_a2"], ""]);
+      if (hasLabels) {
+        map.setFilter("state-labels", ["==", ["get", "iso_a2"], ""]);
+      }
+      if (hasBorders) {
+        map.setFilter("state-borders", ["==", ["get", "iso_a2"], ""]);
+      }
       return;
     }
     const normalized = selectedIso2.map((code) => code.toUpperCase());
-    map.setFilter("state-labels", ["in", ["get", "iso_a2"], ["literal", normalized]]);
+    if (hasLabels) {
+      map.setFilter("state-labels", ["in", ["get", "iso_a2"], ["literal", normalized]]);
+    }
+    if (hasBorders) {
+      map.setFilter("state-borders", ["in", ["get", "iso_a2"], ["literal", normalized]]);
+    }
     return;
   }
-  map.setFilter("state-labels", null);
+  if (hasLabels) {
+    map.setFilter("state-labels", null);
+  }
+  if (hasBorders) {
+    map.setFilter("state-borders", null);
+  }
 }
