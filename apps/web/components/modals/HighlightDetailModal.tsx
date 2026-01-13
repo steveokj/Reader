@@ -209,16 +209,7 @@ export default function HighlightDetailModal({
   const showBanner = noteItems.length > 0 || audioItems.length > 0;
 
   return createPortal(
-    <div
-      className="modal-backdrop modal-backdrop--fullscreen"
-      role="dialog"
-      aria-modal="true"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose();
-        }
-      }}
-    >
+    <div className="modal-backdrop modal-backdrop--fullscreen" role="dialog" aria-modal="true">
       <div
         className="highlight-detail-modal highlight-detail-modal--fullscreen"
         onClick={(event) => event.stopPropagation()}
