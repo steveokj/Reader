@@ -495,6 +495,9 @@ export default function MapPage() {
     const ensureStates = async () => {
       if (map.getSource("state-labels")) {
         map.setLayoutProperty("state-labels", "visibility", statesVisible ? "visible" : "none");
+        if (map.getLayer("state-borders")) {
+          map.setLayoutProperty("state-borders", "visibility", statesVisible ? "visible" : "none");
+        }
         applyStateFilter(map, labelsMode, selectedIso2);
         return;
       }
@@ -531,7 +534,18 @@ export default function MapPage() {
             "text-halo-width": 1,
           },
         });
+        map.addLayer({
+          id: "state-borders",
+          type: "line",
+          source: "state-labels",
+          paint: {
+            "line-color": "#b48b6a",
+            "line-width": 0.8,
+            "line-opacity": 0.55,
+          },
+        });
         map.setLayoutProperty("state-labels", "visibility", "visible");
+        map.setLayoutProperty("state-borders", "visibility", "visible");
         applyStateFilter(map, labelsMode, selectedIso2);
         setStatesStatus("ready");
       } catch (error) {
@@ -673,7 +687,7 @@ export default function MapPage() {
                 checked={statesVisible}
                 onChange={(event) => setStatesVisible(event.target.checked)}
               />
-              <span>State/Province labels</span>
+              <span>State/Province labels + borders</span>
             </label>
           </div>
         </aside>
@@ -737,11 +751,20 @@ function applyStateFilter(
   if (mode === "selected") {
     if (selectedIso2.length === 0) {
       map.setFilter("state-labels", ["==", ["get", "iso_a2"], ""]);
+      if (map.getLayer("state-borders")) {
+        map.setFilter("state-borders", ["==", ["get", "iso_a2"], ""]);
+      }
       return;
     }
     const normalized = selectedIso2.map((code) => code.toUpperCase());
     map.setFilter("state-labels", ["in", ["get", "iso_a2"], ["literal", normalized]]);
+    if (map.getLayer("state-borders")) {
+      map.setFilter("state-borders", ["in", ["get", "iso_a2"], ["literal", normalized]]);
+    }
     return;
   }
   map.setFilter("state-labels", null);
+  if (map.getLayer("state-borders")) {
+    map.setFilter("state-borders", null);
+  }
 }
