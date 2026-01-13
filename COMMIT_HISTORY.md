@@ -45,5 +45,6 @@
 | bda8f30 | Prevent highlight modal close on inner click | nice..when i click anywhere on the highlight detail modal it closes. | Only close highlight modal when clicking backdrop, not inner content. | 2026-01-12 22:09:51 |
 | 66fc03e | Disable backdrop close for highlight modal | not it should not exit unless i click the x button | Remove backdrop click handler so modal only closes via X. | 2026-01-12 22:11:42 |
 | d85bb41 | Keep highlights panel open during detail modal | it still exits.remember, it should exit and the highlights tab shld still be open behind | Block mobile bar auto-close while highlight detail modal is open. | 2026-01-12 22:17:04 |
+| 97d6fcb | Refine highlight detail modal layout | nice. move the markers to the top under the close icon... | Move markers into top bar, tighten padding, enable snapshot scroll, match reader colors. | 2026-01-12 22:29:02 |
 
 
