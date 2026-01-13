@@ -405,19 +405,37 @@ export default function LookupPanel({
           />
         </div>
         {artifactMenu ? (
-          <ArtifactActionMenu
-            top={artifactMenu.top}
-            left={artifactMenu.left}
-            label={artifactMenu.label}
-            contextText={artifactMenu.contextText}
-            markerKinds={artifactMarkerKinds}
-            variant={isMobile ? "mobile" : "floating"}
-            onToggleMarker={toggleArtifactMarker}
-            onNote={() => handleArtifactAction("note")}
-            onAudio={() => handleArtifactAction("audio")}
-            onExplore={() => handleArtifactAction("explore")}
-            onClose={() => setArtifactMenu(null)}
-          />
+          isMobile ? (
+            <div className="mobile-panel mobile-panel--selection artifact-panel">
+              <ArtifactActionMenu
+                top={artifactMenu.top}
+                left={artifactMenu.left}
+                label={artifactMenu.label}
+                contextText={artifactMenu.contextText}
+                markerKinds={artifactMarkerKinds}
+                variant="mobile"
+                onToggleMarker={toggleArtifactMarker}
+                onNote={() => handleArtifactAction("note")}
+                onAudio={() => handleArtifactAction("audio")}
+                onExplore={() => handleArtifactAction("explore")}
+                onClose={() => setArtifactMenu(null)}
+              />
+            </div>
+          ) : (
+            <ArtifactActionMenu
+              top={artifactMenu.top}
+              left={artifactMenu.left}
+              label={artifactMenu.label}
+              contextText={artifactMenu.contextText}
+              markerKinds={artifactMarkerKinds}
+              variant="floating"
+              onToggleMarker={toggleArtifactMarker}
+              onNote={() => handleArtifactAction("note")}
+              onAudio={() => handleArtifactAction("audio")}
+              onExplore={() => handleArtifactAction("explore")}
+              onClose={() => setArtifactMenu(null)}
+            />
+          )
         ) : null}
       </div>
     </div>

@@ -1585,18 +1585,8 @@ html[data-reader-theme="dark"] .reader-layout {
   box-shadow: 0 12px 30px var(--shadow);
 }
 
-.action-menu--artifact.action-menu--mobile {
-  position: fixed;
-  left: 16px;
-  right: 16px;
-  bottom: 24px;
-  max-width: none;
-  min-width: 0;
-  padding: 16px;
-  background: var(--reader-panel);
-  border: 1px solid var(--reader-border);
-  border-radius: 16px;
-  box-shadow: 0 16px 30px var(--reader-shadow);
+.artifact-panel {
+  z-index: 85;
 }
 
 .modal-backdrop {

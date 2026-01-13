@@ -31,3 +31,4 @@
 | pending | Fix artifact menu layering + styling | adjust artifact menu style/position; modals should not be hidden; how to save highlights | Raise z-index, add artifact menu class; markers save instantly | 2026-01-12 18:35:36 |
 | pending | Align artifact menu + marker labels | fix artifact menu position/size/colors; artifact markers show as selection | Clamp menu position + style; label addition markers as artifacts | 2026-01-12 18:45:27 |
 | pending | Mobile artifact menu style | artifact modal should match mobile action modal | Add mobile variant styling + pass isMobile to artifact menu | 2026-01-12 18:53:53 |
+| pending | Center mobile artifact menu + transparency | artifact menu should mirror mobile action modal transparency | Wrap in mobile panel + remove opaque mobile background | 2026-01-12 19:00:51 |
