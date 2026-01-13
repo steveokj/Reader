@@ -42,5 +42,6 @@
 | 39652dc | Add highlight detail modal for highlights items | Double-click highlights items to open type-specific detail modal with notes/audio/explore/grammar and markers. | Added highlight detail modal, wired double-click, marker toggles, banner notes/audio, and styling. | 2026-01-12 21:48:09 |
 | 5b8a0c3 | Make highlight detail modal fullscreen | nice job. make the highlight detail modal full page like the explore and grammar modal... | Fullscreen highlight detail modal with top header + close icon. | 2026-01-12 21:59:27 |
 | bb25547 | Portal highlight detail modal fullscreen | did u make the changes? still the same thing | Portal highlight modal to body; remove card border/shadow for true fullscreen | 2026-01-12 22:05:36 |
+| bda8f30 | Prevent highlight modal close on inner click | nice..when i click anywhere on the highlight detail modal it closes. | Only close highlight modal when clicking backdrop, not inner content. | 2026-01-12 22:09:51 |
 
 
