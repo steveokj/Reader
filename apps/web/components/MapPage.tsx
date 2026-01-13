@@ -389,6 +389,37 @@ export default function MapPage() {
     let cancelled = false;
     let maplibre: MapLibreModule | null = null;
 
+    const addOceans = async (map: MapLibreMap) => {
+      if (map.getSource("oceans")) {
+        return;
+      }
+      try {
+        const response = await fetch("/data/oceans.geojson");
+        if (!response.ok) {
+          throw new Error("Failed to load oceans");
+        }
+        const data = await response.json();
+        if (cancelled || map.getSource("oceans")) {
+          return;
+        }
+        map.addSource("oceans", {
+          type: "geojson",
+          data,
+        });
+        map.addLayer({
+          id: "oceans-fill",
+          type: "fill",
+          source: "oceans",
+          paint: {
+            "fill-color": "#d7e3ee",
+            "fill-opacity": 0.9,
+          },
+        });
+      } catch (error) {
+        console.warn("Failed to load oceans", error);
+      }
+    };
+
     const addCountries = async (map: MapLibreMap) => {
       if (map.getSource("countries")) {
         return;
@@ -407,6 +438,7 @@ export default function MapPage() {
           type: "geojson",
           data,
         });
+        await addOceans(map);
         if (!map.getSource("country-labels")) {
           let labelPoints: GeoFeature[] | undefined;
           try {
