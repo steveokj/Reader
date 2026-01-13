@@ -43,5 +43,6 @@
 | 5b8a0c3 | Make highlight detail modal fullscreen | nice job. make the highlight detail modal full page like the explore and grammar modal... | Fullscreen highlight detail modal with top header + close icon. | 2026-01-12 21:59:27 |
 | bb25547 | Portal highlight detail modal fullscreen | did u make the changes? still the same thing | Portal highlight modal to body; remove card border/shadow for true fullscreen | 2026-01-12 22:05:36 |
 | bda8f30 | Prevent highlight modal close on inner click | nice..when i click anywhere on the highlight detail modal it closes. | Only close highlight modal when clicking backdrop, not inner content. | 2026-01-12 22:09:51 |
+| 66fc03e | Disable backdrop close for highlight modal | not it should not exit unless i click the x button | Remove backdrop click handler so modal only closes via X. | 2026-01-12 22:11:42 |
 
 
