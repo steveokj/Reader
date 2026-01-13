@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getClientApiBase } from "@/lib/apiBase";
 import { formatRelativeTime } from "@/lib/time";
@@ -97,6 +97,8 @@ export default function ReaderHighlightsPanel({
   const [sectionsById, setSectionsById] = useState<Map<number, string>>(new Map());
   const [loading, setLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const bundlesRef = useRef<SelectionBundle[]>([]);
+  const sectionsByIdRef = useRef<Map<number, string>>(new Map());
 
   useEffect(() => {
     const cached = HIGHLIGHTS_CACHE.get(documentId);
@@ -106,6 +108,14 @@ export default function ReaderHighlightsPanel({
       setHasLoaded(true);
     }
   }, [documentId]);
+
+  useEffect(() => {
+    bundlesRef.current = bundles;
+  }, [bundles]);
+
+  useEffect(() => {
+    sectionsByIdRef.current = sectionsById;
+  }, [sectionsById]);
 
   const loadAll = useCallback(
     async (showLoadingState: boolean) => {
@@ -194,8 +204,9 @@ export default function ReaderHighlightsPanel({
 
   const refreshSelectionBundle = useCallback(
     async (selectionId: number) => {
-      let selection = bundles.find((bundle) => bundle.selection.id === selectionId)?.selection;
-      let sectionMap = sectionsById;
+      let selection =
+        bundlesRef.current.find((bundle) => bundle.selection.id === selectionId)?.selection;
+      let sectionMap = sectionsByIdRef.current;
       if (!selection) {
         const selectionsRes = await fetch(
           `${apiBase}/selections?document_id=${documentId}`,
@@ -272,7 +283,7 @@ export default function ReaderHighlightsPanel({
       });
       setHasLoaded(true);
     },
-    [apiBase, bundles, documentId, sectionsById]
+    [apiBase, documentId]
   );
 
   useEffect(() => {
