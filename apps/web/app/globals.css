@@ -1614,6 +1614,172 @@ html[data-reader-theme="dark"] .reader-layout {
   mix-blend-mode: normal;
 }
 
+.highlight-detail-modal {
+  width: min(720px, 100%);
+  background: var(--reader-panel, #fffaf5);
+  border-radius: 18px;
+  padding: 18px;
+  border: 1px solid var(--reader-border, rgba(31, 28, 22, 0.12));
+  box-shadow: 0 20px 40px var(--reader-shadow, var(--shadow));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--reader-ink, var(--ink));
+}
+
+.highlight-detail-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.highlight-detail-modal__title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--reader-ink-muted, rgba(31, 28, 22, 0.6));
+}
+
+.highlight-detail-modal__subtitle {
+  margin-top: 6px;
+  font-size: 15px;
+  color: var(--reader-ink, var(--ink));
+}
+
+.highlight-detail-modal__meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--reader-ink-muted, rgba(31, 28, 22, 0.6));
+}
+
+.highlight-detail-modal__close {
+  border: none;
+  background: none;
+  color: var(--reader-ink-muted, rgba(31, 28, 22, 0.6));
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.highlight-detail-modal__close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.highlight-detail-modal__markers {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.highlight-detail-modal__banner {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  padding: 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--reader-panel, #fffaf5) 75%, var(--reader-paper, #f6f1e9));
+  border: 1px dashed var(--reader-border, rgba(31, 28, 22, 0.12));
+}
+
+.highlight-detail-modal__banner-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--reader-ink-muted, rgba(31, 28, 22, 0.55));
+  margin-bottom: 6px;
+}
+
+.highlight-detail-modal__banner-note,
+.highlight-detail-modal__banner-audio {
+  background: var(--reader-paper, #f6f1e9);
+  border: 1px solid var(--reader-border, rgba(31, 28, 22, 0.12));
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.highlight-detail-modal__banner-button {
+  align-self: flex-start;
+  border: none;
+  background: var(--accent-soft);
+  color: var(--ink);
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.highlight-detail-modal__note-text,
+.highlight-detail-modal__note-body {
+  font-size: 13px;
+  color: var(--reader-ink, var(--ink));
+  white-space: pre-wrap;
+}
+
+.highlight-detail-modal__selection,
+.highlight-detail-modal__note-body,
+.highlight-detail-modal__audio-body {
+  background: var(--reader-paper, #f6f1e9);
+  border: 1px solid var(--reader-border, rgba(31, 28, 22, 0.12));
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.highlight-detail-modal__audio-body audio,
+.highlight-detail-modal__banner-audio audio {
+  width: 100%;
+}
+
+.highlight-detail-modal__chat {
+  max-height: 360px;
+  border-radius: 14px;
+  background: var(--reader-paper, #f6f1e9);
+  border: 1px solid var(--reader-border, rgba(31, 28, 22, 0.12));
+}
+
+.highlight-detail-modal__snapshot {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--reader-border, rgba(31, 28, 22, 0.12));
+  background: var(--reader-paper, #f6f1e9);
+}
+
+.highlight-detail-modal__snapshot img {
+  width: 100%;
+  display: block;
+}
+
+.highlight-detail-modal__snapshot-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(31, 28, 22, 0.2);
+  color: white;
+  font-size: 12px;
+  z-index: 1;
+}
+
+.highlight-detail-modal__snapshot-overlay--error {
+  background: rgba(31, 28, 22, 0.6);
+}
+
+.highlight-detail-modal__muted {
+  font-size: 13px;
+  color: var(--reader-ink-muted, rgba(31, 28, 22, 0.6));
+}
+
 .explore-chat-modal {
   position: fixed;
   inset: 0;

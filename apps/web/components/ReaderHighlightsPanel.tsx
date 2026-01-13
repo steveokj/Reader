@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import HighlightDetailModal from "@/components/modals/HighlightDetailModal";
 import { getClientApiBase } from "@/lib/apiBase";
 import { formatRelativeTime } from "@/lib/time";
 
@@ -98,6 +99,11 @@ export default function ReaderHighlightsPanel({
   const [sectionsById, setSectionsById] = useState<Map<number, string>>(new Map());
   const [loading, setLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [detailState, setDetailState] = useState<{
+    type: "selection" | "addition";
+    selectionId: number;
+    additionId?: number;
+  } | null>(null);
   const bundlesRef = useRef<SelectionBundle[]>([]);
   const sectionsByIdRef = useRef<Map<number, string>>(new Map());
   const lastRefreshKeyRef = useRef<number | null>(null);
@@ -120,6 +126,20 @@ export default function ReaderHighlightsPanel({
   useEffect(() => {
     sectionsByIdRef.current = sectionsById;
   }, [sectionsById]);
+
+  const updateCachedBundles = useCallback(
+    (updater: (prev: SelectionBundle[]) => SelectionBundle[]) => {
+      setBundles((prev) => {
+        const next = updater(prev);
+        HIGHLIGHTS_CACHE.set(documentId, {
+          bundles: next,
+          sectionsById: sectionsByIdRef.current,
+        });
+        return next;
+      });
+    },
+    [documentId]
+  );
 
   const loadAll = useCallback(
     async (showLoadingState: boolean) => {
@@ -326,6 +346,136 @@ export default function ReaderHighlightsPanel({
     }
   }, [documentId, isActive, loadAll, refreshSelectionBundle, refreshSignal, sectionsById]);
 
+  const toggleSelectionMarker = useCallback(
+    async (selectionId: number, kind: "like" | "highlight" | "todo") => {
+      const bundle = bundlesRef.current.find((item) => item.selection.id === selectionId);
+      if (!bundle) {
+        return;
+      }
+      const existing = bundle.markers.find((marker) => marker.kind === kind);
+      if (existing) {
+        try {
+          const response = await fetch(`${apiBase}/markers/${existing.id}`, {
+            method: "DELETE",
+          });
+          if (!response.ok) {
+            return;
+          }
+          updateCachedBundles((prev) =>
+            prev.map((item) =>
+              item.selection.id === selectionId
+                ? { ...item, markers: item.markers.filter((marker) => marker.id !== existing.id) }
+                : item
+            )
+          );
+        } catch (error) {
+          console.error(error);
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(`${apiBase}/markers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            target_type: "selection",
+            target_id: selectionId,
+            kind,
+          }),
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { marker?: Marker };
+        if (data.marker) {
+          updateCachedBundles((prev) =>
+            prev.map((item) =>
+              item.selection.id === selectionId
+                ? { ...item, markers: [...item.markers, data.marker as Marker] }
+                : item
+            )
+          );
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [apiBase, updateCachedBundles]
+  );
+
+  const toggleAdditionMarker = useCallback(
+    async (selectionId: number, additionId: number, kind: "like" | "highlight" | "todo") => {
+      const bundle = bundlesRef.current.find((item) => item.selection.id === selectionId);
+      if (!bundle) {
+        return;
+      }
+      const existing = (bundle.additionMarkers[additionId] ?? []).find(
+        (marker) => marker.kind === kind
+      );
+      if (existing) {
+        try {
+          const response = await fetch(`${apiBase}/markers/${existing.id}`, {
+            method: "DELETE",
+          });
+          if (!response.ok) {
+            return;
+          }
+          updateCachedBundles((prev) =>
+            prev.map((item) => {
+              if (item.selection.id !== selectionId) {
+                return item;
+              }
+              const nextAdditionMarkers = {
+                ...item.additionMarkers,
+                [additionId]: (item.additionMarkers[additionId] ?? []).filter(
+                  (marker) => marker.id !== existing.id
+                ),
+              };
+              return { ...item, additionMarkers: nextAdditionMarkers };
+            })
+          );
+        } catch (error) {
+          console.error(error);
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch(`${apiBase}/markers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            target_type: "addition",
+            target_id: additionId,
+            kind,
+          }),
+        });
+        if (!response.ok) {
+          return;
+        }
+        const data = (await response.json()) as { marker?: Marker };
+        if (data.marker) {
+          updateCachedBundles((prev) =>
+            prev.map((item) => {
+              if (item.selection.id !== selectionId) {
+                return item;
+              }
+              const nextAdditionMarkers = {
+                ...item.additionMarkers,
+                [additionId]: [...(item.additionMarkers[additionId] ?? []), data.marker as Marker],
+              };
+              return { ...item, additionMarkers: nextAdditionMarkers };
+            })
+          );
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [apiBase, updateCachedBundles]
+  );
+
   const additions = useMemo(() => {
     const items = bundles.flatMap((bundle) =>
       bundle.additions.map((addition) => ({ ...addition, selectionId: bundle.selection.id }))
@@ -371,6 +521,30 @@ export default function ReaderHighlightsPanel({
     markers: markerItems.length,
   };
 
+  const detailBundle = detailState
+    ? bundles.find((bundle) => bundle.selection.id === detailState.selectionId)
+    : null;
+  const detailSelection = detailBundle?.selection ?? null;
+  const detailAddition =
+    detailState?.type === "addition"
+      ? detailBundle?.additions.find((addition) => addition.id === detailState.additionId) ?? null
+      : null;
+  const detailSectionLabel = detailSelection
+    ? sectionsById.get(detailSelection.section_id) ?? `${detailSelection.section_id}`
+    : null;
+  const detailChildAdditions =
+    detailAddition && detailBundle
+      ? detailBundle.additions.filter((addition) => {
+          const payload = (addition.payload ?? {}) as { source?: { id?: number } };
+          return payload.source?.id === detailAddition.id;
+        })
+      : [];
+  const detailChildNotes = detailChildAdditions.filter((addition) => addition.type === "note");
+  const detailChildAudios = detailChildAdditions.filter((addition) => addition.type === "audio");
+  const detailSelectionMarkers = detailBundle?.markers ?? [];
+  const detailAdditionMarkers =
+    detailAddition && detailBundle ? detailBundle.additionMarkers[detailAddition.id] ?? [] : [];
+
   if (!isActive) {
     return null;
   }
@@ -411,7 +585,13 @@ export default function ReaderHighlightsPanel({
                 const selection = bundle.selection;
                 const sectionKey = sectionsById.get(selection.section_id) ?? `${selection.section_id}`;
                 return (
-                  <article key={selection.id} className="data-card">
+                  <article
+                    key={selection.id}
+                    className="data-card"
+                    onDoubleClick={() =>
+                      setDetailState({ type: "selection", selectionId: selection.id })
+                    }
+                  >
                     <div className="data-card__meta">
                       <div className="data-card__meta-left">
                         <span>Section {sectionKey}</span>
@@ -468,7 +648,17 @@ export default function ReaderHighlightsPanel({
                     ? "Audio recording"
                     : formatSnippet(addition.text_content ?? addition.title ?? addition.type);
                 return (
-                  <article key={addition.id} className="data-card">
+                  <article
+                    key={addition.id}
+                    className="data-card"
+                    onDoubleClick={() =>
+                      setDetailState({
+                        type: "addition",
+                        selectionId: addition.selection_id,
+                        additionId: addition.id,
+                      })
+                    }
+                  >
                     <div className="data-card__meta">
                       <span>{addition.type}</span>
                       <span>{formatRelativeTime(addition.created_at)}</span>
@@ -511,7 +701,21 @@ export default function ReaderHighlightsPanel({
                   ? `Artifact (${artifactLabel}): ${additionLabel}`
                   : `Selection: ${selectionSnippet}`;
                 return (
-                  <article key={item.marker.id} className="data-card">
+                  <article
+                    key={item.marker.id}
+                    className="data-card"
+                    onDoubleClick={() => {
+                      if (item.additionId) {
+                        setDetailState({
+                          type: "addition",
+                          selectionId: item.selectionId,
+                          additionId: item.additionId,
+                        });
+                      } else {
+                        setDetailState({ type: "selection", selectionId: item.selectionId });
+                      }
+                    }}
+                  >
                     <div className="data-card__meta">
                       <span className="pill">{item.marker.kind}</span>
                       <span>{formatRelativeTime(item.marker.created_at)}</span>
@@ -523,6 +727,29 @@ export default function ReaderHighlightsPanel({
             </div>
           )}
         </div>
+      ) : null}
+
+      {detailState && detailSelection ? (
+        <HighlightDetailModal
+          open={Boolean(detailState)}
+          mode={detailState.type}
+          selection={detailSelection}
+          sectionLabel={detailSectionLabel}
+          addition={detailAddition}
+          selectionMarkers={detailSelectionMarkers}
+          additionMarkers={detailAdditionMarkers}
+          childNotes={detailChildNotes}
+          childAudios={detailChildAudios}
+          onToggleSelectionMarker={(kind) => {
+            void toggleSelectionMarker(detailSelection.id, kind);
+          }}
+          onToggleAdditionMarker={(kind) => {
+            if (detailAddition) {
+              void toggleAdditionMarker(detailSelection.id, detailAddition.id, kind);
+            }
+          }}
+          onClose={() => setDetailState(null)}
+        />
       ) : null}
     </div>
   );
