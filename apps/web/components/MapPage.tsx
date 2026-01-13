@@ -204,7 +204,14 @@ export default function MapPage() {
             </label>
           </div>
         </aside>
-        {!mapReady ? <div className="map-toast">Loading map...</div> : null}
+        {!mapReady ? (
+          <div className="map-loading">
+            <div className="map-loading__card">
+              <span className="explore-spinner" aria-hidden="true" />
+              <div>Loading map…</div>
+            </div>
+          </div>
+        ) : null}
         {status ? <div className="map-toast">{status}</div> : null}
         {dataStatus === "error" ? (
           <div className="map-toast map-toast--error">Failed to load map data.</div>

@@ -1958,6 +1958,29 @@ html[data-reader-theme="dark"] .reader-layout {
   color: #c0392b;
 }
 
+.map-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(243, 239, 230, 0.6);
+  z-index: 3;
+}
+
+.map-loading__card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 999px;
+  background: var(--reader-panel, #fffaf5);
+  border: 1px solid var(--reader-border, rgba(31, 28, 22, 0.12));
+  box-shadow: 0 12px 24px var(--reader-shadow, var(--shadow));
+  font-size: 12px;
+  color: var(--reader-ink, var(--ink));
+}
+
 .highlight-detail-modal__muted {
   font-size: 13px;
   color: var(--reader-ink-muted, rgba(31, 28, 22, 0.6));
