@@ -79,3 +79,4 @@
 | 1ffe6a8 | Use latitude/longitude for state labels | didnt work. | Use Natural Earth longitude/latitude fields for state label placement (label_x fallback). | 2026-01-13 01:12:50 |
 | 7c503e9 | Use country label points dataset | proceed | Add Natural Earth country label points dataset and build label source from ISO3 matches. | 2026-01-13 01:18:09 |
 | 8c31093 | Add toggle for state borders | make state lines a toggle but country lines permanent | Add a separate state/province borders toggle and wire visibility to it. | 2026-01-13 01:21:08 |
+| 45e8d62 | Tie state borders to labels toggle | yes i want | Tie state borders visibility to the state labels toggle and update toggle text. | 2026-01-13 01:23:42 |
