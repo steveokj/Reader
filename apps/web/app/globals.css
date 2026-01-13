@@ -1949,6 +1949,11 @@ html[data-reader-theme="dark"] .reader-layout {
   z-index: 2;
 }
 
+.map-toast--error {
+  border-color: rgba(192, 57, 43, 0.4);
+  color: #c0392b;
+}
+
 .highlight-detail-modal__muted {
   font-size: 13px;
   color: var(--reader-ink-muted, rgba(31, 28, 22, 0.6));

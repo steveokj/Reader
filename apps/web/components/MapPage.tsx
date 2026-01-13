@@ -2,6 +2,7 @@
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
+import type { Map as MapLibreMap } from "maplibre-gl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type MapLibreModule = typeof import("maplibre-gl");
@@ -25,10 +26,13 @@ const baseStyle = {
 };
 
 export default function MapPage() {
-  const mapRef = useRef<maplibregl.Map | null>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string | null>(null);
+  const [dataStatus, setDataStatus] = useState<"idle" | "loading" | "ready" | "error">(
+    "idle"
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +65,76 @@ export default function MapPage() {
         mapRef.current.remove();
         mapRef.current = null;
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+    let cancelled = false;
+    const addCountries = async () => {
+      if (map.getSource("countries")) {
+        return;
+      }
+      setDataStatus("loading");
+      try {
+        const response = await fetch("/data/countries.geojson");
+        if (!response.ok) {
+          throw new Error("Failed to load countries");
+        }
+        const data = await response.json();
+        if (cancelled || map.getSource("countries")) {
+          return;
+        }
+        map.addSource("countries", {
+          type: "geojson",
+          data,
+        });
+        if (!map.getLayer("countries-fill")) {
+          map.addLayer({
+            id: "countries-fill",
+            type: "fill",
+            source: "countries",
+            paint: {
+              "fill-color": "#e4c8ad",
+              "fill-opacity": 0.38,
+            },
+          });
+        }
+        if (!map.getLayer("countries-outline")) {
+          map.addLayer({
+            id: "countries-outline",
+            type: "line",
+            source: "countries",
+            paint: {
+              "line-color": "#9c6f52",
+              "line-width": 1,
+            },
+          });
+        }
+        setDataStatus("ready");
+      } catch (error) {
+        console.error(error);
+        if (!cancelled) {
+          setDataStatus("error");
+        }
+      }
+    };
+
+    const handleLoad = () => {
+      void addCountries();
+    };
+
+    map.on("load", handleLoad);
+    if (map.isStyleLoaded()) {
+      void addCountries();
+    }
+
+    return () => {
+      cancelled = true;
+      map.off("load", handleLoad);
     };
   }, []);
 
@@ -116,6 +190,9 @@ export default function MapPage() {
           </div>
         </aside>
         {status ? <div className="map-toast">{status}</div> : null}
+        {dataStatus === "error" ? (
+          <div className="map-toast map-toast--error">Failed to load map data.</div>
+        ) : null}
       </div>
     </div>
   );
