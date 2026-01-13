@@ -53,6 +53,8 @@ type ExploreChatModalProps = {
     kind: string;
     previewText?: string;
   }) => void;
+  onExploreSaved?: (selectionId: number) => void;
+  onArtifactMarkerChanged?: (selectionId: number) => void;
   onClose: () => void;
 };
 
@@ -159,6 +161,8 @@ export default function ExploreChatModal({
   onOpenArtifactNote,
   onOpenArtifactAudio,
   onOpenArtifactExplore,
+  onExploreSaved,
+  onArtifactMarkerChanged,
   onClose,
 }: ExploreChatModalProps) {
   const apiBase = getClientApiBase();
@@ -539,12 +543,20 @@ export default function ExploreChatModal({
         const data = (await response.json()) as { addition?: { id?: number; selection_id?: number } };
         if (data.addition?.id && data.addition?.selection_id) {
           attachAdditionToMessage(message.id, data.addition.id, data.addition.selection_id);
+          onExploreSaved?.(data.addition.selection_id);
         }
       } catch (error) {
         console.error(error);
       }
     },
-    [apiBase, attachAdditionToMessage, contextText, ensureAnchorSelectionId, threadId]
+    [
+      apiBase,
+      attachAdditionToMessage,
+      contextText,
+      ensureAnchorSelectionId,
+      onExploreSaved,
+      threadId,
+    ]
   );
 
   const loadArtifactMarkers = useCallback(
@@ -579,6 +591,7 @@ export default function ExploreChatModal({
           });
           if (response.ok) {
             setArtifactMarkers((prev) => prev.filter((marker) => marker.id !== existing.id));
+            onArtifactMarkerChanged?.(artifactMenu.selectionId);
           }
         } catch (error) {
           console.error(error);
@@ -601,12 +614,13 @@ export default function ExploreChatModal({
         const data = (await response.json()) as { marker?: AdditionMarker };
         if (data.marker) {
           setArtifactMarkers((prev) => [...prev, data.marker as AdditionMarker]);
+          onArtifactMarkerChanged?.(artifactMenu.selectionId);
         }
       } catch (error) {
         console.error(error);
       }
     },
-    [apiBase, artifactMarkers, artifactMenu]
+    [apiBase, artifactMarkers, artifactMenu, onArtifactMarkerChanged]
   );
 
   const handleArtifactAction = useCallback(

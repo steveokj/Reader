@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getClientApiBase } from "@/lib/apiBase";
 import { formatRelativeTime } from "@/lib/time";
@@ -50,6 +50,7 @@ type SelectionBundle = {
 type ReaderHighlightsPanelProps = {
   documentId: number;
   refreshKey: number;
+  refreshSignal?: { key: number; type: "upsert" | "delete" | "full"; selectionId?: number | null } | null;
   isActive: boolean;
   onJumpToSelection?: (selection: Selection) => void;
 };
@@ -85,7 +86,8 @@ function IconJump() {
 
 export default function ReaderHighlightsPanel({
   documentId,
-  refreshKey,
+  refreshKey: _refreshKey,
+  refreshSignal = null,
   isActive,
   onJumpToSelection,
 }: ReaderHighlightsPanelProps) {
@@ -105,14 +107,9 @@ export default function ReaderHighlightsPanel({
     }
   }, [documentId]);
 
-  useEffect(() => {
-    if (!isActive) {
-      return;
-    }
-    let cancelled = false;
-
-    const load = async () => {
-      if (!hasLoaded) {
+  const loadAll = useCallback(
+    async (showLoadingState: boolean) => {
+      if (showLoadingState) {
         setLoading(true);
       }
       try {
@@ -176,33 +173,138 @@ export default function ReaderHighlightsPanel({
           })
         );
 
-        if (!cancelled) {
-          setSectionsById(sectionMap);
-          const sortedBundles = [...nextBundles].sort((a, b) => {
-            return new Date(b.selection.created_at).getTime() - new Date(a.selection.created_at).getTime();
-          });
-          setBundles(sortedBundles);
-          setHasLoaded(true);
-          HIGHLIGHTS_CACHE.set(documentId, {
-            bundles: sortedBundles,
-            sectionsById: sectionMap,
-          });
-        }
+        setSectionsById(sectionMap);
+        const sortedBundles = [...nextBundles].sort((a, b) => {
+          return new Date(b.selection.created_at).getTime() - new Date(a.selection.created_at).getTime();
+        });
+        setBundles(sortedBundles);
+        setHasLoaded(true);
+        HIGHLIGHTS_CACHE.set(documentId, {
+          bundles: sortedBundles,
+          sectionsById: sectionMap,
+        });
       } catch (error) {
         console.error(error);
       } finally {
-        if (!cancelled) {
-          setLoading(false);
+        setLoading(false);
+      };
+    },
+    [apiBase, documentId]
+  );
+
+  const refreshSelectionBundle = useCallback(
+    async (selectionId: number) => {
+      let selection = bundles.find((bundle) => bundle.selection.id === selectionId)?.selection;
+      let sectionMap = sectionsById;
+      if (!selection) {
+        const selectionsRes = await fetch(
+          `${apiBase}/selections?document_id=${documentId}`,
+          { cache: "no-store" }
+        );
+        if (!selectionsRes.ok) {
+          return;
+        }
+        const selectionsData = (await selectionsRes.json()) as { selections?: Selection[] };
+        selection = (selectionsData.selections ?? []).find((item) => item.id === selectionId);
+        if (!selection) {
+          return;
         }
       }
-    };
+      if (!sectionMap.size) {
+        const documentRes = await fetch(`${apiBase}/books/${documentId}`, {
+          cache: "no-store",
+        });
+        if (documentRes.ok) {
+          const documentData = (await documentRes.json()) as { sections?: DocumentSection[] };
+          sectionMap = new Map<number, string>();
+          (documentData.sections ?? []).forEach((section) => {
+            sectionMap.set(section.id, section.section_key);
+          });
+          setSectionsById(sectionMap);
+        }
+      }
 
-    load();
+      const [additionsRes, markersRes] = await Promise.all([
+        fetch(`${apiBase}/additions?selection_id=${selectionId}`, { cache: "no-store" }),
+        fetch(`${apiBase}/markers?target_type=selection&target_id=${selectionId}`, {
+          cache: "no-store",
+        }),
+      ]);
+      const additionsData = additionsRes.ok
+        ? ((await additionsRes.json()) as { additions?: Addition[] })
+        : { additions: [] };
+      const markersData = markersRes.ok
+        ? ((await markersRes.json()) as { markers?: Marker[] })
+        : { markers: [] };
 
-    return () => {
-      cancelled = true;
-    };
-  }, [apiBase, documentId, refreshKey, isActive]);
+      const additions = additionsData.additions ?? [];
+      const additionMarkersEntries = await Promise.all(
+        additions.map(async (addition) => {
+          const response = await fetch(
+            `${apiBase}/markers?target_type=addition&target_id=${addition.id}`,
+            { cache: "no-store" }
+          );
+          if (!response.ok) {
+            return [addition.id, []] as const;
+          }
+          const data = (await response.json()) as { markers?: Marker[] };
+          return [addition.id, data.markers ?? []] as const;
+        })
+      );
+
+      const nextBundle: SelectionBundle = {
+        selection,
+        additions,
+        markers: markersData.markers ?? [],
+        additionMarkers: Object.fromEntries(additionMarkersEntries),
+      };
+
+      setBundles((prev) => {
+        const existingIndex = prev.findIndex((bundle) => bundle.selection.id === selectionId);
+        const next = existingIndex >= 0
+          ? prev.map((bundle, index) => (index === existingIndex ? nextBundle : bundle))
+          : [nextBundle, ...prev];
+        const sorted = [...next].sort((a, b) => {
+          return new Date(b.selection.created_at).getTime() - new Date(a.selection.created_at).getTime();
+        });
+        HIGHLIGHTS_CACHE.set(documentId, { bundles: sorted, sectionsById: sectionMap });
+        return sorted;
+      });
+      setHasLoaded(true);
+    },
+    [apiBase, bundles, documentId, sectionsById]
+  );
+
+  useEffect(() => {
+    if (!isActive || hasLoaded || HIGHLIGHTS_CACHE.has(documentId)) {
+      return;
+    }
+    void loadAll(true);
+  }, [documentId, hasLoaded, isActive, loadAll]);
+
+  useEffect(() => {
+    if (!isActive || !refreshSignal) {
+      return;
+    }
+    if (refreshSignal.type === "delete" && refreshSignal.selectionId) {
+      setBundles((prev) => {
+        const next = prev.filter((bundle) => bundle.selection.id !== refreshSignal.selectionId);
+        HIGHLIGHTS_CACHE.set(documentId, { bundles: next, sectionsById });
+        return next;
+      });
+      return;
+    }
+    if (refreshSignal.type === "full") {
+      void loadAll(false);
+      return;
+    }
+    if (refreshSignal.type === "upsert" && refreshSignal.selectionId) {
+      setLoading(true);
+      void refreshSelectionBundle(refreshSignal.selectionId).finally(() => {
+        setLoading(false);
+      });
+    }
+  }, [documentId, isActive, loadAll, refreshSelectionBundle, refreshSignal, sectionsById]);
 
   const additions = useMemo(() => {
     const items = bundles.flatMap((bundle) =>

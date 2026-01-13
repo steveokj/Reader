@@ -49,6 +49,7 @@ type SidePanelProps = {
   mediaBase: string;
   documentId: number;
   highlightsRefreshKey: number;
+  highlightsRefreshSignal?: { key: number; type: "upsert" | "delete" | "full"; selectionId?: number | null } | null;
   initialTab?: "active" | "highlights";
   activeTab?: "active" | "highlights";
   onTabChange?: (tab: "active" | "highlights") => void;
@@ -81,6 +82,7 @@ export default function SidePanel({
   mediaBase,
   documentId,
   highlightsRefreshKey,
+  highlightsRefreshSignal = null,
   initialTab = "active",
   activeTab,
   onTabChange,
@@ -260,6 +262,7 @@ export default function SidePanel({
         <ReaderHighlightsPanel
           documentId={documentId}
           refreshKey={highlightsRefreshKey}
+          refreshSignal={highlightsRefreshSignal}
           isActive={resolvedTab === "highlights"}
           onJumpToSelection={onJumpToSelection}
         />

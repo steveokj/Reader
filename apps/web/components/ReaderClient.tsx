@@ -461,6 +461,12 @@ type ArtifactSource = {
   snapshotUrl?: string;
 };
 
+type HighlightsRefreshSignal = {
+  key: number;
+  type: "upsert" | "delete" | "full";
+  selectionId?: number | null;
+};
+
 type GrammarPayload = {
   kind: "word" | "bars" | "structure" | "lookup";
   text?: string;
@@ -675,6 +681,9 @@ export default function ReaderClient({
   const [artifactAudioSource, setArtifactAudioSource] = useState<ArtifactSource | null>(null);
   const [lookupSourceAdditionId, setLookupSourceAdditionId] = useState<number | null>(null);
   const [lookupSourceSelectionId, setLookupSourceSelectionId] = useState<number | null>(null);
+  const highlightsRefreshCounter = useRef(0);
+  const [highlightsRefreshSignal, setHighlightsRefreshSignal] =
+    useState<HighlightsRefreshSignal | null>(null);
   const scrolledSectionRef = useRef<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -1409,6 +1418,24 @@ export default function ReaderClient({
     []
   );
 
+  const bumpHighlightsRefresh = useCallback((type: HighlightsRefreshSignal["type"], selectionId?: number | null) => {
+    highlightsRefreshCounter.current += 1;
+    setHighlightsRefreshSignal({
+      key: highlightsRefreshCounter.current,
+      type,
+      selectionId,
+    });
+  }, []);
+
+  const handleHighlightsMutation = useCallback(
+    (selectionId?: number | null) => {
+      if (selectionId) {
+        bumpHighlightsRefresh("upsert", selectionId);
+      }
+    },
+    [bumpHighlightsRefresh]
+  );
+
   const refreshAdditionMarkers = useCallback(async (items: Addition[]) => {
     if (items.length === 0) {
       setAdditionMarkers({});
@@ -1874,6 +1901,7 @@ export default function ReaderClient({
             setActiveSelectionId(data.selection.id);
             setIsCommitted(true);
             setMenuState(null);
+            bumpHighlightsRefresh("upsert", data.selection.id);
             return data.selection as Selection;
           }
         }
@@ -1882,7 +1910,7 @@ export default function ReaderClient({
       }
       return null;
     },
-    [documentId]
+    [bumpHighlightsRefresh, documentId]
   );
 
   const persistSelectionMarkers = useCallback(async (selectionId: number, kinds: MarkerKind[]) => {
@@ -1908,8 +1936,9 @@ export default function ReaderClient({
     }
     if (created.length) {
       setMarkers(created);
+      bumpHighlightsRefresh("upsert", selectionId);
     }
-  }, []);
+  }, [bumpHighlightsRefresh]);
 
   const getSectionElementById = useCallback((sectionId: number): HTMLElement | null => {
     const container = containerRef.current;
@@ -2910,6 +2939,11 @@ export default function ReaderClient({
           if (data.addition && artifactNoteSource.selectionId === activeSelectionId) {
             setAdditions((prev) => [...prev, data.addition as Addition]);
           }
+          if (data.addition?.selection_id) {
+            bumpHighlightsRefresh("upsert", data.addition.selection_id);
+          } else {
+            bumpHighlightsRefresh("upsert", artifactNoteSource.selectionId);
+          }
         }
       } catch (error) {
         console.error(error);
@@ -2917,7 +2951,7 @@ export default function ReaderClient({
       setArtifactNoteOpen(false);
       setArtifactNoteSource(null);
     },
-    [activeSelectionId, apiBase, artifactNoteSource]
+    [activeSelectionId, apiBase, artifactNoteSource, bumpHighlightsRefresh]
   );
 
   const handleSaveArtifactAudio = useCallback(
@@ -2949,6 +2983,11 @@ export default function ReaderClient({
           if (data.addition && artifactAudioSource.selectionId === activeSelectionId) {
             setAdditions((prev) => [...prev, data.addition as Addition]);
           }
+          if (data.addition?.selection_id) {
+            bumpHighlightsRefresh("upsert", data.addition.selection_id);
+          } else {
+            bumpHighlightsRefresh("upsert", artifactAudioSource.selectionId);
+          }
         }
       } catch (error) {
         console.error(error);
@@ -2956,7 +2995,7 @@ export default function ReaderClient({
       setArtifactAudioOpen(false);
       setArtifactAudioSource(null);
     },
-    [activeSelectionId, apiBase, artifactAudioSource]
+    [activeSelectionId, apiBase, artifactAudioSource, bumpHighlightsRefresh]
   );
 
   const handleOpenNoteFromNav = useCallback(() => {
@@ -2998,6 +3037,7 @@ export default function ReaderClient({
           setMarkers([]);
           setAdditionMarkers({});
         }
+        bumpHighlightsRefresh("delete", selectionId);
       }
     } catch (error) {
       console.error(error);
@@ -3006,7 +3046,7 @@ export default function ReaderClient({
     audioSelectionRef.current = null;
     setAudioModalOpen(false);
     clearSelection();
-  }, [activeSelectionId, clearSelection, discardDraftSelection]);
+  }, [activeSelectionId, bumpHighlightsRefresh, clearSelection, discardDraftSelection]);
 
   const handleSaveNote = useCallback(
     async (text: string) => {
@@ -3040,6 +3080,7 @@ export default function ReaderClient({
               prev.map((item) => (item.id === data.addition?.id ? data.addition : item))
             );
             setMenuState(null);
+            bumpHighlightsRefresh("upsert", data.addition.selection_id);
           }
         }
       } else {
@@ -3060,6 +3101,7 @@ export default function ReaderClient({
           if (data.addition) {
             setAdditions((prev) => [...prev, data.addition as Addition]);
             setMenuState(null);
+            bumpHighlightsRefresh("upsert", data.addition.selection_id);
           }
         }
       }
@@ -3067,7 +3109,13 @@ export default function ReaderClient({
       setNoteModalOpen(false);
       setEditingNote(null);
     },
-    [activeSelectionId, editingNote, ensureSelectionForAddition, discardDraftSelection]
+    [
+      activeSelectionId,
+      bumpHighlightsRefresh,
+      editingNote,
+      ensureSelectionForAddition,
+      discardDraftSelection,
+    ]
   );
 
   const handleSaveGrammar = useCallback(
@@ -3099,6 +3147,7 @@ export default function ReaderClient({
         if (data.addition) {
           setAdditions((prev) => [...prev, data.addition as Addition]);
           setMenuState(null);
+          bumpHighlightsRefresh("upsert", data.addition.selection_id);
           if (payload.kind === "word" && payload.text) {
             handleOpenLookup(payload.text, {
               additionId: data.addition.id,
@@ -3113,7 +3162,7 @@ export default function ReaderClient({
 
       setGrammarModalOpen(false);
     },
-    [ensureSelectionForAddition, handleOpenLookup]
+    [bumpHighlightsRefresh, ensureSelectionForAddition, handleOpenLookup]
   );
 
   const handleSaveAudio = useCallback(
@@ -3147,12 +3196,13 @@ export default function ReaderClient({
           });
           await refreshAdditions(selectionId);
           setMenuState(null);
+          bumpHighlightsRefresh("upsert", data.addition.selection_id);
         }
       }
 
       setAudioModalOpen(false);
     },
-    [ensureSelectionForAddition, refreshAdditions]
+    [bumpHighlightsRefresh, ensureSelectionForAddition, refreshAdditions]
   );
 
   const handleEditNote = useCallback((note: Addition) => {
@@ -3172,6 +3222,7 @@ export default function ReaderClient({
         });
         if (response.ok) {
           setMarkers((prev) => prev.filter((item) => item.id !== existing.id));
+          bumpHighlightsRefresh("upsert", activeSelectionId);
         }
         return;
       }
@@ -3190,10 +3241,11 @@ export default function ReaderClient({
         const data = (await response.json()) as { marker?: Marker };
         if (data.marker) {
           setMarkers((prev) => [...prev, data.marker as Marker]);
+          bumpHighlightsRefresh("upsert", activeSelectionId);
         }
       }
     },
-    [activeSelectionId, markers]
+    [activeSelectionId, bumpHighlightsRefresh, markers]
   );
 
   const handleToggleAdditionMarker = useCallback(
@@ -3208,6 +3260,12 @@ export default function ReaderClient({
             ...prev,
             [additionId]: prev[additionId].filter((item) => item.id !== existing.id),
           }));
+          const addition = additions.find((item) => item.id === additionId);
+          if (addition?.selection_id) {
+            bumpHighlightsRefresh("upsert", addition.selection_id);
+          } else {
+            bumpHighlightsRefresh("full");
+          }
         }
         return;
       }
@@ -3229,10 +3287,16 @@ export default function ReaderClient({
             ...prev,
             [additionId]: [...(prev[additionId] ?? []), data.marker as Marker],
           }));
+          const addition = additions.find((item) => item.id === additionId);
+          if (addition?.selection_id) {
+            bumpHighlightsRefresh("upsert", addition.selection_id);
+          } else {
+            bumpHighlightsRefresh("full");
+          }
         }
       }
     },
-    [additionMarkers]
+    [additionMarkers, additions, apiBase, bumpHighlightsRefresh]
   );
 
   const handleDeleteSelection = useCallback(async () => {
@@ -3252,6 +3316,7 @@ export default function ReaderClient({
       setAdditions([]);
       setMarkers([]);
       setAdditionMarkers({});
+      bumpHighlightsRefresh("delete", selectionId);
       setMenuState(null);
       setIsCommitted(false);
       setPendingMarkerKinds([]);
@@ -3268,7 +3333,7 @@ export default function ReaderClient({
     } catch (error) {
       console.error(error);
     }
-  }, [activeSelectionId]);
+  }, [activeSelectionId, bumpHighlightsRefresh]);
 
   const closeMobileBars = useCallback(() => {
     setMobileNavOpen(false);
@@ -3676,6 +3741,7 @@ export default function ReaderClient({
                 <ReaderHighlightsPanel
                   documentId={documentId}
                   refreshKey={selections.length + additions.length + markers.length}
+                  refreshSignal={highlightsRefreshSignal}
                   isActive
                   onJumpToSelection={handleJumpToSelection}
                 />
@@ -4002,6 +4068,7 @@ export default function ReaderClient({
             mediaBase={apiBase}
             documentId={documentId}
             highlightsRefreshKey={selections.length + additions.length + markers.length}
+            highlightsRefreshSignal={highlightsRefreshSignal}
             initialTab="highlights"
             activeTab={sidePanelTab}
             onTabChange={setSidePanelTab}
@@ -4024,6 +4091,8 @@ export default function ReaderClient({
         onOpenArtifactNote={handleOpenArtifactNote}
         onOpenArtifactAudio={handleOpenArtifactAudio}
         onOpenArtifactExplore={handleOpenExploreFromArtifact}
+        onExploreSaved={handleHighlightsMutation}
+        onArtifactMarkerChanged={handleHighlightsMutation}
         onClose={() => {
           setExploreModalOpen(false);
           setExploreAnchor(null);
@@ -4108,6 +4177,7 @@ export default function ReaderClient({
         onOpenArtifactNote={handleOpenArtifactNote}
         onOpenArtifactAudio={handleOpenArtifactAudio}
         onOpenArtifactExplore={handleOpenExploreFromArtifact}
+        onArtifactMarkerChanged={handleHighlightsMutation}
         onRefresh={handleRefreshLookup}
         onClose={handleCloseLookup}
       />

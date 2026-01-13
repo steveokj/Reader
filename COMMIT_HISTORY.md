@@ -35,3 +35,4 @@
 | pending | Show artifact sources in additions | note on explore response shows as selection note | Label additions sourced from artifacts in highlights | 2026-01-12 19:11:47 |
 | pending | Cache highlights bundles | keep last bundles in state; refresh in background | Keep cached bundles; only show loading on first load | 2026-01-12 19:18:19 |
 | pending | Cache highlights + refresh spinner | keep last bundles; background refresh with spinner | Module cache for highlights + refreshing indicator | 2026-01-12 19:21:46 |
+| pending | Refresh highlights on mutation only | use cached bundles; update on server mutations only | Add refresh signals + selection-level updates + refresh spinner | 2026-01-12 19:35:36 |

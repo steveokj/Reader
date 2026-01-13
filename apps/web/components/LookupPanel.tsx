@@ -37,6 +37,7 @@ type LookupPanelProps = {
     previewText?: string;
     snapshotUrl?: string;
   }) => void;
+  onArtifactMarkerChanged?: (selectionId: number) => void;
   onRefresh: () => void;
   onClose: () => void;
 };
@@ -108,6 +109,7 @@ export default function LookupPanel({
   onOpenArtifactNote,
   onOpenArtifactAudio,
   onOpenArtifactExplore,
+  onArtifactMarkerChanged,
   onRefresh,
   onClose,
 }: LookupPanelProps) {
@@ -230,6 +232,7 @@ export default function LookupPanel({
           });
           if (response.ok) {
             setArtifactMarkers((prev) => prev.filter((marker) => marker.id !== existing.id));
+            onArtifactMarkerChanged?.(artifactMenu.selectionId);
           }
         } catch (error) {
           console.error(error);
@@ -252,12 +255,13 @@ export default function LookupPanel({
         const data = (await response.json()) as { marker?: AdditionMarker };
         if (data.marker) {
           setArtifactMarkers((prev) => [...prev, data.marker as AdditionMarker]);
+          onArtifactMarkerChanged?.(artifactMenu.selectionId);
         }
       } catch (error) {
         console.error(error);
       }
     },
-    [apiBase, artifactMarkers, artifactMenu]
+    [apiBase, artifactMarkers, artifactMenu, onArtifactMarkerChanged]
   );
 
   const handleArtifactAction = useCallback(
