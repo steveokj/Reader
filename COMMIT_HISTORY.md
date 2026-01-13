@@ -83,3 +83,4 @@
 | 1b6dedb | Filter state borders by selection | for selected only..it shows states for selected only but state borders for every county | Apply selected-country filter to state borders alongside state labels. | 2026-01-13 01:25:17 |
 | 2b956d4 | Add ocean fill layer | --perfect. can i get oceans? | Add Natural Earth ocean polygons and render a light ocean fill. | 2026-01-13 01:28:20 |
 | c3b4133 | Add ocean labels | yes | Add ocean name labels from marine polys and render them on the map. | 2026-01-13 01:34:22 |
+| b72af38 | Add seas and gulfs labels | add seas and gulfs. also name positioning sucks | Use marine polys directly for labels (ocean/sea/gulf) so placement uses polygon centroids instead of bbox. | 2026-01-13 01:39:07 |
