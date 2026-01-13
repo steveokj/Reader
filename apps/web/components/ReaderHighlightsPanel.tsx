@@ -62,6 +62,7 @@ const HIGHLIGHTS_CACHE = new Map<
   number,
   { bundles: SelectionBundle[]; sectionsById: Map<number, string> }
 >();
+const HIGHLIGHTS_REFRESH_KEYS = new Map<number, number>();
 
 function formatSnippet(value: string, limit = MAX_SNIPPET_LENGTH) {
   const normalized = value.replace(/\s+/g, " ").trim();
@@ -108,6 +109,8 @@ export default function ReaderHighlightsPanel({
       setSectionsById(cached.sectionsById);
       setHasLoaded(true);
     }
+    const cachedRefreshKey = HIGHLIGHTS_REFRESH_KEYS.get(documentId) ?? null;
+    lastRefreshKeyRef.current = cachedRefreshKey;
   }, [documentId]);
 
   useEffect(() => {
@@ -302,6 +305,7 @@ export default function ReaderHighlightsPanel({
       return;
     }
     lastRefreshKeyRef.current = refreshSignal.key;
+    HIGHLIGHTS_REFRESH_KEYS.set(documentId, refreshSignal.key);
     if (refreshSignal.type === "delete" && refreshSignal.selectionId) {
       setBundles((prev) => {
         const next = prev.filter((bundle) => bundle.selection.id !== refreshSignal.selectionId);

@@ -38,3 +38,4 @@
 | pending | Refresh highlights on mutation only | use cached bundles; update on server mutations only | Add refresh signals + selection-level updates + refresh spinner | 2026-01-12 19:35:36 |
 | pending | Fix highlights refresh loop | infinite refetch after addition | Use refs for bundles/sections to stabilize refresh callbacks | 2026-01-12 19:43:53 |
 | pending | Avoid reprocessing refresh signal | reopen highlights re-fetches selection | Track last refresh key to prevent replay on reopen | 2026-01-12 19:46:27 |
+| pending | Persist highlights refresh key | reopen replays last refresh signal | Cache last refresh key per document to avoid reprocessing | 2026-01-12 19:49:50 |
