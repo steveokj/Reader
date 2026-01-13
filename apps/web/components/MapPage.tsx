@@ -116,7 +116,11 @@ export default function MapPage() {
         } catch (error) {
           console.warn("Map bounds failed on load", error);
         }
-        map.resize();
+        try {
+          map.resize();
+        } catch (error) {
+          console.warn("Map resize failed on load", error);
+        }
       });
       map.on("error", (event) => {
         console.error(event?.error ?? event);
