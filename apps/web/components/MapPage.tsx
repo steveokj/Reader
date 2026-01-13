@@ -108,40 +108,18 @@ export default function MapPage() {
       map.on("load", () => {
         setMapReady(true);
         void addCountries(map);
-        try {
-          map.setMaxBounds([
-            [-180, -85],
-            [180, 85],
-          ]);
-        } catch (error) {
-          console.warn("Map bounds failed on load", error);
-        }
-        try {
-          map.resize();
-        } catch (error) {
-          console.warn("Map resize failed on load", error);
-        }
       });
       map.on("error", (event) => {
         console.error(event?.error ?? event);
         setDataStatus("error");
       });
       mapRef.current = map;
-      handleResize = () => {
-        if (!cancelled) {
-          map.resize();
-        }
-      };
-      window.addEventListener("resize", handleResize);
     };
 
     void init();
 
     return () => {
       cancelled = true;
-      if (handleResize) {
-        window.removeEventListener("resize", handleResize);
-      }
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
