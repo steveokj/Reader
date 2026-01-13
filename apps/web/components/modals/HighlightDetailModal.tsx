@@ -268,129 +268,127 @@ export default function HighlightDetailModal({
         </div>
 
         <div className="highlight-detail-modal__body">
-
-            {showBanner ? (
-              <div className="highlight-detail-modal__banner">
-                {noteItems.map((note) => {
-                  const fullText = note.text;
-                  const isExpanded = expandedNotes[note.id];
-                  const preview = formatSnippet(fullText);
-                  const showToggle = fullText && preview !== fullText;
-                  return (
-                    <div key={note.id} className="highlight-detail-modal__banner-note">
-                      <div className="highlight-detail-modal__banner-title">Note</div>
-                      <div className="highlight-detail-modal__note-text">
-                        {isExpanded ? fullText : preview}
-                      </div>
-                      {showToggle ? (
-                        <button
-                          type="button"
-                          className="highlight-detail-modal__banner-button"
-                          onClick={() =>
-                            setExpandedNotes((prev) => ({
-                              ...prev,
-                              [note.id]: !prev[note.id],
-                            }))
-                          }
-                        >
-                          {isExpanded ? "Show less" : "Show more"}
-                        </button>
-                      ) : null}
+          {showBanner ? (
+            <div className="highlight-detail-modal__banner">
+              {noteItems.map((note) => {
+                const fullText = note.text;
+                const isExpanded = expandedNotes[note.id];
+                const preview = formatSnippet(fullText);
+                const showToggle = fullText && preview !== fullText;
+                return (
+                  <div key={note.id} className="highlight-detail-modal__banner-note">
+                    <div className="highlight-detail-modal__banner-title">Note</div>
+                    <div className="highlight-detail-modal__note-text">
+                      {isExpanded ? fullText : preview}
                     </div>
-                  );
-                })}
-                {audioItems.map((audio) => (
-                  <div key={audio.id} className="highlight-detail-modal__banner-audio">
-                    <div className="highlight-detail-modal__banner-title">Audio</div>
-                    {audio.url ? (
-                      <audio controls src={audio.url} />
-                    ) : (
-                      <div className="highlight-detail-modal__muted">Audio unavailable.</div>
-                    )}
+                    {showToggle ? (
+                      <button
+                        type="button"
+                        className="highlight-detail-modal__banner-button"
+                        onClick={() =>
+                          setExpandedNotes((prev) => ({
+                            ...prev,
+                            [note.id]: !prev[note.id],
+                          }))
+                        }
+                      >
+                        {isExpanded ? "Show less" : "Show more"}
+                      </button>
+                    ) : null}
                   </div>
-                ))}
-              </div>
-            ) : null}
-
-            {!isAddition ? (
-              <div className="highlight-detail-modal__selection">
-                {selectionSnippet || "Selection unavailable."}
-              </div>
-            ) : null}
-
-            {isAddition && additionType === "note" ? (
-              <div className="highlight-detail-modal__note-body">
-                {resolveNoteText(addition) || "Note is empty."}
-              </div>
-            ) : null}
-
-            {isAddition && additionType === "audio" ? (
-              <div className="highlight-detail-modal__audio-body">
-                {(() => {
-                  const url = resolveAudioUrl(addition, apiBase);
-                  return url ? (
-                    <audio controls src={url} />
+                );
+              })}
+              {audioItems.map((audio) => (
+                <div key={audio.id} className="highlight-detail-modal__banner-audio">
+                  <div className="highlight-detail-modal__banner-title">Audio</div>
+                  {audio.url ? (
+                    <audio controls src={audio.url} />
                   ) : (
                     <div className="highlight-detail-modal__muted">Audio unavailable.</div>
-                  );
-                })()}
-              </div>
-            ) : null}
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : null}
 
-            {isAddition && additionType === "explore" ? (
-              <div className="highlight-detail-modal__chat chat-messages">
-                {(() => {
-                  const payload = addition.payload as ExplorePayload | undefined;
-                  const prompt = payload?.prompt ?? "";
-                  const response = payload?.content ?? addition.text_content ?? "";
-                  const messages = [
-                    { role: "user", content: prompt || "Prompt unavailable." },
-                    { role: "assistant", content: response || "Response unavailable." },
-                  ];
-                  return messages.map((message, index) => (
-                    <div
-                      key={`${message.role}-${index}`}
-                      className={`chat-message chat-message--${message.role}`}
-                    >
-                      <span className="chat-message__text">{message.content}</span>
-                    </div>
-                  ));
-                })()}
-              </div>
-            ) : null}
+          {!isAddition ? (
+            <div className="highlight-detail-modal__selection">
+              {selectionSnippet || "Selection unavailable."}
+            </div>
+          ) : null}
 
-            {isAddition && additionType === "grammar" ? (
-              <div className="highlight-detail-modal__snapshot">
-                {grammarSnapshotUrl ? (
-                  <>
-                    {snapshotStatus === "loading" ? (
-                      <div className="highlight-detail-modal__snapshot-overlay">
-                        <span className="explore-spinner" aria-hidden="true" />
-                        Loading snapshot...
-                      </div>
-                    ) : null}
-                    {snapshotStatus === "error" ? (
-                      <div className="highlight-detail-modal__snapshot-overlay highlight-detail-modal__snapshot-overlay--error">
-                        Snapshot failed.
-                      </div>
-                    ) : null}
-                    <img
-                      src={grammarSnapshotUrl}
-                      alt={`Dictionary snapshot for ${grammarWord || "word"}`}
-                      onLoad={() => setSnapshotStatus("ready")}
-                      onError={() => setSnapshotStatus("error")}
-                    />
-                  </>
+          {isAddition && additionType === "note" ? (
+            <div className="highlight-detail-modal__note-body">
+              {resolveNoteText(addition) || "Note is empty."}
+            </div>
+          ) : null}
+
+          {isAddition && additionType === "audio" ? (
+            <div className="highlight-detail-modal__audio-body">
+              {(() => {
+                const url = resolveAudioUrl(addition, apiBase);
+                return url ? (
+                  <audio controls src={url} />
                 ) : (
-                  <div className="highlight-detail-modal__muted">
-                    {addition.text_content
-                      ? addition.text_content
-                      : "No snapshot available for this grammar item."}
+                  <div className="highlight-detail-modal__muted">Audio unavailable.</div>
+                );
+              })()}
+            </div>
+          ) : null}
+
+          {isAddition && additionType === "explore" ? (
+            <div className="highlight-detail-modal__chat chat-messages">
+              {(() => {
+                const payload = addition.payload as ExplorePayload | undefined;
+                const prompt = payload?.prompt ?? "";
+                const response = payload?.content ?? addition.text_content ?? "";
+                const messages = [
+                  { role: "user", content: prompt || "Prompt unavailable." },
+                  { role: "assistant", content: response || "Response unavailable." },
+                ];
+                return messages.map((message, index) => (
+                  <div
+                    key={`${message.role}-${index}`}
+                    className={`chat-message chat-message--${message.role}`}
+                  >
+                    <span className="chat-message__text">{message.content}</span>
                   </div>
-                )}
-              </div>
-            ) : null}
-          </div>
+                ));
+              })()}
+            </div>
+          ) : null}
+
+          {isAddition && additionType === "grammar" ? (
+            <div className="highlight-detail-modal__snapshot">
+              {grammarSnapshotUrl ? (
+                <>
+                  {snapshotStatus === "loading" ? (
+                    <div className="highlight-detail-modal__snapshot-overlay">
+                      <span className="explore-spinner" aria-hidden="true" />
+                      Loading snapshot...
+                    </div>
+                  ) : null}
+                  {snapshotStatus === "error" ? (
+                    <div className="highlight-detail-modal__snapshot-overlay highlight-detail-modal__snapshot-overlay--error">
+                      Snapshot failed.
+                    </div>
+                  ) : null}
+                  <img
+                    src={grammarSnapshotUrl}
+                    alt={`Dictionary snapshot for ${grammarWord || "word"}`}
+                    onLoad={() => setSnapshotStatus("ready")}
+                    onError={() => setSnapshotStatus("error")}
+                  />
+                </>
+              ) : (
+                <div className="highlight-detail-modal__muted">
+                  {addition.text_content
+                    ? addition.text_content
+                    : "No snapshot available for this grammar item."}
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>,
