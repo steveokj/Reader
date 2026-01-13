@@ -57,6 +57,10 @@ type ReaderHighlightsPanelProps = {
 type TabKey = "selections" | "additions" | "markers";
 
 const MAX_SNIPPET_LENGTH = 160;
+const HIGHLIGHTS_CACHE = new Map<
+  number,
+  { bundles: SelectionBundle[]; sectionsById: Map<number, string> }
+>();
 
 function formatSnippet(value: string, limit = MAX_SNIPPET_LENGTH) {
   const normalized = value.replace(/\s+/g, " ").trim();
@@ -91,6 +95,15 @@ export default function ReaderHighlightsPanel({
   const [sectionsById, setSectionsById] = useState<Map<number, string>>(new Map());
   const [loading, setLoading] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+
+  useEffect(() => {
+    const cached = HIGHLIGHTS_CACHE.get(documentId);
+    if (cached) {
+      setBundles(cached.bundles);
+      setSectionsById(cached.sectionsById);
+      setHasLoaded(true);
+    }
+  }, [documentId]);
 
   useEffect(() => {
     if (!isActive) {
@@ -170,6 +183,10 @@ export default function ReaderHighlightsPanel({
           });
           setBundles(sortedBundles);
           setHasLoaded(true);
+          HIGHLIGHTS_CACHE.set(documentId, {
+            bundles: sortedBundles,
+            sectionsById: sectionMap,
+          });
         }
       } catch (error) {
         console.error(error);
@@ -237,6 +254,7 @@ export default function ReaderHighlightsPanel({
   }
 
   const showLoading = loading && bundles.length === 0;
+  const showRefreshing = loading && bundles.length > 0;
 
   return (
     <div className="highlights-panel">
@@ -255,6 +273,11 @@ export default function ReaderHighlightsPanel({
       </div>
 
       {showLoading ? <div className="empty-state">Loading...</div> : null}
+      {showRefreshing ? (
+        <div className="empty-state">
+          <span className="explore-spinner" aria-hidden="true" /> Refreshing...
+        </div>
+      ) : null}
 
       {activeTab === "selections" ? (
         <div className="tab-panel">
