@@ -261,50 +261,6 @@ function buildStateLabelCollection(features: GeoFeature[]) {
   } as GeoFeatureCollection;
 }
 
-function buildOceanLabelCollection(features: GeoFeature[]) {
-  const bestByName = new Map<string, { bounds: Bounds; area: number; name: string }>();
-  features.forEach((feature) => {
-    const props = feature.properties ?? {};
-    const featureClass = String(props.featurecla ?? "").trim().toLowerCase();
-    if (featureClass !== "ocean" || !feature.geometry) {
-      return;
-    }
-    const name = String(props.name ?? props.label ?? "").trim();
-    if (!name) {
-      return;
-    }
-    const bounds = boundsFromGeometry(feature.geometry);
-    if (!bounds) {
-      return;
-    }
-    const area = Math.abs((bounds.east - bounds.west) * (bounds.north - bounds.south));
-    const key = name.toLowerCase();
-    const existing = bestByName.get(key);
-    if (!existing || area > existing.area) {
-      bestByName.set(key, { bounds, area, name });
-    }
-  });
-
-  const labelFeatures: GeoFeature[] = [];
-  bestByName.forEach((entry) => {
-    labelFeatures.push({
-      type: "Feature",
-      geometry: {
-        type: "Point",
-        coordinates: [(entry.bounds.west + entry.bounds.east) / 2, (entry.bounds.south + entry.bounds.north) / 2],
-      },
-      properties: {
-        name: entry.name,
-      },
-    });
-  });
-
-  return {
-    type: "FeatureCollection",
-    features: labelFeatures,
-  } as GeoFeatureCollection;
-}
-
 function unionBounds(features: GeoFeature[]): Bounds | null {
   if (features.length === 0) {
     return null;
@@ -464,8 +420,8 @@ export default function MapPage() {
       }
     };
 
-    const addOceanLabels = async (map: MapLibreMap) => {
-      if (map.getSource("ocean-labels")) {
+    const addMarineLabels = async (map: MapLibreMap) => {
+      if (map.getSource("marine-polys")) {
         return;
       }
       try {
@@ -474,24 +430,27 @@ export default function MapPage() {
           throw new Error("Failed to load marine labels");
         }
         const data = await response.json();
-        if (cancelled || map.getSource("ocean-labels")) {
+        if (cancelled || map.getSource("marine-polys")) {
           return;
         }
-        const labels = buildOceanLabelCollection(data.features ?? []);
-        map.addSource("ocean-labels", {
+        map.addSource("marine-polys", {
           type: "geojson",
-          data: labels,
+          data,
         });
         const labelBefore = map.getLayer("country-labels-all") ? "country-labels-all" : undefined;
         map.addLayer(
           {
-            id: "ocean-labels",
+            id: "marine-labels",
             type: "symbol",
-            source: "ocean-labels",
+            source: "marine-polys",
+            filter: [
+              "in",
+              ["get", "featurecla"],
+              ["literal", ["ocean", "sea", "gulf"]],
+            ],
             layout: {
-              "text-field": ["get", "name"],
-              "text-size": 14,
-              "text-transform": "uppercase",
+              "text-field": ["coalesce", ["get", "label"], ["get", "name"]],
+              "text-size": 13,
               "text-letter-spacing": 0.08,
               "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
             },
@@ -504,7 +463,7 @@ export default function MapPage() {
           labelBefore
         );
       } catch (error) {
-        console.warn("Failed to load ocean labels", error);
+        console.warn("Failed to load marine labels", error);
       }
     };
 
@@ -589,7 +548,7 @@ export default function MapPage() {
           });
         }
         ensureLabelLayers(map);
-        await addOceanLabels(map);
+        await addMarineLabels(map);
         setDataStatus("ready");
       } catch (error) {
         console.error(error);
