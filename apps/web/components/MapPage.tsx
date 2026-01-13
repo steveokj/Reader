@@ -152,8 +152,8 @@ function buildStateLabelCollection(features: GeoFeature[]) {
     const props = feature.properties ?? {};
     const iso2 = String(props.iso_a2 ?? props["iso_a2"] ?? "").trim().toUpperCase();
     const name = String(props.name ?? "").trim();
-    const labelX = Number(props.label_x ?? props["label_x"]);
-    const labelY = Number(props.label_y ?? props["label_y"]);
+    const labelX = Number(props.label_x ?? props["label_x"] ?? props.longitude);
+    const labelY = Number(props.label_y ?? props["label_y"] ?? props.latitude);
     const hasLabel = Number.isFinite(labelX) && Number.isFinite(labelY);
     if (!iso2 || !name || !feature.geometry) {
       return;
