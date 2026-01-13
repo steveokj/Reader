@@ -80,3 +80,4 @@
 | 7c503e9 | Use country label points dataset | proceed | Add Natural Earth country label points dataset and build label source from ISO3 matches. | 2026-01-13 01:18:09 |
 | 8c31093 | Add toggle for state borders | make state lines a toggle but country lines permanent | Add a separate state/province borders toggle and wire visibility to it. | 2026-01-13 01:21:08 |
 | 45e8d62 | Tie state borders to labels toggle | yes i want | Tie state borders visibility to the state labels toggle and update toggle text. | 2026-01-13 01:23:42 |
+| 1b6dedb | Filter state borders by selection | for selected only..it shows states for selected only but state borders for every county | Apply selected-country filter to state borders alongside state labels. | 2026-01-13 01:25:17 |
