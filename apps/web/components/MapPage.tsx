@@ -6,6 +6,8 @@ import type { Map as MapLibreMap } from "maplibre-gl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type MapLibreModule = typeof import("maplibre-gl");
+type GeoFeature = GeoJSON.Feature<GeoJSON.Geometry, Record<string, unknown>>;
+type GeoFeatureCollection = GeoJSON.FeatureCollection<GeoJSON.Geometry, Record<string, unknown>>;
 
 const DEFAULT_CENTER: [number, number] = [12, 22];
 const DEFAULT_ZOOM = 1.6;
@@ -25,9 +27,95 @@ const baseStyle = {
   ],
 };
 
+type Bounds = { west: number; south: number; east: number; north: number };
+
+function normalizeKey(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function parsePlaces(value: string) {
+  const normalized = value.replace(/[–—-]+/g, " to ");
+  return normalized
+    .split(/\s+to\s+|,|&|\/|\s+and\s+|\+/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function expandCoords(coords: number[][], bounds: Bounds) {
+  coords.forEach(([lng, lat]) => {
+    bounds.west = Math.min(bounds.west, lng);
+    bounds.south = Math.min(bounds.south, lat);
+    bounds.east = Math.max(bounds.east, lng);
+    bounds.north = Math.max(bounds.north, lat);
+  });
+}
+
+function collectBounds(geometry: GeoJSON.Geometry, bounds: Bounds) {
+  switch (geometry.type) {
+    case "Point":
+      expandCoords([geometry.coordinates as number[]], bounds);
+      break;
+    case "MultiPoint":
+    case "LineString":
+      expandCoords(geometry.coordinates as number[][], bounds);
+      break;
+    case "MultiLineString":
+    case "Polygon":
+      (geometry.coordinates as number[][][]).forEach((ring) => expandCoords(ring, bounds));
+      break;
+    case "MultiPolygon":
+      (geometry.coordinates as number[][][][]).forEach((poly) =>
+        poly.forEach((ring) => expandCoords(ring, bounds))
+      );
+      break;
+    case "GeometryCollection":
+      geometry.geometries.forEach((geom) => collectBounds(geom, bounds));
+      break;
+    default:
+      break;
+  }
+}
+
+function unionBounds(features: GeoFeature[]): Bounds | null {
+  if (features.length === 0) {
+    return null;
+  }
+  const bounds: Bounds = {
+    west: Number.POSITIVE_INFINITY,
+    south: Number.POSITIVE_INFINITY,
+    east: Number.NEGATIVE_INFINITY,
+    north: Number.NEGATIVE_INFINITY,
+  };
+  features.forEach((feature) => {
+    if (!feature.geometry) {
+      return;
+    }
+    collectBounds(feature.geometry, bounds);
+  });
+  if (!Number.isFinite(bounds.west)) {
+    return null;
+  }
+  return bounds;
+}
+
+function applySelection(map: MapLibreMap, iso2Codes: string[]) {
+  if (!map.getLayer("countries-fill")) {
+    return;
+  }
+  const normalized = iso2Codes.map((code) => code.toUpperCase());
+  map.setPaintProperty("countries-fill", "fill-color", [
+    "case",
+    ["in", ["get", "ISO3166-1-Alpha-2"], ["literal", normalized]],
+    "#d9663f",
+    "#d9b895",
+  ]);
+}
+
 export default function MapPage() {
   const mapRef = useRef<MapLibreMap | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const countriesRef = useRef<GeoFeatureCollection | null>(null);
+  const countriesIndexRef = useRef<Map<string, GeoFeature>>(new Map());
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [dataStatus, setDataStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -55,6 +143,24 @@ export default function MapPage() {
           type: "geojson",
           data,
         });
+        countriesRef.current = data as GeoFeatureCollection;
+        const index = new Map<string, GeoFeature>();
+        (data.features ?? []).forEach((feature: GeoFeature) => {
+          const props = feature.properties ?? {};
+          const name = String(props.name ?? "").trim();
+          const iso2 = String(props["ISO3166-1-Alpha-2"] ?? "").trim();
+          const iso3 = String(props["ISO3166-1-Alpha-3"] ?? "").trim();
+          if (name) {
+            index.set(normalizeKey(name), feature);
+          }
+          if (iso2) {
+            index.set(normalizeKey(iso2), feature);
+          }
+          if (iso3) {
+            index.set(normalizeKey(iso3), feature);
+          }
+        });
+        countriesIndexRef.current = index;
         if (!map.getLayer("countries-fill")) {
           map.addLayer({
             id: "countries-fill",
@@ -134,10 +240,48 @@ export default function MapPage() {
       if (!trimmed) {
         return;
       }
-      setStatus(`Saved query coming soon: "${trimmed}"`);
+      if (!mapReady || dataStatus !== "ready") {
+        setStatus("Map is still loading.");
+        window.setTimeout(() => setStatus(null), 2000);
+        return;
+      }
+      const map = mapRef.current;
+      const index = countriesIndexRef.current;
+      if (!map || index.size === 0) {
+        setStatus("Countries data not ready.");
+        window.setTimeout(() => setStatus(null), 2000);
+        return;
+      }
+      const terms = parsePlaces(trimmed);
+      const matches = terms
+        .map((term) => index.get(normalizeKey(term)) ?? null)
+        .filter(Boolean) as GeoFeature[];
+      if (matches.length === 0) {
+        setStatus("No countries matched.");
+        window.setTimeout(() => setStatus(null), 2000);
+        return;
+      }
+      const bbox = unionBounds(matches);
+      if (!bbox) {
+        setStatus("Unable to compute bounds.");
+        window.setTimeout(() => setStatus(null), 2000);
+        return;
+      }
+      const selectedIso2 = matches
+        .map((feature) => String(feature.properties?.["ISO3166-1-Alpha-2"] ?? "").trim())
+        .filter(Boolean);
+      applySelection(map, selectedIso2);
+      map.fitBounds(
+        [
+          [bbox.west, bbox.south],
+          [bbox.east, bbox.north],
+        ],
+        { padding: 60, duration: 800 }
+      );
+      setStatus(`Showing ${selectedIso2.join(", ") || matches.length} countries.`);
       window.setTimeout(() => setStatus(null), 2000);
     },
-    [query]
+    [dataStatus, mapReady, query]
   );
 
   return (
@@ -151,7 +295,11 @@ export default function MapPage() {
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Italy to Turkey"
           />
-          <button type="submit" className="map-button" disabled={!query.trim()}>
+          <button
+            type="submit"
+            className="map-button"
+            disabled={!query.trim() || !mapReady || dataStatus !== "ready"}
+          >
             Go
           </button>
           <button type="button" className="map-button map-button--secondary" disabled>
