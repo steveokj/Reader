@@ -76,6 +76,65 @@ function collectBounds(geometry: GeoJSON.Geometry, bounds: Bounds) {
   }
 }
 
+function boundsFromGeometry(geometry: GeoJSON.Geometry): Bounds | null {
+  const bounds: Bounds = {
+    west: Number.POSITIVE_INFINITY,
+    south: Number.POSITIVE_INFINITY,
+    east: Number.NEGATIVE_INFINITY,
+    north: Number.NEGATIVE_INFINITY,
+  };
+  collectBounds(geometry, bounds);
+  if (!Number.isFinite(bounds.west)) {
+    return null;
+  }
+  return bounds;
+}
+
+function buildLabelCollection(features: GeoFeature[]) {
+  const bestByIso2 = new Map<
+    string,
+    { feature: GeoFeature; bounds: Bounds; area: number; name: string }
+  >();
+  features.forEach((feature) => {
+    const props = feature.properties ?? {};
+    const iso2 = String(props["ISO3166-1-Alpha-2"] ?? "").trim().toUpperCase();
+    const name = String(props.name ?? "").trim();
+    if (!iso2 || !feature.geometry) {
+      return;
+    }
+    const bounds = boundsFromGeometry(feature.geometry);
+    if (!bounds) {
+      return;
+    }
+    const area = Math.abs((bounds.east - bounds.west) * (bounds.north - bounds.south));
+    const existing = bestByIso2.get(iso2);
+    if (!existing || area > existing.area) {
+      bestByIso2.set(iso2, { feature, bounds, area, name });
+    }
+  });
+
+  const labelFeatures: GeoFeature[] = [];
+  bestByIso2.forEach((entry, iso2) => {
+    const { bounds, name } = entry;
+    labelFeatures.push({
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [(bounds.west + bounds.east) / 2, (bounds.south + bounds.north) / 2],
+      },
+      properties: {
+        name,
+        "ISO3166-1-Alpha-2": iso2,
+      },
+    });
+  });
+
+  return {
+    type: "FeatureCollection",
+    features: labelFeatures,
+  } as GeoFeatureCollection;
+}
+
 function unionBounds(features: GeoFeature[]): Bounds | null {
   if (features.length === 0) {
     return null;
@@ -112,13 +171,16 @@ function applySelection(map: MapLibreMap, iso2Codes: string[]) {
 }
 
 function ensureLabelLayers(map: MapLibreMap) {
+  if (!map.getSource("country-labels")) {
+    return;
+  }
   if (map.getLayer("country-labels-all")) {
     return;
   }
   map.addLayer({
     id: "country-labels-all",
     type: "symbol",
-    source: "countries",
+    source: "country-labels",
     layout: {
       "text-field": ["get", "name"],
       "text-size": 11,
@@ -135,7 +197,7 @@ function ensureLabelLayers(map: MapLibreMap) {
   map.addLayer({
     id: "country-labels-selected",
     type: "symbol",
-    source: "countries",
+    source: "country-labels",
     layout: {
       "text-field": ["get", "name"],
       "text-size": 12,
@@ -211,6 +273,13 @@ export default function MapPage() {
           type: "geojson",
           data,
         });
+        if (!map.getSource("country-labels")) {
+          const labelCollection = buildLabelCollection(data.features ?? []);
+          map.addSource("country-labels", {
+            type: "geojson",
+            data: labelCollection,
+          });
+        }
         countriesRef.current = data as GeoFeatureCollection;
         const index = new Map<string, GeoFeature>();
         (data.features ?? []).forEach((feature: GeoFeature) => {
