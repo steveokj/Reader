@@ -496,12 +496,9 @@ export default function MapPage() {
       if (map.getSource("state-labels")) {
         map.setLayoutProperty("state-labels", "visibility", statesVisible ? "visible" : "none");
         if (map.getLayer("state-borders")) {
-          map.setLayoutProperty("state-borders", "visibility", statesVisible ? "visible" : "none");
+          map.setLayoutProperty("state-borders", "visibility", "visible");
         }
         applyStateFilter(map, labelsMode, selectedIso2);
-        return;
-      }
-      if (!statesVisible) {
         return;
       }
       setStatesStatus("loading");
@@ -516,35 +513,42 @@ export default function MapPage() {
           type: "geojson",
           data: stateLabels,
         });
-        map.addLayer({
-          id: "state-labels",
-          type: "symbol",
-          source: "state-labels",
-          layout: {
-            "text-field": ["get", "name"],
-            "text-size": 11,
-            "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
-            "text-offset": [0, 0.6],
-            "text-allow-overlap": true,
-            "text-ignore-placement": true,
+        const labelBefore = map.getLayer("country-labels-all") ? "country-labels-all" : undefined;
+        map.addLayer(
+          {
+            id: "state-borders",
+            type: "line",
+            source: "state-labels",
+            paint: {
+              "line-color": "#b48b6a",
+              "line-width": 1.1,
+              "line-opacity": 0.7,
+            },
           },
-          paint: {
-            "text-color": "#6b4c3b",
-            "text-halo-color": "#f3efe6",
-            "text-halo-width": 1,
+          labelBefore
+        );
+        map.addLayer(
+          {
+            id: "state-labels",
+            type: "symbol",
+            source: "state-labels",
+            layout: {
+              "text-field": ["get", "name"],
+              "text-size": 10,
+              "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
+              "text-offset": [0, 0.6],
+              "text-allow-overlap": true,
+              "text-ignore-placement": true,
+            },
+            paint: {
+              "text-color": "#6b4c3b",
+              "text-halo-color": "#f3efe6",
+              "text-halo-width": 1,
+            },
           },
-        });
-        map.addLayer({
-          id: "state-borders",
-          type: "line",
-          source: "state-labels",
-          paint: {
-            "line-color": "#b48b6a",
-            "line-width": 0.8,
-            "line-opacity": 0.55,
-          },
-        });
-        map.setLayoutProperty("state-labels", "visibility", "visible");
+          labelBefore
+        );
+        map.setLayoutProperty("state-labels", "visibility", statesVisible ? "visible" : "none");
         map.setLayoutProperty("state-borders", "visibility", "visible");
         applyStateFilter(map, labelsMode, selectedIso2);
         setStatesStatus("ready");
@@ -687,7 +691,7 @@ export default function MapPage() {
                 checked={statesVisible}
                 onChange={(event) => setStatesVisible(event.target.checked)}
               />
-              <span>State/Province labels + borders</span>
+              <span>State/Province labels</span>
             </label>
           </div>
         </aside>
@@ -751,20 +755,11 @@ function applyStateFilter(
   if (mode === "selected") {
     if (selectedIso2.length === 0) {
       map.setFilter("state-labels", ["==", ["get", "iso_a2"], ""]);
-      if (map.getLayer("state-borders")) {
-        map.setFilter("state-borders", ["==", ["get", "iso_a2"], ""]);
-      }
       return;
     }
     const normalized = selectedIso2.map((code) => code.toUpperCase());
     map.setFilter("state-labels", ["in", ["get", "iso_a2"], ["literal", normalized]]);
-    if (map.getLayer("state-borders")) {
-      map.setFilter("state-borders", ["in", ["get", "iso_a2"], ["literal", normalized]]);
-    }
     return;
   }
   map.setFilter("state-labels", null);
-  if (map.getLayer("state-borders")) {
-    map.setFilter("state-borders", null);
-  }
 }
