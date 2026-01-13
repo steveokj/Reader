@@ -19,7 +19,7 @@
 | pending | Disable sticky/fixed for full-page | still there. now instead of twice it is 1 page and maybe 10% of the same page | Strip sticky/fixed positioning before full-page capture | 2026-01-11 21:20:01 |
 | pending | Element-based full-page capture for Merriam | nope. now it is back to 3x. | Screenshot the main element for Merriam full-page to avoid duplication | 2026-01-11 21:28:32 |
 | pending | Use Merriam redesign container for full-page | try this element: <div class="redesign-container"> | Use .redesign-container as the Merriam screenshot element | 2026-01-11 21:42:43 |
-| pending | Default lookup provider to Vocabulary | Back to 1.25x. Lets ignnore for now and move from merriam back to vocabulary.com | Switch lookup provider defaults to vocabulary.com | 2026-01-11 21:45:57 |
+| aa7d5e8 | Default lookup provider to Vocabulary | Back to 1.25x. Lets ignnore for now and move from merriam back to vocabulary.com | Switch lookup provider defaults to vocabulary.com | 2026-01-11 21:45:57 |
 | pending | Add lookup provider toggle + centered spinner | perfect. add the toggle. also while waiting for it to load, I current get loading snapshot.. in the top left. Instead lets have a spinner in the middle with loading snapshot. | Add provider switcher and centered loading overlay | 2026-01-11 21:50:43 |
 | 78c503c | Refine lookup header actions | perfect. for some reason when i hit the toggle from vocab to merriam, i get no 1.25x, and it is normal. some ui changes, the background color of the loading screenshot should match the current psnel setting. change open on merriam, refresh, and close buttons to icons underneath the toggle. | Move actions to icon row under toggle and theme overlay | 2026-01-11 21:58:23 |
 | 5cb6d30 | Seed reader theme from stored value | perfect. when i refresh the page, i get white background before the dark settings come in for an book. i think sometime we fixed it by using server cookies or so. the loading screen before a book loads is white before changes are effected. can you look this up | Initialize reader settings theme from dataset/localStorage | 2026-01-11 22:04:27 |
@@ -27,7 +27,7 @@
 | 751bb59 | Auto-reset mismatched theme colors | still shows sepia. i clicked on sepia in settings, refreshed and got sepia. i clicked dark, refreshed and got sepia while dark is still selected | Fix theme color values if they match another theme's defaults | 2026-01-11 22:16:56 |
 | b752d0d | Detect theme colors copied from another theme | still happening. look carefully..why does it switch when colors are changed, inline styles right? then how come it is different on reload | Reset theme colors if they match another theme's current colors | 2026-01-11 22:22:26 |
 | 06fe7bb | Set initial theme background inline | do 2 | Inline theme background in layout to avoid flash | 2026-01-11 23:39:08 |
-| pending | Artifact action menus + explore persistence | saved automatically; use position; double click only | Add artifact menus, auto-save explore responses, child additions | 2026-01-12 17:28:29 |
+| b452b7b | Artifact action menus + explore persistence | saved automatically; use position; double click only | Add artifact menus, auto-save explore responses, child additions | 2026-01-12 17:28:29 |
 | pending | Fix artifact menu layering + styling | adjust artifact menu style/position; modals should not be hidden; how to save highlights | Raise z-index, add artifact menu class; markers save instantly | 2026-01-12 18:35:36 |
 | pending | Align artifact menu + marker labels | fix artifact menu position/size/colors; artifact markers show as selection | Clamp menu position + style; label addition markers as artifacts | 2026-01-12 18:45:27 |
 | pending | Mobile artifact menu style | artifact modal should match mobile action modal | Add mobile variant styling + pass isMobile to artifact menu | 2026-01-12 18:53:53 |
@@ -39,3 +39,6 @@
 | pending | Fix highlights refresh loop | infinite refetch after addition | Use refs for bundles/sections to stabilize refresh callbacks | 2026-01-12 19:43:53 |
 | pending | Avoid reprocessing refresh signal | reopen highlights re-fetches selection | Track last refresh key to prevent replay on reopen | 2026-01-12 19:46:27 |
 | pending | Persist highlights refresh key | reopen replays last refresh signal | Cache last refresh key per document to avoid reprocessing | 2026-01-12 19:49:50 |
+| 39652dc | Add highlight detail modal for highlights items | Double-click highlights items to open type-specific detail modal with notes/audio/explore/grammar and markers. | Added highlight detail modal, wired double-click, marker toggles, banner notes/audio, and styling. | 2026-01-12 21:48:09 |
+
+
