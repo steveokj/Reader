@@ -90,14 +90,23 @@ function boundsFromGeometry(geometry: GeoJSON.Geometry): Bounds | null {
   return bounds;
 }
 
-function buildLabelCollection(features: GeoFeature[]) {
-  const bestByIso2 = new Map<
+function buildCountryLabelCollection(
+  countries: GeoFeature[],
+  labelPoints?: GeoFeature[]
+): GeoFeatureCollection {
+  const fallbackByIso2 = new Map<
     string,
-    { feature: GeoFeature; bounds: Bounds; area: number; name: string }
+    { bounds: Bounds; area: number; name: string; iso2: string }
   >();
-  features.forEach((feature) => {
+  const byIso3 = new Map<
+    string,
+    { name: string; iso2: string; bounds: Bounds; area: number }
+  >();
+
+  countries.forEach((feature) => {
     const props = feature.properties ?? {};
     const iso2 = String(props["ISO3166-1-Alpha-2"] ?? "").trim().toUpperCase();
+    const iso3 = String(props["ISO3166-1-Alpha-3"] ?? "").trim().toUpperCase();
     const name = String(props.name ?? "").trim();
     if (!iso2 || !feature.geometry) {
       return;
@@ -107,23 +116,73 @@ function buildLabelCollection(features: GeoFeature[]) {
       return;
     }
     const area = Math.abs((bounds.east - bounds.west) * (bounds.north - bounds.south));
-    const existing = bestByIso2.get(iso2);
+    const existing = fallbackByIso2.get(iso2);
     if (!existing || area > existing.area) {
-      bestByIso2.set(iso2, { feature, bounds, area, name });
+      fallbackByIso2.set(iso2, { bounds, area, name, iso2 });
+    }
+    if (iso3) {
+      const existingIso3 = byIso3.get(iso3);
+      if (!existingIso3 || area > existingIso3.area) {
+        byIso3.set(iso3, { name, iso2, bounds, area });
+      }
     }
   });
 
   const labelFeatures: GeoFeature[] = [];
-  bestByIso2.forEach((entry, iso2) => {
-    const { bounds, name } = entry;
+  const usedIso2 = new Set<string>();
+
+  if (labelPoints && labelPoints.length > 0) {
+    const bestByIso3 = new Map<string, { coord: [number, number]; rank: number }>();
+    labelPoints.forEach((feature) => {
+      if (!feature.geometry || feature.geometry.type !== "Point") {
+        return;
+      }
+      const props = feature.properties ?? {};
+      const iso3 = String(
+        props.sr_adm0_a3 ?? props.sr_sov_a3 ?? props.sr_brk_a3 ?? ""
+      )
+        .trim()
+        .toUpperCase();
+      if (!iso3) {
+        return;
+      }
+      const rankValue = Number(props.scalerank ?? Number.POSITIVE_INFINITY);
+      const coord = feature.geometry.coordinates as [number, number];
+      const existing = bestByIso3.get(iso3);
+      if (!existing || rankValue < existing.rank) {
+        bestByIso3.set(iso3, { coord, rank: rankValue });
+      }
+    });
+
+    bestByIso3.forEach((entry, iso3) => {
+      const country = byIso3.get(iso3);
+      if (!country) {
+        return;
+      }
+      labelFeatures.push({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: entry.coord },
+        properties: {
+          name: country.name,
+          "ISO3166-1-Alpha-2": country.iso2,
+        },
+      });
+      usedIso2.add(country.iso2);
+    });
+  }
+
+  fallbackByIso2.forEach((entry, iso2) => {
+    if (usedIso2.has(iso2)) {
+      return;
+    }
     labelFeatures.push({
       type: "Feature",
       geometry: {
         type: "Point",
-        coordinates: [(bounds.west + bounds.east) / 2, (bounds.south + bounds.north) / 2],
+        coordinates: [(entry.bounds.west + entry.bounds.east) / 2, (entry.bounds.south + entry.bounds.north) / 2],
       },
       properties: {
-        name,
+        name: entry.name,
         "ISO3166-1-Alpha-2": iso2,
       },
     });
@@ -349,7 +408,20 @@ export default function MapPage() {
           data,
         });
         if (!map.getSource("country-labels")) {
-          const labelCollection = buildLabelCollection(data.features ?? []);
+          let labelPoints: GeoFeature[] | undefined;
+          try {
+            const labelResponse = await fetch("/data/country_label_points.geojson");
+            if (labelResponse.ok) {
+              const labelData = await labelResponse.json();
+              labelPoints = (labelData?.features ?? []) as GeoFeature[];
+            }
+          } catch (error) {
+            console.warn("Failed to load country label points", error);
+          }
+          const labelCollection = buildCountryLabelCollection(
+            data.features ?? [],
+            labelPoints
+          );
           map.addSource("country-labels", {
             type: "geojson",
             data: labelCollection,
