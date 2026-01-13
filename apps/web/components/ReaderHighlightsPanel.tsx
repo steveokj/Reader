@@ -90,6 +90,7 @@ export default function ReaderHighlightsPanel({
   const [bundles, setBundles] = useState<SelectionBundle[]>([]);
   const [sectionsById, setSectionsById] = useState<Map<number, string>>(new Map());
   const [loading, setLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     if (!isActive) {
@@ -98,15 +99,14 @@ export default function ReaderHighlightsPanel({
     let cancelled = false;
 
     const load = async () => {
-      setLoading(true);
+      if (!hasLoaded) {
+        setLoading(true);
+      }
       try {
         const documentRes = await fetch(`${apiBase}/books/${documentId}`, {
           cache: "no-store",
         });
         if (!documentRes.ok) {
-          if (!cancelled) {
-            setBundles([]);
-          }
           return;
         }
         const documentData = (await documentRes.json()) as { sections?: DocumentSection[] };
@@ -120,9 +120,6 @@ export default function ReaderHighlightsPanel({
           { cache: "no-store" }
         );
         if (!selectionsRes.ok) {
-          if (!cancelled) {
-            setBundles([]);
-          }
           return;
         }
         const selectionsData = (await selectionsRes.json()) as { selections?: Selection[] };
@@ -172,11 +169,9 @@ export default function ReaderHighlightsPanel({
             return new Date(b.selection.created_at).getTime() - new Date(a.selection.created_at).getTime();
           });
           setBundles(sortedBundles);
+          setHasLoaded(true);
         }
       } catch (error) {
-        if (!cancelled) {
-          setBundles([]);
-        }
         console.error(error);
       } finally {
         if (!cancelled) {
@@ -241,6 +236,8 @@ export default function ReaderHighlightsPanel({
     return null;
   }
 
+  const showLoading = loading && bundles.length === 0;
+
   return (
     <div className="highlights-panel">
       <div className="document-detail__tabs">
@@ -257,7 +254,7 @@ export default function ReaderHighlightsPanel({
         ))}
       </div>
 
-      {loading ? <div className="empty-state">Loading...</div> : null}
+      {showLoading ? <div className="empty-state">Loading...</div> : null}
 
       {activeTab === "selections" ? (
         <div className="tab-panel">

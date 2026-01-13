@@ -33,3 +33,4 @@
 | pending | Mobile artifact menu style | artifact modal should match mobile action modal | Add mobile variant styling + pass isMobile to artifact menu | 2026-01-12 18:53:53 |
 | pending | Center mobile artifact menu + transparency | artifact menu should mirror mobile action modal transparency | Wrap in mobile panel + remove opaque mobile background | 2026-01-12 19:00:51 |
 | pending | Show artifact sources in additions | note on explore response shows as selection note | Label additions sourced from artifacts in highlights | 2026-01-12 19:11:47 |
+| pending | Cache highlights bundles | keep last bundles in state; refresh in background | Keep cached bundles; only show loading on first load | 2026-01-12 19:18:19 |
