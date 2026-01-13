@@ -105,14 +105,6 @@ export default function MapPage() {
       });
       map.addControl(new maplibre.NavigationControl(), "top-right");
       map.setRenderWorldCopies(false);
-      try {
-        map.setMaxBounds([
-          [-180, -85],
-          [180, 85],
-        ]);
-      } catch (error) {
-        console.warn("Map bounds not ready yet", error);
-      }
       map.on("load", () => {
         setMapReady(true);
         void addCountries(map);
