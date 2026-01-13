@@ -12,20 +12,7 @@ type GeoFeatureCollection = GeoJSON.FeatureCollection<GeoJSON.Geometry, Record<s
 const DEFAULT_CENTER: [number, number] = [12, 22];
 const DEFAULT_ZOOM = 1.6;
 
-const baseStyle = {
-  version: 8 as const,
-  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-  sources: {},
-  layers: [
-    {
-      id: "background",
-      type: "background",
-      paint: {
-        "background-color": "#f3efe6",
-      },
-    },
-  ],
-};
+const MAP_STYLE_URL = "/map-style.json";
 
 type Bounds = { west: number; south: number; east: number; north: number };
 
@@ -292,7 +279,7 @@ function applySelection(map: MapLibreMap, iso2Codes: string[]) {
     "case",
     ["in", ["get", "ISO3166-1-Alpha-2"], ["literal", normalized]],
     "#d9663f",
-    "#d9b895",
+    "rgba(0,0,0,0)",
   ]);
 }
 
@@ -312,11 +299,11 @@ function ensureLabelLayers(map: MapLibreMap) {
       "text-size": 11,
       "text-transform": "uppercase",
       "text-letter-spacing": 0.08,
-      "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
+      "text-font": ["Roboto Regular", "Arial Unicode MS Regular"],
     },
     paint: {
-      "text-color": "#614438",
-      "text-halo-color": "#f3efe6",
+      "text-color": "#5f5f5f",
+      "text-halo-color": "rgba(246,244,240,0.9)",
       "text-halo-width": 1,
     },
   });
@@ -329,11 +316,11 @@ function ensureLabelLayers(map: MapLibreMap) {
       "text-size": 12,
       "text-transform": "uppercase",
       "text-letter-spacing": 0.08,
-      "text-font": ["Open Sans Bold", "Arial Unicode MS Regular"],
+      "text-font": ["Roboto Medium", "Arial Unicode MS Regular"],
     },
     paint: {
-      "text-color": "#b34c28",
-      "text-halo-color": "#fff3e6",
+      "text-color": "#b65a3c",
+      "text-halo-color": "rgba(246,244,240,0.9)",
       "text-halo-width": 1.2,
     },
   });
@@ -412,8 +399,8 @@ export default function MapPage() {
           type: "fill",
           source: "oceans",
           paint: {
-            "fill-color": "#d7e3ee",
-            "fill-opacity": 0.9,
+            "fill-color": "#cfe8f7",
+            "fill-opacity": 0.85,
           },
         });
       } catch (error) {
@@ -453,11 +440,11 @@ export default function MapPage() {
               "text-field": ["coalesce", ["get", "label"], ["get", "name"]],
               "text-size": 13,
               "text-letter-spacing": 0.08,
-              "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
+              "text-font": ["Roboto Medium", "Arial Unicode MS Regular"],
             },
             paint: {
-              "text-color": "#6e7f94",
-              "text-halo-color": "#d7e3ee",
+              "text-color": "#5f7890",
+              "text-halo-color": "rgba(207,232,247,0.8)",
               "text-halo-width": 1,
             },
           },
@@ -531,8 +518,8 @@ export default function MapPage() {
             type: "fill",
             source: "countries",
             paint: {
-              "fill-color": "#d9b895",
-              "fill-opacity": 0.6,
+              "fill-color": "rgba(0,0,0,0)",
+              "fill-opacity": 0.35,
             },
           });
         }
@@ -542,9 +529,9 @@ export default function MapPage() {
             type: "line",
             source: "countries",
             paint: {
-              "line-color": "#6b4c3b",
-              "line-width": 1.6,
-              "line-opacity": 0.9,
+              "line-color": "#8c7b6f",
+              "line-width": 1.1,
+              "line-opacity": 0.75,
             },
           });
         }
@@ -571,7 +558,7 @@ export default function MapPage() {
       }
       const map = new maplibre.Map({
         container: containerRef.current,
-        style: baseStyle,
+        style: MAP_STYLE_URL,
         center: DEFAULT_CENTER,
         zoom: DEFAULT_ZOOM,
         attributionControl: false,
@@ -649,14 +636,14 @@ export default function MapPage() {
           layout: {
             "text-field": ["get", "name"],
             "text-size": 10,
-            "text-font": ["Open Sans Regular", "Arial Unicode MS Regular"],
+            "text-font": ["Roboto Regular", "Arial Unicode MS Regular"],
             "text-offset": [0, 0.6],
             "text-allow-overlap": false,
             "text-ignore-placement": false,
           },
           paint: {
-            "text-color": "#544036",
-            "text-halo-color": "#f3efe6",
+            "text-color": "#4f4f4f",
+            "text-halo-color": "rgba(246,244,240,0.9)",
             "text-halo-width": 1,
           },
         });
@@ -716,9 +703,9 @@ export default function MapPage() {
               type: "line",
               source: "states",
               paint: {
-                "line-color": "#7a4a33",
-                "line-width": 1.6,
-                "line-opacity": 0.9,
+                "line-color": "#b09a90",
+                "line-width": 1.1,
+                "line-opacity": 0.8,
               },
             },
             labelBefore
@@ -733,14 +720,14 @@ export default function MapPage() {
               layout: {
                 "text-field": ["get", "name"],
                 "text-size": 10,
-                "text-font": ["Open Sans Semibold", "Arial Unicode MS Regular"],
+                "text-font": ["Roboto Medium", "Arial Unicode MS Regular"],
                 "text-offset": [0, 0.6],
                 "text-allow-overlap": true,
                 "text-ignore-placement": true,
               },
               paint: {
-                "text-color": "#6b4c3b",
-                "text-halo-color": "#f3efe6",
+                "text-color": "#4f4f4f",
+                "text-halo-color": "rgba(246,244,240,0.9)",
                 "text-halo-width": 1,
               },
             },
