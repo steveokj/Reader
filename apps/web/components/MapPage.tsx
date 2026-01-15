@@ -14,6 +14,10 @@ const DEFAULT_ZOOM = 1.6;
 
 const MAP_STYLE_URL = "/map-style-physical.json";
 const FEATURED_STATE_BORDER_ISO2 = ["US", "CA", "BR", "RU", "CN", "IN", "AU"];
+const COUNTRY_LABEL_OVERRIDES: Record<string, [number, number]> = {
+  US: [-98.5, 39.8],
+  CA: [-96.8, 62.4],
+};
 
 type Bounds = { west: number; south: number; east: number; north: number };
 
@@ -176,9 +180,34 @@ function buildCountryLabelCollection(
     });
   });
 
+  const overrideIso2 = new Set(
+    Object.keys(COUNTRY_LABEL_OVERRIDES).map((code) => code.toUpperCase())
+  );
+  const normalizedFeatures = labelFeatures.filter((feature) => {
+    const iso2 = String(feature.properties?.["ISO3166-1-Alpha-2"] ?? "")
+      .trim()
+      .toUpperCase();
+    return !overrideIso2.has(iso2);
+  });
+  overrideIso2.forEach((iso2) => {
+    const coords = COUNTRY_LABEL_OVERRIDES[iso2];
+    if (!coords) {
+      return;
+    }
+    const name = fallbackByIso2.get(iso2)?.name ?? iso2;
+    normalizedFeatures.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: coords },
+      properties: {
+        name,
+        "ISO3166-1-Alpha-2": iso2,
+      },
+    });
+  });
+
   return {
     type: "FeatureCollection",
-    features: labelFeatures,
+    features: normalizedFeatures,
   } as GeoFeatureCollection;
 }
 
@@ -298,7 +327,6 @@ function ensureLabelLayers(map: MapLibreMap) {
     layout: {
       "text-field": ["get", "name"],
       "text-size": 11,
-      "text-transform": "uppercase",
       "text-letter-spacing": 0.08,
       "text-font": ["Roboto Regular", "Arial Unicode MS Regular"],
     },
@@ -315,7 +343,6 @@ function ensureLabelLayers(map: MapLibreMap) {
     layout: {
       "text-field": ["get", "name"],
       "text-size": 12,
-      "text-transform": "uppercase",
       "text-letter-spacing": 0.08,
       "text-font": ["Roboto Medium", "Arial Unicode MS Regular"],
     },
@@ -369,7 +396,7 @@ export default function MapPage() {
     "idle"
   );
   const [statesVisible, setStatesVisible] = useState(true);
-  const [focusSeasOnly, setFocusSeasOnly] = useState(false);
+  const [focusSeasOnly, setFocusSeasOnly] = useState(true);
   const [statesStatus, setStatesStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle"
   );
@@ -730,6 +757,7 @@ export default function MapPage() {
                 "text-size": 10,
                 "text-font": ["Roboto Medium", "Arial Unicode MS Regular"],
                 "text-offset": [0, 0.6],
+                "text-transform": "uppercase",
                 "text-allow-overlap": false,
                 "text-ignore-placement": false,
               },
