@@ -444,8 +444,6 @@ export default function MapPage() {
     "idle" | "loading" | "ready" | "error"
   >("idle");
   const [saveModalOpen, setSaveModalOpen] = useState(false);
-  const [saveName, setSaveName] = useState("");
-  const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
   const loadSavedViews = useCallback(async () => {
     setSavedViewsStatus("loading");
@@ -492,20 +490,21 @@ export default function MapPage() {
     [mapReady]
   );
 
-  const handleSaveView = useCallback(async () => {
+  const handleSaveView = useCallback(async (name: string) => {
     const map = mapRef.current;
-    const trimmed = saveName.trim();
+    const trimmed = name.trim();
     if (!trimmed) {
-      setSaveStatus("Name is required.");
+      setStatus("Name is required.");
+      window.setTimeout(() => setStatus(null), 2000);
       return;
     }
     if (!map || !mapReady) {
-      setSaveStatus("Map is not ready yet.");
+      setStatus("Map is not ready yet.");
+      window.setTimeout(() => setStatus(null), 2000);
       return;
     }
     const center = map.getCenter();
     const bounds = map.getBounds();
-    setSaveStatus(null);
     try {
       const response = await fetch(`${apiBase}/map-views`, {
         method: "POST",
@@ -538,11 +537,12 @@ export default function MapPage() {
       } else {
         await loadSavedViews();
       }
-      setSaveName("");
-      setSaveStatus("Saved.");
+      setStatus("Saved view.");
+      window.setTimeout(() => setStatus(null), 2000);
     } catch (error) {
       console.error(error);
-      setSaveStatus("Failed to save view.");
+      setStatus("Failed to save view.");
+      window.setTimeout(() => setStatus(null), 2000);
     }
   }, [
     apiBase,
@@ -551,7 +551,6 @@ export default function MapPage() {
     labelsMode,
     loadSavedViews,
     mapReady,
-    saveName,
     selectedIso2,
     statesVisible,
   ]);
@@ -1038,12 +1037,10 @@ export default function MapPage() {
             type="button"
             className="map-button map-button--secondary"
             onClick={() => {
-              setSaveModalOpen(true);
-              setSaveStatus(null);
               const trimmed = query.trim();
-              if (trimmed) {
-                setSaveName(trimmed);
-              }
+              const timestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+              const name = trimmed || `Saved view ${timestamp}`;
+              void handleSaveView(name);
             }}
             disabled={!mapReady || dataStatus !== "ready"}
           >
@@ -1169,33 +1166,20 @@ export default function MapPage() {
                     type="button"
                     className="map-modal__close"
                     onClick={() => setSaveModalOpen(false)}
+                    aria-label="Close saved views"
                   >
-                    Close
+                    <svg viewBox="0 0 20 20" aria-hidden="true">
+                      <path
+                        d="M5 5 15 15M15 5 5 15"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                      />
+                    </svg>
                   </button>
                 </div>
                 <div className="map-modal__body">
-                  <label className="map-modal__label" htmlFor="save-view-name">
-                    Name
-                  </label>
-                  <input
-                    id="save-view-name"
-                    className="map-modal__input"
-                    value={saveName}
-                    onChange={(event) => setSaveName(event.target.value)}
-                    placeholder="Canada overview"
-                  />
-                  <div className="map-modal__actions">
-                    <button
-                      type="button"
-                      className="map-button"
-                      onClick={handleSaveView}
-                      disabled={!saveName.trim()}
-                    >
-                      Save view
-                    </button>
-                    {saveStatus ? <div className="map-modal__status">{saveStatus}</div> : null}
-                  </div>
-                  <div className="map-modal__divider" />
                   {savedViewsStatus === "loading" ? (
                     <div className="map-modal__empty">Loading saved views...</div>
                   ) : savedViews.length === 0 ? (
