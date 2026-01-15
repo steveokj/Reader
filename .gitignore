@@ -24,3 +24,6 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Local commit history log
+COMMIT_HISTORY.md
