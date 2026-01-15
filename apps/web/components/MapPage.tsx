@@ -13,6 +13,7 @@ const DEFAULT_CENTER: [number, number] = [12, 22];
 const DEFAULT_ZOOM = 1.6;
 
 const MAP_STYLE_URL = "/map-style-physical.json";
+const FEATURED_STATE_BORDER_ISO2 = ["US", "CA", "BR", "RU", "CN", "IN", "AU"];
 
 type Bounds = { west: number; south: number; east: number; north: number };
 
@@ -367,7 +368,7 @@ export default function MapPage() {
   const [citiesStatus, setCitiesStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle"
   );
-  const [statesVisible, setStatesVisible] = useState(false);
+  const [statesVisible, setStatesVisible] = useState(true);
   const [focusSeasOnly, setFocusSeasOnly] = useState(false);
   const [statesStatus, setStatesStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle"
@@ -702,11 +703,16 @@ export default function MapPage() {
               id: "state-borders",
               type: "line",
               source: "states",
-              minzoom: 3.2,
+              minzoom: 1.5,
+              layout: {
+                "line-cap": "round",
+                "line-join": "round",
+              },
               paint: {
                 "line-color": "#b09a90",
                 "line-width": 1.1,
                 "line-opacity": 0.8,
+                "line-dasharray": [1, 1.6],
               },
             },
             labelBefore
@@ -950,13 +956,18 @@ function applyStateFilter(
   if (!hasLabels && !hasBorders) {
     return;
   }
+  const featuredIso2 = FEATURED_STATE_BORDER_ISO2.map((code) => code.toUpperCase());
   if (mode === "selected") {
     if (selectedIso2.length === 0) {
       if (hasLabels) {
         map.setFilter("state-labels", ["==", ["get", "iso_a2"], ""]);
       }
       if (hasBorders) {
-        map.setFilter("state-borders", ["==", ["get", "iso_a2"], ""]);
+        if (featuredIso2.length === 0) {
+          map.setFilter("state-borders", ["==", ["get", "iso_a2"], ""]);
+        } else {
+          map.setFilter("state-borders", ["in", ["get", "iso_a2"], ["literal", featuredIso2]]);
+        }
       }
       return;
     }
