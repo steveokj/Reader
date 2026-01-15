@@ -99,6 +99,37 @@ class ReadingHistoryListResponse(BaseModel):
     entries: List[ReadingHistoryEntry]
 
 
+class MapViewCreate(BaseModel):
+    name: str
+    center_lng: float
+    center_lat: float
+    zoom: float
+    bearing: float
+    pitch: float
+    bounds_west: Optional[float] = None
+    bounds_south: Optional[float] = None
+    bounds_east: Optional[float] = None
+    bounds_north: Optional[float] = None
+    labels_mode: str
+    cities_visible: bool
+    states_visible: bool
+    focus_seas_only: bool
+    selected_iso2: List[str]
+
+
+class MapView(MapViewCreate):
+    id: int
+    created_at: str
+
+
+class MapViewResponse(BaseModel):
+    view: MapView
+
+
+class MapViewsResponse(BaseModel):
+    views: List[MapView]
+
+
 class PositionSelector(BaseModel):
     start: int
     end: int

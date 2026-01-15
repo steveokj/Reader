@@ -5,9 +5,30 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { getClientApiBase } from "@/lib/apiBase";
+
 type MapLibreModule = typeof import("maplibre-gl");
 type GeoFeature = GeoJSON.Feature<GeoJSON.Geometry, Record<string, unknown>>;
 type GeoFeatureCollection = GeoJSON.FeatureCollection<GeoJSON.Geometry, Record<string, unknown>>;
+type SavedView = {
+  id: number;
+  name: string;
+  center_lng: number;
+  center_lat: number;
+  zoom: number;
+  bearing: number;
+  pitch: number;
+  bounds_west: number | null;
+  bounds_south: number | null;
+  bounds_east: number | null;
+  bounds_north: number | null;
+  labels_mode: "none" | "selected" | "all";
+  cities_visible: boolean;
+  states_visible: boolean;
+  focus_seas_only: boolean;
+  selected_iso2: string[];
+  created_at: string;
+};
 
 const DEFAULT_CENTER: [number, number] = [12, 22];
 const DEFAULT_ZOOM = 1.6;
@@ -402,6 +423,7 @@ export default function MapPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const countriesRef = useRef<GeoFeatureCollection | null>(null);
   const countriesIndexRef = useRef<Map<string, GeoFeature>>(new Map());
+  const apiBase = getClientApiBase();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [dataStatus, setDataStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -417,6 +439,122 @@ export default function MapPage() {
   const [statesStatus, setStatesStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle"
   );
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+  const [savedViewsStatus, setSavedViewsStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+
+  const loadSavedViews = useCallback(async () => {
+    setSavedViewsStatus("loading");
+    try {
+      const response = await fetch(`${apiBase}/map-views`);
+      if (!response.ok) {
+        throw new Error("Failed to load saved views");
+      }
+      const data = await response.json();
+      setSavedViews((data?.views ?? []) as SavedView[]);
+      setSavedViewsStatus("ready");
+    } catch (error) {
+      console.error(error);
+      setSavedViewsStatus("error");
+    }
+  }, [apiBase]);
+
+  const applySavedView = useCallback(
+    (view: SavedView) => {
+      const map = mapRef.current;
+      if (!map || !mapReady) {
+        return;
+      }
+      const labelsModeValue = view.labels_mode ?? "all";
+      const selected = view.selected_iso2 ?? [];
+      setLabelsMode(labelsModeValue);
+      setCitiesVisible(view.cities_visible);
+      setStatesVisible(view.states_visible);
+      setFocusSeasOnly(view.focus_seas_only);
+      setSelectedIso2(selected);
+      applySelection(map, selected);
+      applyLabelState(map, labelsModeValue, selected);
+      applyCityFilter(map, labelsModeValue, selected);
+      applyStateFilter(map, labelsModeValue, selected);
+      applyMarineFilter(map, view.focus_seas_only);
+      map.flyTo({
+        center: [view.center_lng, view.center_lat],
+        zoom: view.zoom,
+        bearing: view.bearing,
+        pitch: view.pitch,
+        duration: 800,
+      });
+    },
+    [mapReady]
+  );
+
+  const handleSaveView = useCallback(async () => {
+    const map = mapRef.current;
+    const trimmed = saveName.trim();
+    if (!trimmed) {
+      setSaveStatus("Name is required.");
+      return;
+    }
+    if (!map || !mapReady) {
+      setSaveStatus("Map is not ready yet.");
+      return;
+    }
+    const center = map.getCenter();
+    const bounds = map.getBounds();
+    setSaveStatus(null);
+    try {
+      const response = await fetch(`${apiBase}/map-views`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: trimmed,
+          center_lng: center.lng,
+          center_lat: center.lat,
+          zoom: map.getZoom(),
+          bearing: map.getBearing(),
+          pitch: map.getPitch(),
+          bounds_west: bounds.getWest(),
+          bounds_south: bounds.getSouth(),
+          bounds_east: bounds.getEast(),
+          bounds_north: bounds.getNorth(),
+          labels_mode: labelsMode,
+          cities_visible: citiesVisible,
+          states_visible: statesVisible,
+          focus_seas_only: focusSeasOnly,
+          selected_iso2: selectedIso2,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to save view");
+      }
+      const data = await response.json();
+      const view = data?.view as SavedView | undefined;
+      if (view) {
+        setSavedViews((prev) => [view, ...prev]);
+      } else {
+        await loadSavedViews();
+      }
+      setSaveName("");
+      setSaveStatus("Saved.");
+    } catch (error) {
+      console.error(error);
+      setSaveStatus("Failed to save view.");
+    }
+  }, [
+    apiBase,
+    citiesVisible,
+    focusSeasOnly,
+    labelsMode,
+    loadSavedViews,
+    mapReady,
+    saveName,
+    selectedIso2,
+    statesVisible,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -653,6 +791,10 @@ export default function MapPage() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    void loadSavedViews();
+  }, [loadSavedViews]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -892,7 +1034,19 @@ export default function MapPage() {
           >
             Go
           </button>
-          <button type="button" className="map-button map-button--secondary" disabled>
+          <button
+            type="button"
+            className="map-button map-button--secondary"
+            onClick={() => {
+              setSaveModalOpen(true);
+              setSaveStatus(null);
+              const trimmed = query.trim();
+              if (trimmed) {
+                setSaveName(trimmed);
+              }
+            }}
+            disabled={!mapReady || dataStatus !== "ready"}
+          >
             Save view
           </button>
         </form>
@@ -902,7 +1056,27 @@ export default function MapPage() {
         <aside className="map-sidepanel">
           <div className="map-sidepanel__section">
             <div className="map-sidepanel__title">Saved Views</div>
-            <div className="map-sidepanel__empty">No saved views yet.</div>
+            {savedViewsStatus === "loading" ? (
+              <div className="map-sidepanel__empty">Loading saved views...</div>
+            ) : savedViews.length === 0 ? (
+              <div className="map-sidepanel__empty">No saved views yet.</div>
+            ) : (
+              <div className="map-views">
+                {savedViews.map((view) => (
+                  <button
+                    key={view.id}
+                    type="button"
+                    className="map-view-card"
+                    onClick={() => applySavedView(view)}
+                  >
+                    <span className="map-view-card__title">{view.name}</span>
+                    <span className="map-view-card__meta">
+                      Zoom {Math.round(view.zoom * 10) / 10}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="map-sidepanel__section">
             <div className="map-sidepanel__title">Layers</div>
@@ -987,6 +1161,72 @@ export default function MapPage() {
         ) : null}
         {statesStatus === "error" ? (
           <div className="map-toast map-toast--error">Failed to load state labels.</div>
+        ) : null}
+        {saveModalOpen ? (
+          <div className="map-modal" onClick={() => setSaveModalOpen(false)}>
+            <div
+              className="map-modal__panel"
+              role="dialog"
+              aria-modal="true"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="map-modal__header">
+                <div className="map-modal__title">Saved views</div>
+                <button
+                  type="button"
+                  className="map-modal__close"
+                  onClick={() => setSaveModalOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              <div className="map-modal__body">
+                <label className="map-modal__label" htmlFor="save-view-name">
+                  Name
+                </label>
+                <input
+                  id="save-view-name"
+                  className="map-modal__input"
+                  value={saveName}
+                  onChange={(event) => setSaveName(event.target.value)}
+                  placeholder="Canada overview"
+                />
+                <div className="map-modal__actions">
+                  <button
+                    type="button"
+                    className="map-button"
+                    onClick={handleSaveView}
+                    disabled={!saveName.trim()}
+                  >
+                    Save view
+                  </button>
+                  {saveStatus ? <div className="map-modal__status">{saveStatus}</div> : null}
+                </div>
+                <div className="map-modal__divider" />
+                {savedViewsStatus === "loading" ? (
+                  <div className="map-modal__empty">Loading saved views...</div>
+                ) : savedViews.length === 0 ? (
+                  <div className="map-modal__empty">No saved views yet.</div>
+                ) : (
+                  <div className="map-modal__list">
+                    {savedViews.map((view) => (
+                      <button
+                        key={view.id}
+                        type="button"
+                        className="map-view-card"
+                        onClick={() => applySavedView(view)}
+                      >
+                        <span className="map-view-card__title">{view.name}</span>
+                        <span className="map-view-card__meta">
+                          Zoom {Math.round(view.zoom * 10) / 10}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         ) : null}
       </div>
     </div>
