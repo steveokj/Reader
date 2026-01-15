@@ -18,6 +18,14 @@ const COUNTRY_LABEL_OVERRIDES: Record<string, [number, number]> = {
   US: [-98.5, 39.8],
   CA: [-100.5, 55.0],
 };
+const LOW_ZOOM_OVERLAY = [
+  { iso2: "GL", color: "#f6f8fb", opacity: 0.9 },
+  { iso2: "IS", color: "#d9dad2", opacity: 0.7 },
+  { iso2: "NO", color: "#cfd8cc", opacity: 0.6 },
+  { iso2: "SE", color: "#cfd8cc", opacity: 0.6 },
+  { iso2: "FI", color: "#cfd8cc", opacity: 0.6 },
+  { iso2: "AU", color: "#d6c9b4", opacity: 0.7 },
+];
 
 type Bounds = { west: number; south: number; east: number; north: number };
 
@@ -550,6 +558,28 @@ export default function MapPage() {
             paint: {
               "fill-color": "rgba(0,0,0,0)",
               "fill-opacity": 0.35,
+            },
+          });
+        }
+        if (!map.getLayer("countries-lowzoom-fill") && LOW_ZOOM_OVERLAY.length > 0) {
+          const overlayCodes = LOW_ZOOM_OVERLAY.map((entry) => entry.iso2);
+          const colorExpression: any[] = ["match", ["get", "ISO3166-1-Alpha-2"]];
+          const opacityExpression: any[] = ["match", ["get", "ISO3166-1-Alpha-2"]];
+          LOW_ZOOM_OVERLAY.forEach((entry) => {
+            colorExpression.push(entry.iso2, entry.color);
+            opacityExpression.push(entry.iso2, entry.opacity);
+          });
+          colorExpression.push("rgba(0,0,0,0)");
+          opacityExpression.push(0);
+          map.addLayer({
+            id: "countries-lowzoom-fill",
+            type: "fill",
+            source: "countries",
+            maxzoom: 3.6,
+            filter: ["in", ["get", "ISO3166-1-Alpha-2"], ["literal", overlayCodes]],
+            paint: {
+              "fill-color": colorExpression,
+              "fill-opacity": opacityExpression,
             },
           });
         }
