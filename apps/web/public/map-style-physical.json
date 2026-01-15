@@ -33,7 +33,11 @@
       "type": "raster",
       "source": "natural_earth",
       "paint": {
-        "raster-opacity": 1
+        "raster-opacity": 1,
+        "raster-saturation": -0.25,
+        "raster-contrast": 0.08,
+        "raster-brightness-min": 0.05,
+        "raster-brightness-max": 0.95
       }
     },
     {

@@ -529,9 +529,9 @@ export default function MapPage() {
             type: "line",
             source: "countries",
             paint: {
-              "line-color": "#8c7b6f",
-              "line-width": 1.1,
-              "line-opacity": 0.75,
+              "line-color": "#6b5b53",
+              "line-width": 1.6,
+              "line-opacity": 0.9,
             },
           });
         }
