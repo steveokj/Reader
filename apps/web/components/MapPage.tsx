@@ -1055,28 +1055,43 @@ export default function MapPage() {
         <div className="map-canvas" ref={containerRef} />
         <aside className="map-sidepanel">
           <div className="map-sidepanel__section">
-            <div className="map-sidepanel__title">Saved Views</div>
-            {savedViewsStatus === "loading" ? (
-              <div className="map-sidepanel__empty">Loading saved views...</div>
-            ) : savedViews.length === 0 ? (
-              <div className="map-sidepanel__empty">No saved views yet.</div>
-            ) : (
-              <div className="map-views">
-                {savedViews.map((view) => (
-                  <button
-                    key={view.id}
-                    type="button"
-                    className="map-view-card"
-                    onClick={() => applySavedView(view)}
-                  >
-                    <span className="map-view-card__title">{view.name}</span>
-                    <span className="map-view-card__meta">
-                      Zoom {Math.round(view.zoom * 10) / 10}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="map-sidepanel__header">
+              <div className="map-sidepanel__title">Saved Views</div>
+              <button
+                type="button"
+                className="map-icon-button"
+                aria-label="Open saved views"
+                onClick={() => {
+                  setSaveModalOpen(true);
+                  setSaveStatus(null);
+                  void loadSavedViews();
+                }}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M4 7.5 12 3l8 4.5-8 4.5-8-4.5Z"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M4 12.2 12 16.7 20 12.2"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M4 16.9 12 21.4 20 16.9"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
           <div className="map-sidepanel__section">
             <div className="map-sidepanel__title">Layers</div>
