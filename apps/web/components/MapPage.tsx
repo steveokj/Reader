@@ -453,6 +453,7 @@ export default function MapPage() {
     "idle" | "loading" | "ready" | "error"
   >("idle");
   const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const loadSavedViews = useCallback(async () => {
     setSavedViewsStatus("loading");
@@ -562,6 +563,8 @@ export default function MapPage() {
       }
       setStatus("Saved view.");
       window.setTimeout(() => setStatus(null), 2000);
+      setSaveSuccess(true);
+      window.setTimeout(() => setSaveSuccess(false), 1000);
     } catch (error) {
       console.error(error);
       setStatus("Failed to save view.");
@@ -1174,7 +1177,9 @@ export default function MapPage() {
         <form className="map-toolbar__controls" onSubmit={handleSubmit}>
           <button
             type="button"
-            className="map-button map-button--secondary"
+            className={`map-button map-button--icon-only${
+              saveSuccess ? " map-button--saved" : ""
+            }`}
             onClick={() => {
               const trimmed = query.trim();
               const timestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
