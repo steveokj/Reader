@@ -429,12 +429,7 @@ export default function MapPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [dataStatus, setDataStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [mapReady, setMapReady] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(() => {
-    if (typeof window === "undefined") {
-      return true;
-    }
-    return !window.matchMedia("(max-width: 900px)").matches;
-  });
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [labelsMode, setLabelsMode] = useState<"none" | "selected" | "all">("all");
   const [selectedIso2, setSelectedIso2] = useState<string[]>([]);
   const [citiesVisible, setCitiesVisible] = useState(false);
@@ -576,6 +571,10 @@ export default function MapPage() {
   useEffect(() => {
     let cancelled = false;
     let maplibre: MapLibreModule | null = null;
+    const isMobile =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(max-width: 900px)").matches;
 
     const addOceans = async (map: MapLibreMap) => {
       if (map.getSource("oceans")) {
@@ -787,6 +786,13 @@ export default function MapPage() {
       });
       map.addControl(new maplibre.NavigationControl(), "top-right");
       map.setRenderWorldCopies(true);
+      if (isMobile) {
+        map.doubleClickZoom.disable();
+        map.on("dblclick", (event) => {
+          event.preventDefault();
+          setSheetOpen((prev) => !prev);
+        });
+      }
       map.on("load", () => {
         setMapReady(true);
         void addCountries(map);
@@ -803,10 +809,21 @@ export default function MapPage() {
     return () => {
       cancelled = true;
       if (mapRef.current) {
+        if (isMobile) {
+          mapRef.current.doubleClickZoom.enable();
+        }
         mapRef.current.remove();
         mapRef.current = null;
       }
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const matches = window.matchMedia("(max-width: 900px)").matches;
+    setSheetOpen(!matches);
   }, []);
 
   useEffect(() => {
