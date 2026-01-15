@@ -631,7 +631,7 @@ export default function MapPage() {
         attributionControl: false,
       });
       map.addControl(new maplibre.NavigationControl(), "top-right");
-      map.setRenderWorldCopies(false);
+      map.setRenderWorldCopies(true);
       map.on("load", () => {
         setMapReady(true);
         void addCountries(map);
