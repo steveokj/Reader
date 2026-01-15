@@ -1152,6 +1152,75 @@ export default function MapPage() {
               <span>Focus seas: Gulf of Mexico + Mediterranean</span>
             </label>
           </div>
+          {saveModalOpen ? (
+            <div
+              className="map-sidepanel__overlay"
+              onClick={() => setSaveModalOpen(false)}
+            >
+              <div
+                className="map-modal__panel map-modal__panel--overlay"
+                role="dialog"
+                aria-modal="true"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="map-modal__header">
+                  <div className="map-modal__title">Saved views</div>
+                  <button
+                    type="button"
+                    className="map-modal__close"
+                    onClick={() => setSaveModalOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="map-modal__body">
+                  <label className="map-modal__label" htmlFor="save-view-name">
+                    Name
+                  </label>
+                  <input
+                    id="save-view-name"
+                    className="map-modal__input"
+                    value={saveName}
+                    onChange={(event) => setSaveName(event.target.value)}
+                    placeholder="Canada overview"
+                  />
+                  <div className="map-modal__actions">
+                    <button
+                      type="button"
+                      className="map-button"
+                      onClick={handleSaveView}
+                      disabled={!saveName.trim()}
+                    >
+                      Save view
+                    </button>
+                    {saveStatus ? <div className="map-modal__status">{saveStatus}</div> : null}
+                  </div>
+                  <div className="map-modal__divider" />
+                  {savedViewsStatus === "loading" ? (
+                    <div className="map-modal__empty">Loading saved views...</div>
+                  ) : savedViews.length === 0 ? (
+                    <div className="map-modal__empty">No saved views yet.</div>
+                  ) : (
+                    <div className="map-modal__list">
+                      {savedViews.map((view) => (
+                        <button
+                          key={view.id}
+                          type="button"
+                          className="map-view-card"
+                          onClick={() => applySavedView(view)}
+                        >
+                          <span className="map-view-card__title">{view.name}</span>
+                          <span className="map-view-card__meta">
+                            Zoom {Math.round(view.zoom * 10) / 10}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </aside>
         {!mapReady ? (
           <div className="map-loading">
@@ -1176,72 +1245,6 @@ export default function MapPage() {
         ) : null}
         {statesStatus === "error" ? (
           <div className="map-toast map-toast--error">Failed to load state labels.</div>
-        ) : null}
-        {saveModalOpen ? (
-          <div className="map-modal" onClick={() => setSaveModalOpen(false)}>
-            <div
-              className="map-modal__panel"
-              role="dialog"
-              aria-modal="true"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="map-modal__header">
-                <div className="map-modal__title">Saved views</div>
-                <button
-                  type="button"
-                  className="map-modal__close"
-                  onClick={() => setSaveModalOpen(false)}
-                >
-                  Close
-                </button>
-              </div>
-              <div className="map-modal__body">
-                <label className="map-modal__label" htmlFor="save-view-name">
-                  Name
-                </label>
-                <input
-                  id="save-view-name"
-                  className="map-modal__input"
-                  value={saveName}
-                  onChange={(event) => setSaveName(event.target.value)}
-                  placeholder="Canada overview"
-                />
-                <div className="map-modal__actions">
-                  <button
-                    type="button"
-                    className="map-button"
-                    onClick={handleSaveView}
-                    disabled={!saveName.trim()}
-                  >
-                    Save view
-                  </button>
-                  {saveStatus ? <div className="map-modal__status">{saveStatus}</div> : null}
-                </div>
-                <div className="map-modal__divider" />
-                {savedViewsStatus === "loading" ? (
-                  <div className="map-modal__empty">Loading saved views...</div>
-                ) : savedViews.length === 0 ? (
-                  <div className="map-modal__empty">No saved views yet.</div>
-                ) : (
-                  <div className="map-modal__list">
-                    {savedViews.map((view) => (
-                      <button
-                        key={view.id}
-                        type="button"
-                        className="map-view-card"
-                        onClick={() => applySavedView(view)}
-                      >
-                        <span className="map-view-card__title">{view.name}</span>
-                        <span className="map-view-card__meta">
-                          Zoom {Math.round(view.zoom * 10) / 10}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
         ) : null}
       </div>
     </div>
