@@ -801,6 +801,10 @@ export default function MapPage() {
         map.addControl(new maplibre.NavigationControl(), "top-right");
       }
       map.setRenderWorldCopies(true);
+      map.dragRotate.disable();
+      map.touchPitch.disable();
+      map.touchZoomRotate.disableRotation();
+      map.keyboard.disableRotation();
       if (isMobileScreen) {
         map.doubleClickZoom.disable();
         map.on("dblclick", (event) => {
@@ -1177,7 +1181,7 @@ export default function MapPage() {
         <form className="map-toolbar__controls" onSubmit={handleSubmit}>
           <button
             type="button"
-            className={`map-button map-button--icon-only${
+            className={`map-button map-button--icon-only darkgrey ${
               saveSuccess ? " map-button--saved" : ""
             }`}
             onClick={() => {

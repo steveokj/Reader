@@ -115,3 +115,4 @@
 | 9bf3d0e | Reorder map toolbar actions. | Put the save icon first, then input, then go icon on the top bar. | Reordered the map toolbar controls to save ? input ? go. | 2026-01-15 14:15:39 |
 | d44e26d | Refresh save button styling and feedback. | Make the save icon standalone and larger, with a visible success state after saving. | Removed the dashed style, enlarged the save icon, and added a brief success highlight after saves. | 2026-01-15 14:21:59 |
 | 663fa8e | Lighten save button highlight. | Make the save button look like the go icon and bring back the outline with a lighter success state. | Adjusted the icon-only button to keep the standard outline and softened the success highlight. | 2026-01-15 14:25:10 |
+| pending | Disable map rotation gestures. | i want the zoom but not the rotation | Disabled rotation/pitch gestures so diagonal scrolling only pans/zooms. | 2026-01-15 17:37:52 |
