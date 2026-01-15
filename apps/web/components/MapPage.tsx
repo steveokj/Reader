@@ -20,11 +20,18 @@ const COUNTRY_LABEL_OVERRIDES: Record<string, [number, number]> = {
 };
 const LOW_ZOOM_OVERLAY = [
   { iso2: "GL", color: "#f6f8fb", opacity: 0.9 },
+  { iso2: "CA", color: "#dde6de", opacity: 0.22 },
   { iso2: "IS", color: "#d9dad2", opacity: 0.7 },
   { iso2: "NO", color: "#cfd8cc", opacity: 0.6 },
   { iso2: "SE", color: "#cfd8cc", opacity: 0.6 },
   { iso2: "FI", color: "#cfd8cc", opacity: 0.6 },
-  { iso2: "AU", color: "#d6c9b4", opacity: 0.7 },
+  { iso2: "AU", color: "#d8cbb7", opacity: 0.7 },
+  { iso2: "NZ", color: "#d2c7b4", opacity: 0.7 },
+  { iso2: "PG", color: "#c6d1c4", opacity: 0.6 },
+  { iso2: "SB", color: "#c6d1c4", opacity: 0.6 },
+  { iso2: "VU", color: "#c6d1c4", opacity: 0.6 },
+  { iso2: "NC", color: "#c6d1c4", opacity: 0.6 },
+  { iso2: "FJ", color: "#c6d1c4", opacity: 0.6 },
 ];
 
 type Bounds = { west: number; south: number; east: number; north: number };
