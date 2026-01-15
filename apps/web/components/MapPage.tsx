@@ -423,11 +423,18 @@ export default function MapPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const countriesRef = useRef<GeoFeatureCollection | null>(null);
   const countriesIndexRef = useRef<Map<string, GeoFeature>>(new Map());
+  const lastSheetTapRef = useRef<number>(0);
   const apiBase = getClientApiBase();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [dataStatus, setDataStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [mapReady, setMapReady] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+    return !window.matchMedia("(max-width: 900px)").matches;
+  });
   const [labelsMode, setLabelsMode] = useState<"none" | "selected" | "all">("all");
   const [selectedIso2, setSelectedIso2] = useState<string[]>([]);
   const [citiesVisible, setCitiesVisible] = useState(false);
@@ -489,6 +496,17 @@ export default function MapPage() {
     },
     [mapReady]
   );
+
+  const handleSheetTap = useCallback(() => {
+    if (saveModalOpen) {
+      return;
+    }
+    const now = Date.now();
+    if (now - lastSheetTapRef.current < 320) {
+      setSheetOpen((prev) => !prev);
+    }
+    lastSheetTapRef.current = now;
+  }, [saveModalOpen]);
 
   const handleSaveView = useCallback(async (name: string) => {
     const map = mapRef.current;
@@ -1050,7 +1068,15 @@ export default function MapPage() {
       </header>
       <div className="map-shell">
         <div className="map-canvas" ref={containerRef} />
-        <aside className="map-sidepanel">
+        <aside className={`map-sidepanel${sheetOpen ? "" : " map-sidepanel--collapsed"}`}>
+          <button
+            type="button"
+            className="map-sidepanel__handle"
+            onPointerUp={handleSheetTap}
+            aria-label="Toggle layers panel"
+          >
+            <span className="map-sidepanel__grab" aria-hidden="true" />
+          </button>
           <div className="map-sidepanel__section">
             <div className="map-sidepanel__header">
               <div className="map-sidepanel__title">Saved Views</div>
@@ -1059,8 +1085,8 @@ export default function MapPage() {
                 className="map-icon-button"
                 aria-label="Open saved views"
                 onClick={() => {
+                  setSheetOpen(true);
                   setSaveModalOpen(true);
-                  setSaveStatus(null);
                   void loadSavedViews();
                 }}
               >

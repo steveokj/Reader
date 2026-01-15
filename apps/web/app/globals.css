@@ -1907,6 +1907,24 @@ html[data-reader-theme="dark"] .reader-layout {
   flex-direction: column;
   gap: 14px;
   z-index: 2;
+  transition: max-height 0.2s ease, padding 0.2s ease;
+}
+
+.map-sidepanel__handle {
+  display: none;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 4px 0 6px;
+  cursor: pointer;
+}
+
+.map-sidepanel__grab {
+  width: 42px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--reader-border, rgba(31, 28, 22, 0.2));
+  margin: 0 auto;
 }
 
 .map-sidepanel__overlay {
@@ -1914,6 +1932,16 @@ html[data-reader-theme="dark"] .reader-layout {
   inset: 0;
   z-index: 3;
   display: flex;
+}
+
+.map-sidepanel--collapsed {
+  max-height: 44px;
+  padding: 8px 12px;
+}
+
+.map-sidepanel--collapsed .map-sidepanel__section,
+.map-sidepanel--collapsed .map-sidepanel__overlay {
+  display: none;
 }
 
 .map-sidepanel__section {
@@ -3455,6 +3483,12 @@ html[data-reader-theme="dark"] .reader-layout {
     right: 16px;
     left: 16px;
     width: auto;
+    max-height: 70vh;
+    overflow: hidden;
+  }
+
+  .map-sidepanel__handle {
+    display: flex;
   }
 }
 
