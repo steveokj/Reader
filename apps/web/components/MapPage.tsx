@@ -308,7 +308,7 @@ function applySelection(map: MapLibreMap, iso2Codes: string[]) {
   map.setPaintProperty("countries-fill", "fill-color", [
     "case",
     ["in", ["get", "ISO3166-1-Alpha-2"], ["literal", normalized]],
-    "#d9663f",
+    "rgba(0,0,0,0)",
     "rgba(0,0,0,0)",
   ]);
 }
