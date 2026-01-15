@@ -529,9 +529,9 @@ export default function MapPage() {
             type: "line",
             source: "countries",
             paint: {
-              "line-color": "#6b5b53",
-              "line-width": 1.6,
-              "line-opacity": 0.9,
+              "line-color": "#8c7b6f",
+              "line-width": 1.1,
+              "line-opacity": 0.75,
             },
           });
         }
@@ -702,6 +702,7 @@ export default function MapPage() {
               id: "state-borders",
               type: "line",
               source: "states",
+              minzoom: 3.2,
               paint: {
                 "line-color": "#b09a90",
                 "line-width": 1.1,
@@ -717,13 +718,14 @@ export default function MapPage() {
               id: "state-labels",
               type: "symbol",
               source: "state-labels",
+              minzoom: 4.2,
               layout: {
                 "text-field": ["get", "name"],
                 "text-size": 10,
                 "text-font": ["Roboto Medium", "Arial Unicode MS Regular"],
                 "text-offset": [0, 0.6],
-                "text-allow-overlap": true,
-                "text-ignore-placement": true,
+                "text-allow-overlap": false,
+                "text-ignore-placement": false,
               },
               paint: {
                 "text-color": "#4f4f4f",
