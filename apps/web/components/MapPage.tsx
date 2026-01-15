@@ -1172,6 +1172,31 @@ export default function MapPage() {
       >
         <div className="map-toolbar__title">Map</div>
         <form className="map-toolbar__controls" onSubmit={handleSubmit}>
+          <button
+            type="button"
+            className="map-button map-button--secondary"
+            onClick={() => {
+              const trimmed = query.trim();
+              const timestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+              const name = trimmed || `Saved view ${timestamp}`;
+              void handleSaveView(name);
+            }}
+            disabled={!mapReady || dataStatus !== "ready"}
+            aria-label="Save view"
+          >
+            <span className="map-button__icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20">
+                <path
+                  d="M5 4h10a1 1 0 0 1 1 1v11l-6-3-6 3V5a1 1 0 0 1 1-1Z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <span className="map-button__text">Save view</span>
+          </button>
           <input
             className="map-input"
             value={query}
@@ -1197,31 +1222,6 @@ export default function MapPage() {
               </svg>
             </span>
             <span className="map-button__text">Go</span>
-          </button>
-          <button
-            type="button"
-            className="map-button map-button--secondary"
-            onClick={() => {
-              const trimmed = query.trim();
-              const timestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
-              const name = trimmed || `Saved view ${timestamp}`;
-              void handleSaveView(name);
-            }}
-            disabled={!mapReady || dataStatus !== "ready"}
-            aria-label="Save view"
-          >
-            <span className="map-button__icon" aria-hidden="true">
-              <svg viewBox="0 0 20 20">
-                <path
-                  d="M5 4h10a1 1 0 0 1 1 1v11l-6-3-6 3V5a1 1 0 0 1 1-1Z"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            <span className="map-button__text">Save view</span>
           </button>
         </form>
       </header>
