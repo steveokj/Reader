@@ -326,7 +326,7 @@ function ensureLabelLayers(map: MapLibreMap) {
     source: "country-labels",
     layout: {
       "text-field": ["get", "name"],
-      "text-size": 11,
+      "text-size": 12,
       "text-letter-spacing": 0.08,
       "text-font": ["Lato Regular", "Arial Unicode MS Regular"],
     },
@@ -342,9 +342,9 @@ function ensureLabelLayers(map: MapLibreMap) {
     source: "country-labels",
     layout: {
       "text-field": ["get", "name"],
-      "text-size": 12,
+      "text-size": 13,
       "text-letter-spacing": 0.08,
-      "text-font": ["Lato Semibold", "Arial Unicode MS Regular"],
+      "text-font": ["Lato Bold", "Arial Unicode MS Regular"],
     },
     paint: {
       "text-color": "#b65a3c",
@@ -389,7 +389,7 @@ export default function MapPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [dataStatus, setDataStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [mapReady, setMapReady] = useState(false);
-  const [labelsMode, setLabelsMode] = useState<"none" | "selected" | "all">("selected");
+  const [labelsMode, setLabelsMode] = useState<"none" | "selected" | "all">("all");
   const [selectedIso2, setSelectedIso2] = useState<string[]>([]);
   const [citiesVisible, setCitiesVisible] = useState(false);
   const [citiesStatus, setCitiesStatus] = useState<"idle" | "loading" | "ready" | "error">(
@@ -466,7 +466,7 @@ export default function MapPage() {
             ],
             layout: {
               "text-field": ["coalesce", ["get", "label"], ["get", "name"]],
-              "text-size": 13,
+              "text-size": 14,
               "text-letter-spacing": 0.08,
               "text-font": ["Lato Semibold", "Arial Unicode MS Regular"],
             },
@@ -663,7 +663,7 @@ export default function MapPage() {
           source: "cities",
           layout: {
             "text-field": ["get", "name"],
-            "text-size": 10,
+            "text-size": 11,
             "text-font": ["Lato Regular", "Arial Unicode MS Regular"],
             "text-offset": [0, 0.6],
             "text-allow-overlap": false,
@@ -754,7 +754,7 @@ export default function MapPage() {
               minzoom: 4.2,
               layout: {
                 "text-field": ["get", "name"],
-                "text-size": 10,
+                "text-size": 11,
                 "text-font": ["Lato Semibold", "Arial Unicode MS Regular"],
                 "text-offset": [0, 0.6],
                 "text-transform": "uppercase",
