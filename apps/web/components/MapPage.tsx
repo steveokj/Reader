@@ -348,6 +348,17 @@ function applySelection(map: MapLibreMap, iso2Codes: string[]) {
     "rgba(0,0,0,0)",
     "rgba(0,0,0,0)",
   ]);
+  if (map.getLayer("countries-selected-outline")) {
+    if (normalized.length === 0) {
+      map.setFilter("countries-selected-outline", ["==", ["get", "ISO3166-1-Alpha-2"], ""]);
+    } else {
+      map.setFilter("countries-selected-outline", [
+        "in",
+        ["get", "ISO3166-1-Alpha-2"],
+        ["literal", normalized],
+      ]);
+    }
+  }
 }
 
 function ensureLabelLayers(map: MapLibreMap) {
@@ -811,6 +822,19 @@ export default function MapPage() {
             },
           });
         }
+        if (!map.getLayer("countries-selected-outline")) {
+          map.addLayer({
+            id: "countries-selected-outline",
+            type: "line",
+            source: "countries",
+            paint: {
+              "line-color": "#c24b3b",
+              "line-width": 0.7,
+              "line-opacity": 0.9,
+            },
+            filter: ["==", ["get", "ISO3166-1-Alpha-2"], ""],
+          });
+        }
         ensureLabelLayers(map);
         await addMarineLabels(map);
         setDataStatus("ready");
@@ -1108,8 +1132,11 @@ export default function MapPage() {
         .map((feature) => String(feature.properties?.["ISO3166-1-Alpha-2"] ?? "").trim())
         .filter(Boolean);
       setSelectedIso2(iso2Codes);
+      setLabelsMode("selected");
       applySelection(map, iso2Codes);
-      applyLabelState(map, labelsMode, iso2Codes);
+      applyLabelState(map, "selected", iso2Codes);
+      applyCityFilter(map, "selected", iso2Codes);
+      applyStateFilter(map, "selected", iso2Codes);
       map.fitBounds(
         [
           [bbox.west, bbox.south],
