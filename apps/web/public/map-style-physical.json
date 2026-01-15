@@ -1,0 +1,48 @@
+{
+  "version": 8,
+  "name": "Natural Earth Physical",
+  "glyphs": "https://orangemug.github.io/font-glyphs/glyphs/{fontstack}/{range}.pbf",
+  "sources": {
+    "natural_earth": {
+      "type": "raster",
+      "tiles": [
+        "https://klokantech.github.io/naturalearthtiles/tiles/natural_earth_2.raster/{z}/{x}/{y}.png"
+      ],
+      "tileSize": 256,
+      "maxzoom": 6
+    },
+    "natural_earth_relief": {
+      "type": "raster",
+      "tiles": [
+        "https://klokantech.github.io/naturalearthtiles/tiles/natural_earth_2_shaded_relief.raster/{z}/{x}/{y}.png"
+      ],
+      "tileSize": 256,
+      "maxzoom": 6
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#f6f4f0"
+      }
+    },
+    {
+      "id": "natural-earth-base",
+      "type": "raster",
+      "source": "natural_earth",
+      "paint": {
+        "raster-opacity": 1
+      }
+    },
+    {
+      "id": "natural-earth-relief",
+      "type": "raster",
+      "source": "natural_earth_relief",
+      "paint": {
+        "raster-opacity": 0.25
+      }
+    }
+  ]
+}

@@ -12,7 +12,7 @@ type GeoFeatureCollection = GeoJSON.FeatureCollection<GeoJSON.Geometry, Record<s
 const DEFAULT_CENTER: [number, number] = [12, 22];
 const DEFAULT_ZOOM = 1.6;
 
-const MAP_STYLE_URL = "/map-style.json";
+const MAP_STYLE_URL = "/map-style-physical.json";
 
 type Bounds = { west: number; south: number; east: number; north: number };
 
