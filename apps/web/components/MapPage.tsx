@@ -32,6 +32,7 @@ type SavedView = {
 
 const DEFAULT_CENTER: [number, number] = [12, 22];
 const DEFAULT_ZOOM = 1.6;
+const SHOW_MAP_CONTROLS = process.env.NEXT_PUBLIC_MAP_CONTROLS === "1";
 
 const MAP_STYLE_URL = "/map-style-physical.json";
 const FEATURED_STATE_BORDER_ISO2 = ["US", "CA", "BR", "RU", "CN", "IN", "AU"];
@@ -434,12 +435,7 @@ export default function MapPage() {
     }
     return window.matchMedia("(max-width: 900px)").matches;
   });
-  const [mobileBarsVisible, setMobileBarsVisible] = useState(() => {
-    if (typeof window === "undefined" || !window.matchMedia) {
-      return true;
-    }
-    return !window.matchMedia("(max-width: 900px)").matches;
-  });
+  const [mobileBarsVisible, setMobileBarsVisible] = useState(true);
   const [mobilePanel, setMobilePanel] = useState<"views" | "settings" | null>(null);
   const [labelsMode, setLabelsMode] = useState<"none" | "selected" | "all">("all");
   const [selectedIso2, setSelectedIso2] = useState<string[]>([]);
@@ -798,7 +794,9 @@ export default function MapPage() {
         zoom: DEFAULT_ZOOM,
         attributionControl: false,
       });
-      map.addControl(new maplibre.NavigationControl(), "top-right");
+      if (SHOW_MAP_CONTROLS) {
+        map.addControl(new maplibre.NavigationControl(), "top-right");
+      }
       map.setRenderWorldCopies(true);
       if (isMobileScreen) {
         map.doubleClickZoom.disable();
@@ -844,7 +842,7 @@ export default function MapPage() {
     }
     const matches = window.matchMedia("(max-width: 900px)").matches;
     setIsMobile(matches);
-    setMobileBarsVisible(!matches);
+    setMobileBarsVisible(true);
     if (!matches) {
       setMobilePanel(null);
     } else {
