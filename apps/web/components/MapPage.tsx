@@ -16,7 +16,7 @@ const MAP_STYLE_URL = "/map-style-physical.json";
 const FEATURED_STATE_BORDER_ISO2 = ["US", "CA", "BR", "RU", "CN", "IN", "AU"];
 const COUNTRY_LABEL_OVERRIDES: Record<string, [number, number]> = {
   US: [-98.5, 39.8],
-  CA: [-96.8, 62.4],
+  CA: [-96.5, 58.0],
 };
 
 type Bounds = { west: number; south: number; east: number; north: number };
@@ -324,11 +324,12 @@ function ensureLabelLayers(map: MapLibreMap) {
     id: "country-labels-all",
     type: "symbol",
     source: "country-labels",
+    maxzoom: 5.2,
     layout: {
       "text-field": ["get", "name"],
-      "text-size": 12,
+      "text-size": 14,
       "text-letter-spacing": 0.08,
-      "text-font": ["Lato Regular", "Arial Unicode MS Regular"],
+      "text-font": ["Lato Bold", "Arial Unicode MS Regular"],
     },
     paint: {
       "text-color": "#5f5f5f",
@@ -340,6 +341,7 @@ function ensureLabelLayers(map: MapLibreMap) {
     id: "country-labels-selected",
     type: "symbol",
     source: "country-labels",
+    maxzoom: 5.2,
     layout: {
       "text-field": ["get", "name"],
       "text-size": 13,
