@@ -34,8 +34,28 @@
       "source": "natural_earth",
       "paint": {
         "raster-opacity": 1,
-        "raster-saturation": -0.25,
-        "raster-contrast": 0.08,
+        "raster-saturation": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          0,
+          -0.05,
+          4,
+          -0.18,
+          6,
+          -0.25
+        ],
+        "raster-contrast": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          0,
+          0.16,
+          4,
+          0.12,
+          6,
+          0.08
+        ],
         "raster-brightness-min": 0.05,
         "raster-brightness-max": 0.95
       }
@@ -45,7 +65,19 @@
       "type": "raster",
       "source": "natural_earth_relief",
       "paint": {
-        "raster-opacity": 0.25
+        "raster-opacity": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          0,
+          0.6,
+          3,
+          0.45,
+          5,
+          0.25,
+          6,
+          0.18
+        ]
       }
     }
   ]
