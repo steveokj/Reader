@@ -1,7 +1,12 @@
 from fastapi import APIRouter, HTTPException
 
 from ..db.conn import get_conn
-from ..models.schemas import MapViewCreate, MapViewResponse, MapViewsResponse
+from ..models.schemas import (
+    MapViewCreate,
+    MapViewResponse,
+    MapViewsResponse,
+    MapViewUpdate,
+)
 from ..services import map_views as map_views_service
 
 router = APIRouter(prefix="/map-views", tags=["map-views"])
@@ -35,5 +40,17 @@ def delete_map_view(view_id: int):
         if not deleted:
             raise HTTPException(status_code=404, detail="Map view not found")
         return {"ok": True}
+    finally:
+        conn.close()
+
+
+@router.patch("/{view_id}", response_model=MapViewResponse)
+def update_map_view(view_id: int, payload: MapViewUpdate):
+    conn = get_conn()
+    try:
+        view = map_views_service.update_map_view(conn, view_id, payload.name)
+        if not view:
+            raise HTTPException(status_code=404, detail="Map view not found")
+        return {"view": view}
     finally:
         conn.close()

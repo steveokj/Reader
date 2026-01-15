@@ -454,6 +454,8 @@ export default function MapPage() {
   >("idle");
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [editingViewId, setEditingViewId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
 
   const loadSavedViews = useCallback(async () => {
     setSavedViewsStatus("loading");
@@ -498,6 +500,46 @@ export default function MapPage() {
       });
     },
     [mapReady]
+  );
+
+  const handleEditView = useCallback((view: SavedView) => {
+    setEditingViewId(view.id);
+    setEditingName(view.name);
+  }, []);
+
+  const handleRenameView = useCallback(
+    async (view: SavedView) => {
+      const trimmed = editingName.trim();
+      if (!trimmed) {
+        setStatus("Name is required.");
+        window.setTimeout(() => setStatus(null), 2000);
+        return;
+      }
+      try {
+        const response = await fetch(`${apiBase}/map-views/${view.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: trimmed }),
+        });
+        if (!response.ok) {
+          throw new Error("Failed to update view");
+        }
+        const data = await response.json();
+        const updated = data?.view as SavedView | undefined;
+        if (updated) {
+          setSavedViews((prev) =>
+            prev.map((entry) => (entry.id === updated.id ? updated : entry))
+          );
+        }
+        setEditingViewId(null);
+        setEditingName("");
+      } catch (error) {
+        console.error(error);
+        setStatus("Failed to update view.");
+        window.setTimeout(() => setStatus(null), 2000);
+      }
+    },
+    [apiBase, editingName]
   );
 
   const handleMobilePanel = useCallback(
@@ -1088,19 +1130,76 @@ export default function MapPage() {
       <div className="map-modal__empty">No saved views yet.</div>
     ) : (
       <div className="map-modal__list">
-        {savedViews.map((view) => (
-          <button
-            key={view.id}
-            type="button"
-            className="map-view-card"
-            onClick={() => applySavedView(view)}
-          >
-            <span className="map-view-card__title">{view.name}</span>
-            <span className="map-view-card__meta">
-              Zoom {Math.round(view.zoom * 10) / 10}
-            </span>
-          </button>
-        ))}
+        {savedViews.map((view) => {
+          const isEditing = editingViewId === view.id;
+          return (
+            <div key={view.id} className="map-view-card">
+              {isEditing ? (
+                <>
+                  <input
+                    className="map-view-card__input"
+                    value={editingName}
+                    onChange={(event) => setEditingName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void handleRenameView(view);
+                      }
+                    }}
+                  />
+                  <div className="map-view-card__actions">
+                    <button
+                      type="button"
+                      className="map-view-card__action"
+                      onClick={() => void handleRenameView(view)}
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      className="map-view-card__action map-view-card__action--ghost"
+                      onClick={() => {
+                        setEditingViewId(null);
+                        setEditingName("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="map-view-card__main"
+                    onClick={() => applySavedView(view)}
+                  >
+                    <span className="map-view-card__title">{view.name}</span>
+                    <span className="map-view-card__meta">
+                      Zoom {Math.round(view.zoom * 10) / 10}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="map-view-card__edit"
+                    aria-label={`Edit ${view.name}`}
+                    onClick={() => handleEditView(view)}
+                  >
+                    <svg viewBox="0 0 20 20" aria-hidden="true">
+                      <path
+                        d="M4 13.5 13.4 4.1a1.4 1.4 0 0 1 2 2L6 15.5l-3.5.5.5-3.5Z"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
 

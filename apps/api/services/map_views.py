@@ -140,3 +140,43 @@ def delete_map_view(conn, view_id: int) -> bool:
     cur = conn.execute("DELETE FROM map_saved_views WHERE id = ?", (view_id,))
     conn.commit()
     return cur.rowcount > 0
+
+
+def update_map_view(conn, view_id: int, name: str) -> Optional[Dict[str, Any]]:
+    conn.execute(
+        """
+        UPDATE map_saved_views
+        SET name = ?
+        WHERE id = ?
+        """,
+        (name, view_id),
+    )
+    conn.commit()
+    row = conn.execute(
+        """
+        SELECT
+          id,
+          name,
+          center_lng,
+          center_lat,
+          zoom,
+          bearing,
+          pitch,
+          bounds_west,
+          bounds_south,
+          bounds_east,
+          bounds_north,
+          labels_mode,
+          cities_visible,
+          states_visible,
+          focus_seas_only,
+          selected_iso2,
+          created_at
+        FROM map_saved_views
+        WHERE id = ?
+        """,
+        (view_id,),
+    ).fetchone()
+    if not row:
+        return None
+    return _serialize_view(dict(row))

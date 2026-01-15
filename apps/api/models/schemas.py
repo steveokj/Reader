@@ -130,6 +130,10 @@ class MapViewsResponse(BaseModel):
     views: List[MapView]
 
 
+class MapViewUpdate(BaseModel):
+    name: str
+
+
 class PositionSelector(BaseModel):
     start: int
     end: int
