@@ -444,8 +444,8 @@ export default function MapPage() {
           type: "fill",
           source: "oceans",
           paint: {
-            "fill-color": "#cfe8f7",
-            "fill-opacity": 0.85,
+            "fill-color": "#70d3e5",
+            "fill-opacity": 0.95,
           },
         });
       } catch (error) {
