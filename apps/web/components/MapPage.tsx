@@ -328,7 +328,7 @@ function ensureLabelLayers(map: MapLibreMap) {
       "text-field": ["get", "name"],
       "text-size": 11,
       "text-letter-spacing": 0.08,
-      "text-font": ["Roboto Regular", "Arial Unicode MS Regular"],
+      "text-font": ["Lato Regular", "Arial Unicode MS Regular"],
     },
     paint: {
       "text-color": "#5f5f5f",
@@ -344,7 +344,7 @@ function ensureLabelLayers(map: MapLibreMap) {
       "text-field": ["get", "name"],
       "text-size": 12,
       "text-letter-spacing": 0.08,
-      "text-font": ["Roboto Medium", "Arial Unicode MS Regular"],
+      "text-font": ["Lato Semibold", "Arial Unicode MS Regular"],
     },
     paint: {
       "text-color": "#b65a3c",
@@ -468,7 +468,7 @@ export default function MapPage() {
               "text-field": ["coalesce", ["get", "label"], ["get", "name"]],
               "text-size": 13,
               "text-letter-spacing": 0.08,
-              "text-font": ["Roboto Medium", "Arial Unicode MS Regular"],
+              "text-font": ["Lato Semibold", "Arial Unicode MS Regular"],
             },
             paint: {
               "text-color": "#5f7890",
@@ -664,7 +664,7 @@ export default function MapPage() {
           layout: {
             "text-field": ["get", "name"],
             "text-size": 10,
-            "text-font": ["Roboto Regular", "Arial Unicode MS Regular"],
+            "text-font": ["Lato Regular", "Arial Unicode MS Regular"],
             "text-offset": [0, 0.6],
             "text-allow-overlap": false,
             "text-ignore-placement": false,
@@ -755,7 +755,7 @@ export default function MapPage() {
               layout: {
                 "text-field": ["get", "name"],
                 "text-size": 10,
-                "text-font": ["Roboto Medium", "Arial Unicode MS Regular"],
+                "text-font": ["Lato Semibold", "Arial Unicode MS Regular"],
                 "text-offset": [0, 0.6],
                 "text-transform": "uppercase",
                 "text-allow-overlap": false,

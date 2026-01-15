@@ -1,7 +1,7 @@
 {
   "version": 8,
   "name": "Natural Earth Physical",
-  "glyphs": "https://orangemug.github.io/font-glyphs/glyphs/{fontstack}/{range}.pbf",
+  "glyphs": "https://tile.openstreetmap.jp/fonts/{fontstack}/{range}.pbf",
   "sources": {
     "natural_earth": {
       "type": "raster",
