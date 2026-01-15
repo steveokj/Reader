@@ -103,3 +103,4 @@
 | 519d7b3 | Change ocean fill color to #70d3e5 with higher opacity. | Set water to #70d3e5. | Updated the oceans fill color to #70d3e5 and bumped opacity. | 2026-01-15 10:38:49 |
 | 7d404e0 | Enable world wrap so the map pans continuously east-west. | Make map continuous like Google Maps when dragging left/right. | Enabled renderWorldCopies for continuous panning. | 2026-01-15 10:51:36 |
 | bbfce48 | Simplify oceans GeoJSON to prevent low-zoom triangulation artifacts. | Approve fix for ocean artifacts (option 1). | Simplified and cleaned oceans polygons using mapshaper to reduce artifacts while keeping ocean overlay. | 2026-01-15 10:59:42 |
+| a0a299d | Add saved map views API and modal UI. | Add saved views with a modal; click a card to move the map behind it; persist globally across tabs. | Implemented saved view storage, modal, and side panel list; clicking a view applies map state without closing. | 2026-01-15 11:45:34 |
