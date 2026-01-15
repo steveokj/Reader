@@ -101,3 +101,4 @@
 | 170b608 | Increase low-zoom raster contrast and relief opacity to enrich basemap colors. | Try approach 1 (low-zoom relief boost). | Added zoom-based ramps for raster saturation/contrast and relief opacity. | 2026-01-15 10:17:17 |
 | ce62d35 | Apply a stronger low-zoom color/relief ramp and extend it to zoom 5. | Pick option 3 (strong boost + extend to z5). | Increased low-zoom saturation/contrast and relief opacity, extending the ramp through z5. | 2026-01-15 10:27:04 |
 | 519d7b3 | Change ocean fill color to #70d3e5 with higher opacity. | Set water to #70d3e5. | Updated the oceans fill color to #70d3e5 and bumped opacity. | 2026-01-15 10:38:49 |
+| 7d404e0 | Enable world wrap so the map pans continuously east-west. | Make map continuous like Google Maps when dragging left/right. | Enabled renderWorldCopies for continuous panning. | 2026-01-15 10:51:36 |
