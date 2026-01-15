@@ -423,13 +423,24 @@ export default function MapPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const countriesRef = useRef<GeoFeatureCollection | null>(null);
   const countriesIndexRef = useRef<Map<string, GeoFeature>>(new Map());
-  const lastSheetTapRef = useRef<number>(0);
   const apiBase = getClientApiBase();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [dataStatus, setDataStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [mapReady, setMapReady] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined" || !window.matchMedia) {
+      return false;
+    }
+    return window.matchMedia("(max-width: 900px)").matches;
+  });
+  const [mobileBarsVisible, setMobileBarsVisible] = useState(() => {
+    if (typeof window === "undefined" || !window.matchMedia) {
+      return true;
+    }
+    return !window.matchMedia("(max-width: 900px)").matches;
+  });
+  const [mobilePanel, setMobilePanel] = useState<"views" | "settings" | null>(null);
   const [labelsMode, setLabelsMode] = useState<"none" | "selected" | "all">("all");
   const [selectedIso2, setSelectedIso2] = useState<string[]>([]);
   const [citiesVisible, setCitiesVisible] = useState(false);
@@ -492,16 +503,19 @@ export default function MapPage() {
     [mapReady]
   );
 
-  const handleSheetTap = useCallback(() => {
-    if (saveModalOpen) {
-      return;
-    }
-    const now = Date.now();
-    if (now - lastSheetTapRef.current < 320) {
-      setSheetOpen((prev) => !prev);
-    }
-    lastSheetTapRef.current = now;
-  }, [saveModalOpen]);
+  const handleMobilePanel = useCallback(
+    (panel: "views" | "settings") => {
+      setMobileBarsVisible(true);
+      setMobilePanel((prev) => {
+        const next = prev === panel ? null : panel;
+        return next;
+      });
+      if (panel === "views") {
+        void loadSavedViews();
+      }
+    },
+    [loadSavedViews]
+  );
 
   const handleSaveView = useCallback(async (name: string) => {
     const map = mapRef.current;
@@ -571,7 +585,7 @@ export default function MapPage() {
   useEffect(() => {
     let cancelled = false;
     let maplibre: MapLibreModule | null = null;
-    const isMobile =
+    const isMobileScreen =
       typeof window !== "undefined" &&
       window.matchMedia &&
       window.matchMedia("(max-width: 900px)").matches;
@@ -786,11 +800,17 @@ export default function MapPage() {
       });
       map.addControl(new maplibre.NavigationControl(), "top-right");
       map.setRenderWorldCopies(true);
-      if (isMobile) {
+      if (isMobileScreen) {
         map.doubleClickZoom.disable();
         map.on("dblclick", (event) => {
           event.preventDefault();
-          setSheetOpen((prev) => !prev);
+          setMobileBarsVisible((prev) => {
+            const next = !prev;
+            if (!next) {
+              setMobilePanel(null);
+            }
+            return next;
+          });
         });
       }
       map.on("load", () => {
@@ -809,7 +829,7 @@ export default function MapPage() {
     return () => {
       cancelled = true;
       if (mapRef.current) {
-        if (isMobile) {
+        if (isMobileScreen) {
           mapRef.current.doubleClickZoom.enable();
         }
         mapRef.current.remove();
@@ -823,7 +843,13 @@ export default function MapPage() {
       return;
     }
     const matches = window.matchMedia("(max-width: 900px)").matches;
-    setSheetOpen(!matches);
+    setIsMobile(matches);
+    setMobileBarsVisible(!matches);
+    if (!matches) {
+      setMobilePanel(null);
+    } else {
+      setSaveModalOpen(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -1050,9 +1076,102 @@ export default function MapPage() {
     [dataStatus, labelsMode, mapReady, query]
   );
 
+  const savedViewsList =
+    savedViewsStatus === "loading" ? (
+      <div className="map-modal__empty">Loading saved views...</div>
+    ) : savedViews.length === 0 ? (
+      <div className="map-modal__empty">No saved views yet.</div>
+    ) : (
+      <div className="map-modal__list">
+        {savedViews.map((view) => (
+          <button
+            key={view.id}
+            type="button"
+            className="map-view-card"
+            onClick={() => applySavedView(view)}
+          >
+            <span className="map-view-card__title">{view.name}</span>
+            <span className="map-view-card__meta">
+              Zoom {Math.round(view.zoom * 10) / 10}
+            </span>
+          </button>
+        ))}
+      </div>
+    );
+
+  const layersSection = (
+    <div className="map-sidepanel__section">
+      <div className="map-sidepanel__title">Layers</div>
+      <div className="map-sidepanel__subtitle">Country labels</div>
+      <label className="map-toggle">
+        <input
+          type="radio"
+          name="country-labels"
+          value="none"
+          checked={labelsMode === "none"}
+          onChange={() => setLabelsMode("none")}
+        />
+        <span>None</span>
+      </label>
+      <label className="map-toggle">
+        <input
+          type="radio"
+          name="country-labels"
+          value="selected"
+          checked={labelsMode === "selected"}
+          onChange={() => setLabelsMode("selected")}
+        />
+        <span>Selected only</span>
+      </label>
+      <label className="map-toggle">
+        <input
+          type="radio"
+          name="country-labels"
+          value="all"
+          checked={labelsMode === "all"}
+          onChange={() => setLabelsMode("all")}
+        />
+        <span>All countries</span>
+      </label>
+      <div className="map-sidepanel__divider" />
+      <label className={`map-toggle${!mapReady ? " map-toggle--disabled" : ""}`}>
+        <input
+          type="checkbox"
+          checked={citiesVisible}
+          onChange={(event) => setCitiesVisible(event.target.checked)}
+          disabled={!mapReady}
+        />
+        <span>City labels</span>
+      </label>
+      <label className={`map-toggle${!mapReady ? " map-toggle--disabled" : ""}`}>
+        <input
+          type="checkbox"
+          checked={statesVisible}
+          onChange={(event) => setStatesVisible(event.target.checked)}
+          disabled={!mapReady}
+        />
+        <span>State/Province labels + borders</span>
+      </label>
+      <label className="map-toggle">
+        <input
+          type="checkbox"
+          checked={focusSeasOnly}
+          onChange={(event) => setFocusSeasOnly(event.target.checked)}
+        />
+        <span>Focus seas: Gulf of Mexico + Mediterranean</span>
+      </label>
+    </div>
+  );
+
+  const showSidepanel = !isMobile || mobilePanel !== null;
+
   return (
     <div className="map-page">
-      <header className="map-toolbar">
+      <header
+        className={`map-toolbar${isMobile ? " map-toolbar--mobile" : ""}${
+          isMobile && !mobileBarsVisible ? " map-toolbar--hidden" : ""
+        }`}
+      >
         <div className="map-toolbar__title">Map</div>
         <form className="map-toolbar__controls" onSubmit={handleSubmit}>
           <input
@@ -1065,8 +1184,21 @@ export default function MapPage() {
             type="submit"
             className="map-button"
             disabled={!query.trim() || !mapReady || dataStatus !== "ready"}
+            aria-label="Go"
           >
-            Go
+            <span className="map-button__icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20">
+                <path
+                  d="M4 10h9M10 5l5 5-5 5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <span className="map-button__text">Go</span>
           </button>
           <button
             type="button"
@@ -1078,138 +1210,114 @@ export default function MapPage() {
               void handleSaveView(name);
             }}
             disabled={!mapReady || dataStatus !== "ready"}
+            aria-label="Save view"
           >
-            Save view
+            <span className="map-button__icon" aria-hidden="true">
+              <svg viewBox="0 0 20 20">
+                <path
+                  d="M5 4h10a1 1 0 0 1 1 1v11l-6-3-6 3V5a1 1 0 0 1 1-1Z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <span className="map-button__text">Save view</span>
           </button>
         </form>
       </header>
       <div className="map-shell">
         <div className="map-canvas" ref={containerRef} />
-        <aside className={`map-sidepanel${sheetOpen ? "" : " map-sidepanel--collapsed"}`}>
-          <button
-            type="button"
-            className="map-sidepanel__handle"
-            onPointerUp={handleSheetTap}
-            aria-label="Toggle layers panel"
-          >
-            <span className="map-sidepanel__grab" aria-hidden="true" />
-          </button>
-          <div className="map-sidepanel__section">
-            <div className="map-sidepanel__header">
-              <div className="map-sidepanel__title">Saved Views</div>
-              <button
-                type="button"
-                className="map-icon-button"
-                aria-label="Open saved views"
-                onClick={() => {
-                  setSheetOpen(true);
-                  setSaveModalOpen(true);
-                  void loadSavedViews();
-                }}
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M4 7.5 12 3l8 4.5-8 4.5-8-4.5Z"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M4 12.2 12 16.7 20 12.2"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M4 16.9 12 21.4 20 16.9"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-          <div className="map-sidepanel__section">
-            <div className="map-sidepanel__title">Layers</div>
-            <div className="map-sidepanel__subtitle">Country labels</div>
-            <label className="map-toggle">
-              <input
-                type="radio"
-                name="country-labels"
-                value="none"
-                checked={labelsMode === "none"}
-                onChange={() => setLabelsMode("none")}
-              />
-              <span>None</span>
-            </label>
-            <label className="map-toggle">
-              <input
-                type="radio"
-                name="country-labels"
-                value="selected"
-                checked={labelsMode === "selected"}
-                onChange={() => setLabelsMode("selected")}
-              />
-              <span>Selected only</span>
-            </label>
-            <label className="map-toggle">
-              <input
-                type="radio"
-                name="country-labels"
-                value="all"
-                checked={labelsMode === "all"}
-                onChange={() => setLabelsMode("all")}
-              />
-              <span>All countries</span>
-            </label>
-            <div className="map-sidepanel__divider" />
-            <label className="map-toggle">
-              <input
-                type="checkbox"
-                checked={citiesVisible}
-                onChange={(event) => setCitiesVisible(event.target.checked)}
-              />
-              <span>City labels</span>
-            </label>
-            <label className="map-toggle">
-              <input
-                type="checkbox"
-                checked={statesVisible}
-                onChange={(event) => setStatesVisible(event.target.checked)}
-              />
-              <span>State/Province labels + borders</span>
-            </label>
-            <label className="map-toggle">
-              <input
-                type="checkbox"
-                checked={focusSeasOnly}
-                onChange={(event) => setFocusSeasOnly(event.target.checked)}
-              />
-              <span>Focus seas: Gulf of Mexico + Mediterranean</span>
-            </label>
-          </div>
-          {saveModalOpen ? (
-            <div
-              className="map-sidepanel__overlay"
-              onClick={() => setSaveModalOpen(false)}
-            >
-              <div
-                className="map-modal__panel map-modal__panel--overlay"
-                role="dialog"
-                aria-modal="true"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="map-modal__header">
-                  <div className="map-modal__title">Saved views</div>
+        {showSidepanel ? (
+          <aside className={`map-sidepanel${isMobile ? " map-sidepanel--mobile" : ""}`}>
+            {!isMobile ? (
+              <>
+                <div className="map-sidepanel__section">
+                  <div className="map-sidepanel__header">
+                    <div className="map-sidepanel__title">Saved Views</div>
+                    <button
+                      type="button"
+                      className="map-icon-button"
+                      aria-label="Open saved views"
+                      onClick={() => {
+                        setSaveModalOpen(true);
+                        void loadSavedViews();
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="M4 7.5 12 3l8 4.5-8 4.5-8-4.5Z"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M4 12.2 12 16.7 20 12.2"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M4 16.9 12 21.4 20 16.9"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                {layersSection}
+                {saveModalOpen ? (
+                  <div
+                    className="map-sidepanel__overlay"
+                    onClick={() => setSaveModalOpen(false)}
+                  >
+                    <div
+                      className="map-modal__panel map-modal__panel--overlay"
+                      role="dialog"
+                      aria-modal="true"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <div className="map-modal__header">
+                        <div className="map-modal__title">Saved views</div>
+                        <button
+                          type="button"
+                          className="map-modal__close"
+                          onClick={() => setSaveModalOpen(false)}
+                          aria-label="Close saved views"
+                        >
+                          <svg viewBox="0 0 20 20" aria-hidden="true">
+                            <path
+                              d="M5 5 15 15M15 5 5 15"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.6"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="map-modal__body">{savedViewsList}</div>
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <div className="map-sidepanel__mobile-header">
+                  <div className="map-sidepanel__title">
+                    {mobilePanel === "views" ? "Saved views" : "Layers"}
+                  </div>
                   <button
                     type="button"
                     className="map-modal__close"
-                    onClick={() => setSaveModalOpen(false)}
-                    aria-label="Close saved views"
+                    onClick={() => setMobilePanel(null)}
+                    aria-label="Close panel"
                   >
                     <svg viewBox="0 0 20 20" aria-hidden="true">
                       <path
@@ -1223,32 +1331,75 @@ export default function MapPage() {
                   </button>
                 </div>
                 <div className="map-modal__body">
-                  {savedViewsStatus === "loading" ? (
-                    <div className="map-modal__empty">Loading saved views...</div>
-                  ) : savedViews.length === 0 ? (
-                    <div className="map-modal__empty">No saved views yet.</div>
-                  ) : (
-                    <div className="map-modal__list">
-                      {savedViews.map((view) => (
-                        <button
-                          key={view.id}
-                          type="button"
-                          className="map-view-card"
-                          onClick={() => applySavedView(view)}
-                        >
-                          <span className="map-view-card__title">{view.name}</span>
-                          <span className="map-view-card__meta">
-                            Zoom {Math.round(view.zoom * 10) / 10}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {mobilePanel === "views" ? savedViewsList : layersSection}
                 </div>
-              </div>
-            </div>
-          ) : null}
-        </aside>
+              </>
+            )}
+          </aside>
+        ) : null}
+        {isMobile && mobileBarsVisible ? (
+          <div className="map-mobile-nav">
+            <button
+              type="button"
+              className="map-mobile-nav__button"
+              disabled
+              aria-label="Explore"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M4 12h16M12 4v16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className={`map-mobile-nav__button${
+                mobilePanel === "views" ? " map-mobile-nav__button--active" : ""
+              }`}
+              onClick={() => handleMobilePanel("views")}
+              aria-label="Views"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M4 7.5 12 3l8 4.5-8 4.5-8-4.5Z"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M4 12.2 12 16.7 20 12.2"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className={`map-mobile-nav__button${
+                mobilePanel === "settings" ? " map-mobile-nav__button--active" : ""
+              }`}
+              onClick={() => handleMobilePanel("settings")}
+              aria-label="Settings"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M4 6h16M7 12h10M10 18h4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+        ) : null}
         {!mapReady ? (
           <div className="map-loading">
             <div className="map-loading__card">
