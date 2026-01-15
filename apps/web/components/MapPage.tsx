@@ -1229,6 +1229,14 @@ export default function MapPage() {
       </header>
       <div className="map-shell">
         <div className="map-canvas" ref={containerRef} />
+        {isMobile && mobilePanel !== null ? (
+          <button
+            type="button"
+            className="map-bottomsheet-scrim"
+            onClick={() => setMobilePanel(null)}
+            aria-label="Close panel"
+          />
+        ) : null}
         {showSidepanel ? (
           <aside className={`map-sidepanel${isMobile ? " map-sidepanel--mobile" : ""}`}>
             {!isMobile ? (
