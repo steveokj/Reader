@@ -856,11 +856,12 @@ export default function MapPage() {
       if (cancelled || !containerRef.current) {
         return;
       }
+      const initialZoom = isMobileScreen ? -2 : DEFAULT_ZOOM;
       const map = new maplibre.Map({
         container: containerRef.current,
         style: MAP_STYLE_URL,
         center: DEFAULT_CENTER,
-        zoom: DEFAULT_ZOOM,
+        zoom: initialZoom,
         minZoom: -2,
         attributionControl: false,
       });
