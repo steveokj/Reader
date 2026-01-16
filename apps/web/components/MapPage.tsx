@@ -32,6 +32,9 @@ type SavedView = {
 
 const DEFAULT_CENTER: [number, number] = [12, 22];
 const DEFAULT_ZOOM = 1.6;
+const DEFAULT_MAP_SCALE = 0.9;
+const SCALE_MIN = 0.7;
+const SCALE_MAX = 1;
 const SHOW_MAP_CONTROLS = process.env.NEXT_PUBLIC_MAP_CONTROLS === "1";
 
 const MAP_STYLE_URL = "/map-style-physical.json";
@@ -430,7 +433,11 @@ function applyLabelState(
   );
 }
 
-export default function MapPage() {
+type MapPageProps = {
+  scaleTest?: boolean;
+};
+
+export default function MapPage({ scaleTest = false }: MapPageProps) {
   const mapRef = useRef<MapLibreMap | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const countriesRef = useRef<GeoFeatureCollection | null>(null);
@@ -467,6 +474,8 @@ export default function MapPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [editingViewId, setEditingViewId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [mapScale, setMapScale] = useState(DEFAULT_MAP_SCALE);
+  const [scaleSliderOpen, setScaleSliderOpen] = useState(false);
 
   const loadSavedViews = useCallback(async () => {
     setSavedViewsStatus("loading");
@@ -873,7 +882,13 @@ export default function MapPage() {
       map.touchPitch.disable();
       map.touchZoomRotate.disableRotation();
       map.keyboard.disableRotation();
-      if (isMobileScreen) {
+      if (scaleTest) {
+        map.doubleClickZoom.disable();
+        map.on("dblclick", (event) => {
+          event.preventDefault();
+          setScaleSliderOpen((prev) => !prev);
+        });
+      } else if (isMobileScreen) {
         map.setMinZoom(-2);
         map.doubleClickZoom.disable();
         map.on("dblclick", (event) => {
@@ -1297,74 +1312,103 @@ export default function MapPage() {
     </div>
   );
 
-  const showSidepanel = !isMobile || mobilePanel !== null;
+  const scaleValue = scaleTest ? mapScale : DEFAULT_MAP_SCALE;
+  const scaleSize = 100 / scaleValue;
+  const scaleOffset = (scaleSize - 100) / 2;
+  const mapCanvasStyle = {
+    width: `${scaleSize}%`,
+    height: `${scaleSize}%`,
+    left: `-${scaleOffset}%`,
+    top: `-${scaleOffset}%`,
+    transform: `scale(${scaleValue})`,
+  } as const;
+  const showToolbar = !scaleTest;
+  const showSidepanel = !scaleTest && (!isMobile || mobilePanel !== null);
+  const showBottomNav = !scaleTest && isMobile && mobileBarsVisible;
 
   return (
     <div className="map-page">
-      <header
-        className={`map-toolbar${isMobile ? " map-toolbar--mobile" : ""}${
-          isMobile && !mobileBarsVisible ? " map-toolbar--hidden" : ""
-        }`}
-      >
-        <div className="map-toolbar__title">Map</div>
-        <form className="map-toolbar__controls" onSubmit={handleSubmit}>
-          <button
-            type="button"
-            className={`map-button map-button--icon-only darkgrey ${
-              saveSuccess ? " map-button--saved" : ""
-            }`}
-            onClick={() => {
-              const trimmed = query.trim();
-              const timestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
-              const name = trimmed || `Saved view ${timestamp}`;
-              void handleSaveView(name);
-            }}
-            disabled={!mapReady || dataStatus !== "ready"}
-            aria-label="Save view"
-          >
-            <span className="map-button__icon" aria-hidden="true">
-              <svg viewBox="0 0 20 20">
-                <path
-                  d="M5 4h10a1 1 0 0 1 1 1v11l-6-3-6 3V5a1 1 0 0 1 1-1Z"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            <span className="map-button__text">Save view</span>
-          </button>
-          <input
-            className="map-input"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Italy to Turkey"
-          />
-          <button
-            type="submit"
-            className="map-button"
-            disabled={!query.trim() || !mapReady || dataStatus !== "ready"}
-            aria-label="Go"
-          >
-            <span className="map-button__icon" aria-hidden="true">
-              <svg viewBox="0 0 20 20">
-                <path
-                  d="M4 10h9M10 5l5 5-5 5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-            <span className="map-button__text">Go</span>
-          </button>
-        </form>
-      </header>
+      {showToolbar ? (
+        <header
+          className={`map-toolbar${isMobile ? " map-toolbar--mobile" : ""}${
+            isMobile && !mobileBarsVisible ? " map-toolbar--hidden" : ""
+          }`}
+        >
+          <div className="map-toolbar__title">Map</div>
+          <form className="map-toolbar__controls" onSubmit={handleSubmit}>
+            <button
+              type="button"
+              className={`map-button map-button--icon-only darkgrey ${
+                saveSuccess ? " map-button--saved" : ""
+              }`}
+              onClick={() => {
+                const trimmed = query.trim();
+                const timestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+                const name = trimmed || `Saved view ${timestamp}`;
+                void handleSaveView(name);
+              }}
+              disabled={!mapReady || dataStatus !== "ready"}
+              aria-label="Save view"
+            >
+              <span className="map-button__icon" aria-hidden="true">
+                <svg viewBox="0 0 20 20">
+                  <path
+                    d="M5 4h10a1 1 0 0 1 1 1v11l-6-3-6 3V5a1 1 0 0 1 1-1Z"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+              <span className="map-button__text">Save view</span>
+            </button>
+            <input
+              className="map-input"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Italy to Turkey"
+            />
+            <button
+              type="submit"
+              className="map-button"
+              disabled={!query.trim() || !mapReady || dataStatus !== "ready"}
+              aria-label="Go"
+            >
+              <span className="map-button__icon" aria-hidden="true">
+                <svg viewBox="0 0 20 20">
+                  <path
+                    d="M4 10h9M10 5l5 5-5 5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+              <span className="map-button__text">Go</span>
+            </button>
+          </form>
+        </header>
+      ) : null}
       <div className="map-shell">
-        <div className="map-canvas map-canvas--scaled" ref={containerRef} />
+        <div className="map-canvas" style={mapCanvasStyle} ref={containerRef} />
+        {scaleTest && scaleSliderOpen ? (
+          <div className="map-scale-slider">
+            <div className="map-scale-slider__label">
+              Scale {Math.round(scaleValue * 100)}%
+            </div>
+            <input
+              type="range"
+              min={SCALE_MIN}
+              max={SCALE_MAX}
+              step={0.01}
+              value={mapScale}
+              onChange={(event) => setMapScale(Number(event.target.value))}
+            />
+          </div>
+        ) : null}
         {isMobile && mobilePanel !== null ? (
           <button
             type="button"
@@ -1481,7 +1525,7 @@ export default function MapPage() {
             )}
           </aside>
         ) : null}
-        {isMobile && mobileBarsVisible ? (
+        {showBottomNav ? (
           <div className="map-mobile-nav">
             <button
               type="button"
