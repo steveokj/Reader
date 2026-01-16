@@ -1950,6 +1950,10 @@ html[data-reader-theme="dark"] .reader-layout {
 }
 
 .map-canvas--scaled {
+  width: 112%;
+  height: 112%;
+  left: -6%;
+  top: -6%;
   transform: scale(0.9);
   transform-origin: center center;
 }
