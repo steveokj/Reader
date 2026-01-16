@@ -829,7 +829,7 @@ export default function MapPage() {
             source: "countries",
             paint: {
               "line-color": "#c24b3b",
-              "line-width": 0.7,
+              "line-width": 2,
               "line-opacity": 0.9,
             },
             filter: ["==", ["get", "ISO3166-1-Alpha-2"], ""],
@@ -861,6 +861,7 @@ export default function MapPage() {
         style: MAP_STYLE_URL,
         center: DEFAULT_CENTER,
         zoom: DEFAULT_ZOOM,
+        minZoom: -2,
         attributionControl: false,
       });
       if (SHOW_MAP_CONTROLS) {
@@ -872,6 +873,7 @@ export default function MapPage() {
       map.touchZoomRotate.disableRotation();
       map.keyboard.disableRotation();
       if (isMobileScreen) {
+        map.setMinZoom(-2);
         map.doubleClickZoom.disable();
         map.on("dblclick", (event) => {
           event.preventDefault();
@@ -1361,7 +1363,7 @@ export default function MapPage() {
         </form>
       </header>
       <div className="map-shell">
-        <div className="map-canvas" ref={containerRef} />
+        <div className="map-canvas map-canvas--scaled" ref={containerRef} />
         {isMobile && mobilePanel !== null ? (
           <button
             type="button"

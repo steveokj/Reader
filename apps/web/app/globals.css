@@ -1949,6 +1949,11 @@ html[data-reader-theme="dark"] .reader-layout {
   background: #f3efe6;
 }
 
+.map-canvas--scaled {
+  transform: scale(0.9);
+  transform-origin: center center;
+}
+
 .map-sidepanel {
   position: absolute;
   top: 16px;
