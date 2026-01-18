@@ -259,6 +259,8 @@ class ReaderSettings(BaseModel):
     ui_action_menu_placement: str
     ui_highlight_style: str
     default_map_view_id: Optional[int] = None
+    default_map_view_id_mobile: Optional[int] = None
+    default_map_view_id_desktop: Optional[int] = None
 
 
 class ReaderSettingsUpdate(BaseModel):
@@ -284,6 +286,8 @@ class ReaderSettingsUpdate(BaseModel):
     ui_action_menu_placement: Optional[str] = None
     ui_highlight_style: Optional[str] = None
     default_map_view_id: Optional[int] = None
+    default_map_view_id_mobile: Optional[int] = None
+    default_map_view_id_desktop: Optional[int] = None
 
 
 class ReaderSettingsResponse(BaseModel):

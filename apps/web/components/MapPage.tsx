@@ -477,7 +477,8 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
   const [editingName, setEditingName] = useState("");
   const [mapScale, setMapScale] = useState(DEFAULT_MAP_SCALE);
   const [scaleSliderOpen, setScaleSliderOpen] = useState(false);
-  const [defaultViewId, setDefaultViewId] = useState<number | null>(null);
+  const [defaultViewIdMobile, setDefaultViewIdMobile] = useState<number | null>(null);
+  const [defaultViewIdDesktop, setDefaultViewIdDesktop] = useState<number | null>(null);
   const [defaultApplied, setDefaultApplied] = useState(false);
 
   const loadSavedViews = useCallback(async () => {
@@ -503,12 +504,18 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
         throw new Error("Failed to load settings");
       }
       const data = await response.json();
-      const id = data?.settings?.default_map_view_id ?? null;
-      setDefaultViewId(typeof id === "number" ? id : null);
+      const settings = data?.settings ?? {};
+      const legacyId = settings.default_map_view_id ?? null;
+      const mobileId = settings.default_map_view_id_mobile ?? legacyId ?? null;
+      const desktopId = settings.default_map_view_id_desktop ?? legacyId ?? null;
+      setDefaultViewIdMobile(typeof mobileId === "number" ? mobileId : null);
+      setDefaultViewIdDesktop(typeof desktopId === "number" ? desktopId : null);
     } catch (error) {
       console.error(error);
     }
   }, [apiBase]);
+
+  const activeDefaultViewId = isMobile ? defaultViewIdMobile : defaultViewIdDesktop;
 
   const applySavedView = useCallback(
     (view: SavedView) => {
@@ -583,15 +590,20 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
   const handleSetDefaultView = useCallback(
     async (view: SavedView) => {
       try {
+        const field = isMobile ? "default_map_view_id_mobile" : "default_map_view_id_desktop";
         const response = await fetch(`${apiBase}/settings`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ default_map_view_id: view.id }),
+          body: JSON.stringify({ [field]: view.id }),
         });
         if (!response.ok) {
           throw new Error("Failed to update settings");
         }
-        setDefaultViewId(view.id);
+        if (isMobile) {
+          setDefaultViewIdMobile(view.id);
+        } else {
+          setDefaultViewIdDesktop(view.id);
+        }
         setStatus("Default view updated.");
         window.setTimeout(() => setStatus(null), 2000);
       } catch (error) {
@@ -600,12 +612,13 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
         window.setTimeout(() => setStatus(null), 2000);
       }
     },
-    [apiBase]
+    [apiBase, isMobile]
   );
 
   const handleMobilePanel = useCallback(
     (panel: "views" | "settings") => {
       setMobileBarsVisible(true);
+      setScaleSliderOpen(false);
       setMobilePanel((prev) => {
         const next = prev === panel ? null : panel;
         return next;
@@ -1009,11 +1022,11 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     if (!mapReady || dataStatus !== "ready" || defaultApplied) {
       return;
     }
-    if (!defaultViewId) {
+    if (!activeDefaultViewId) {
       setDefaultApplied(true);
       return;
     }
-    const view = savedViews.find((entry) => entry.id === defaultViewId);
+    const view = savedViews.find((entry) => entry.id === activeDefaultViewId);
     if (!view) {
       return;
     }
@@ -1023,7 +1036,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     applySavedView,
     dataStatus,
     defaultApplied,
-    defaultViewId,
+    activeDefaultViewId,
     mapReady,
     savedViews,
   ]);
@@ -1243,7 +1256,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
       <div className="map-modal__list">
         {savedViews.map((view) => {
           const isEditing = editingViewId === view.id;
-          const isDefault = defaultViewId === view.id;
+          const isDefault = activeDefaultViewId === view.id;
           return (
             <div key={view.id} className="map-view-card">
               {isEditing ? (
@@ -1402,7 +1415,15 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
         <button
           type="button"
           className="map-icon-button map-icon-button--inline"
-          onClick={() => setScaleSliderOpen((prev) => !prev)}
+          onClick={() =>
+            setScaleSliderOpen((prev) => {
+              const next = !prev;
+              if (next && isMobile) {
+                setMobilePanel(null);
+              }
+              return next;
+            })
+          }
           aria-label="Toggle scale slider"
         >
           <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -1419,7 +1440,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     </div>
   );
 
-  const scaleValue = scaleTest ? mapScale : DEFAULT_MAP_SCALE;
+  const scaleValue = mapScale;
   const scaleSize = 100 / scaleValue;
   const scaleOffset = (scaleSize - 100) / 2;
   const mapCanvasStyle = {
@@ -1501,6 +1522,14 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
       ) : null}
       <div className="map-shell">
         <div className="map-canvas" style={mapCanvasStyle} ref={containerRef} />
+        {scaleSliderOpen ? (
+          <button
+            type="button"
+            className="map-scale-scrim"
+            onClick={() => setScaleSliderOpen(false)}
+            aria-label="Close scale slider"
+          />
+        ) : null}
         {scaleSliderOpen ? (
           <div className="map-scale-slider">
             <div className="map-scale-slider__label">

@@ -24,6 +24,8 @@ SETTINGS_FIELDS = [
     "ui_action_menu_placement",
     "ui_highlight_style",
     "default_map_view_id",
+    "default_map_view_id_mobile",
+    "default_map_view_id_desktop",
 ]
 
 BOOLEAN_FIELDS = {
@@ -58,6 +60,8 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "ui_action_menu_placement": "above",
     "ui_highlight_style": "soft",
     "default_map_view_id": None,
+    "default_map_view_id_mobile": None,
+    "default_map_view_id_desktop": None,
 }
 
 
