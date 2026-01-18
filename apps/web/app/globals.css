@@ -2014,6 +2014,15 @@ html[data-reader-theme="dark"] .reader-layout {
   margin-top: 6px;
 }
 
+.map-sidepanel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--reader-ink, var(--ink));
+}
+
 .map-sidepanel__divider {
   height: 1px;
   background: var(--reader-border, rgba(31, 28, 22, 0.12));
@@ -2042,6 +2051,15 @@ html[data-reader-theme="dark"] .reader-layout {
   padding: 4px 8px;
   cursor: pointer;
   line-height: 0;
+}
+
+.map-icon-button--inline {
+  padding: 4px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .map-icon-button svg {
@@ -2086,7 +2104,7 @@ html[data-reader-theme="dark"] .reader-layout {
 .map-scale-slider {
   position: absolute;
   left: 50%;
-  bottom: 18px;
+  bottom: calc(18px + var(--map-mobile-nav-height, 0px));
   transform: translateX(-50%);
   background: var(--reader-panel, #fffaf5);
   border: 1px solid var(--reader-border, rgba(31, 28, 22, 0.12));
@@ -2169,6 +2187,12 @@ html[data-reader-theme="dark"] .reader-layout {
   color: inherit;
 }
 
+.map-view-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .map-view-card__title {
   font-size: 12px;
   font-weight: 600;
@@ -2177,6 +2201,19 @@ html[data-reader-theme="dark"] .reader-layout {
 .map-view-card__meta {
   font-size: 11px;
   color: var(--reader-ink-muted, rgba(31, 28, 22, 0.6));
+}
+
+.map-view-card__default {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #c24b3b;
+}
+
+.map-view-card__default svg {
+  width: 12px;
+  height: 12px;
+  display: block;
 }
 
 .map-view-card__edit {

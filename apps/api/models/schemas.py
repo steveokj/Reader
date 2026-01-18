@@ -106,6 +106,7 @@ class MapViewCreate(BaseModel):
     zoom: float
     bearing: float
     pitch: float
+    map_scale: Optional[float] = None
     bounds_west: Optional[float] = None
     bounds_south: Optional[float] = None
     bounds_east: Optional[float] = None
@@ -257,6 +258,7 @@ class ReaderSettings(BaseModel):
     ui_show_side_panel: bool
     ui_action_menu_placement: str
     ui_highlight_style: str
+    default_map_view_id: Optional[int] = None
 
 
 class ReaderSettingsUpdate(BaseModel):
@@ -281,6 +283,7 @@ class ReaderSettingsUpdate(BaseModel):
     ui_show_side_panel: Optional[bool] = None
     ui_action_menu_placement: Optional[str] = None
     ui_highlight_style: Optional[str] = None
+    default_map_view_id: Optional[int] = None
 
 
 class ReaderSettingsResponse(BaseModel):

@@ -18,6 +18,7 @@ type SavedView = {
   zoom: number;
   bearing: number;
   pitch: number;
+  map_scale: number | null;
   bounds_west: number | null;
   bounds_south: number | null;
   bounds_east: number | null;
@@ -476,6 +477,8 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
   const [editingName, setEditingName] = useState("");
   const [mapScale, setMapScale] = useState(DEFAULT_MAP_SCALE);
   const [scaleSliderOpen, setScaleSliderOpen] = useState(false);
+  const [defaultViewId, setDefaultViewId] = useState<number | null>(null);
+  const [defaultApplied, setDefaultApplied] = useState(false);
 
   const loadSavedViews = useCallback(async () => {
     setSavedViewsStatus("loading");
@@ -493,6 +496,20 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     }
   }, [apiBase]);
 
+  const loadSettings = useCallback(async () => {
+    try {
+      const response = await fetch(`${apiBase}/settings`);
+      if (!response.ok) {
+        throw new Error("Failed to load settings");
+      }
+      const data = await response.json();
+      const id = data?.settings?.default_map_view_id ?? null;
+      setDefaultViewId(typeof id === "number" ? id : null);
+    } catch (error) {
+      console.error(error);
+    }
+  }, [apiBase]);
+
   const applySavedView = useCallback(
     (view: SavedView) => {
       const map = mapRef.current;
@@ -506,6 +523,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
       setStatesVisible(view.states_visible);
       setFocusSeasOnly(view.focus_seas_only);
       setSelectedIso2(selected);
+      setMapScale(view.map_scale ?? DEFAULT_MAP_SCALE);
       applySelection(map, selected);
       applyLabelState(map, labelsModeValue, selected);
       applyCityFilter(map, labelsModeValue, selected);
@@ -562,6 +580,29 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     [apiBase, editingName]
   );
 
+  const handleSetDefaultView = useCallback(
+    async (view: SavedView) => {
+      try {
+        const response = await fetch(`${apiBase}/settings`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ default_map_view_id: view.id }),
+        });
+        if (!response.ok) {
+          throw new Error("Failed to update settings");
+        }
+        setDefaultViewId(view.id);
+        setStatus("Default view updated.");
+        window.setTimeout(() => setStatus(null), 2000);
+      } catch (error) {
+        console.error(error);
+        setStatus("Failed to update default view.");
+        window.setTimeout(() => setStatus(null), 2000);
+      }
+    },
+    [apiBase]
+  );
+
   const handleMobilePanel = useCallback(
     (panel: "views" | "settings") => {
       setMobileBarsVisible(true);
@@ -611,6 +652,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
           states_visible: statesVisible,
           focus_seas_only: focusSeasOnly,
           selected_iso2: selectedIso2,
+          map_scale: mapScale,
         }),
       });
       if (!response.ok) {
@@ -943,7 +985,8 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
 
   useEffect(() => {
     void loadSavedViews();
-  }, [loadSavedViews]);
+    void loadSettings();
+  }, [loadSavedViews, loadSettings]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -961,6 +1004,29 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     }
     applyMarineFilter(map, focusSeasOnly);
   }, [dataStatus, focusSeasOnly, mapReady]);
+
+  useEffect(() => {
+    if (!mapReady || dataStatus !== "ready" || defaultApplied) {
+      return;
+    }
+    if (!defaultViewId) {
+      setDefaultApplied(true);
+      return;
+    }
+    const view = savedViews.find((entry) => entry.id === defaultViewId);
+    if (!view) {
+      return;
+    }
+    applySavedView(view);
+    setDefaultApplied(true);
+  }, [
+    applySavedView,
+    dataStatus,
+    defaultApplied,
+    defaultViewId,
+    mapReady,
+    savedViews,
+  ]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1177,6 +1243,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
       <div className="map-modal__list">
         {savedViews.map((view) => {
           const isEditing = editingViewId === view.id;
+          const isDefault = defaultViewId === view.id;
           return (
             <div key={view.id} className="map-view-card">
               {isEditing ? (
@@ -1202,6 +1269,14 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
                     </button>
                     <button
                       type="button"
+                      className="map-view-card__action"
+                      onClick={() => void handleSetDefaultView(view)}
+                      disabled={isDefault}
+                    >
+                      {isDefault ? "Default" : "Set default"}
+                    </button>
+                    <button
+                      type="button"
                       className="map-view-card__action map-view-card__action--ghost"
                       onClick={() => {
                         setEditingViewId(null);
@@ -1219,7 +1294,19 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
                     className="map-view-card__main"
                     onClick={() => applySavedView(view)}
                   >
-                    <span className="map-view-card__title">{view.name}</span>
+                    <span className="map-view-card__title-row">
+                      <span className="map-view-card__title">{view.name}</span>
+                      {isDefault ? (
+                        <span className="map-view-card__default" aria-label="Default view">
+                          <svg viewBox="0 0 20 20" aria-hidden="true">
+                            <path
+                              d="M10 3.3 12.2 8l5.1.7-3.7 3.6.9 5.1-4.5-2.4-4.5 2.4.9-5.1-3.7-3.6 5.1-.7L10 3.3Z"
+                              fill="currentColor"
+                            />
+                          </svg>
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="map-view-card__meta">
                       Zoom {Math.round(view.zoom * 10) / 10}
                     </span>
@@ -1309,6 +1396,26 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
         />
         <span>Focus seas: Gulf of Mexico + Mediterranean</span>
       </label>
+      <div className="map-sidepanel__divider" />
+      <div className="map-sidepanel__row">
+        <span>Scale</span>
+        <button
+          type="button"
+          className="map-icon-button map-icon-button--inline"
+          onClick={() => setScaleSliderOpen((prev) => !prev)}
+          aria-label="Toggle scale slider"
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path
+              d="M4 6h12M4 10h8M4 14h10"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 
@@ -1394,7 +1501,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
       ) : null}
       <div className="map-shell">
         <div className="map-canvas" style={mapCanvasStyle} ref={containerRef} />
-        {scaleTest && scaleSliderOpen ? (
+        {scaleSliderOpen ? (
           <div className="map-scale-slider">
             <div className="map-scale-slider__label">
               Scale {Math.round(scaleValue * 100)}%
