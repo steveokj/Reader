@@ -38,7 +38,7 @@ const SCALE_MAX = 1;
 const SHOW_MAP_CONTROLS = process.env.NEXT_PUBLIC_MAP_CONTROLS === "1";
 
 const MAP_STYLE_URL = "/map-style-physical.json";
-const FEATURED_STATE_BORDER_ISO2 = ["US", "CA", "BR", "RU", "CN", "IN", "AU"];
+const FEATURED_STATE_BORDER_ISO2 = ["US", "CA", "RU", "AU"];
 const COUNTRY_LABEL_OVERRIDES: Record<string, [number, number]> = {
   US: [-98.5, 39.8],
   CA: [-100.5, 55.0],
@@ -1648,17 +1648,26 @@ function applyStateFilter(
     return;
   }
   const featuredIso2 = FEATURED_STATE_BORDER_ISO2.map((code) => code.toUpperCase());
+  const featuredFilter =
+    featuredIso2.length === 0
+      ? ["==", ["get", "iso_a2"], ""]
+      : ["in", ["get", "iso_a2"], ["literal", featuredIso2]];
+  if (mode === "none") {
+    if (hasLabels) {
+      map.setFilter("state-labels", ["==", ["get", "iso_a2"], ""]);
+    }
+    if (hasBorders) {
+      map.setFilter("state-borders", ["==", ["get", "iso_a2"], ""]);
+    }
+    return;
+  }
   if (mode === "selected") {
     if (selectedIso2.length === 0) {
       if (hasLabels) {
         map.setFilter("state-labels", ["==", ["get", "iso_a2"], ""]);
       }
       if (hasBorders) {
-        if (featuredIso2.length === 0) {
-          map.setFilter("state-borders", ["==", ["get", "iso_a2"], ""]);
-        } else {
-          map.setFilter("state-borders", ["in", ["get", "iso_a2"], ["literal", featuredIso2]]);
-        }
+        map.setFilter("state-borders", featuredFilter);
       }
       return;
     }
@@ -1675,7 +1684,7 @@ function applyStateFilter(
     map.setFilter("state-labels", null);
   }
   if (hasBorders) {
-    map.setFilter("state-borders", null);
+    map.setFilter("state-borders", featuredFilter);
   }
 }
 
