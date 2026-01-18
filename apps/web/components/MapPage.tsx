@@ -648,6 +648,60 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     }
   }, [apiBase, isMobile]);
 
+  const handleDeleteView = useCallback(
+    async (view: SavedView) => {
+      const confirmed = window.confirm(`Delete "${view.name}"? This cannot be undone.`);
+      if (!confirmed) {
+        return;
+      }
+      try {
+        const response = await fetch(`${apiBase}/map-views/${view.id}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          throw new Error("Failed to delete view");
+        }
+        setSavedViews((prev) => prev.filter((entry) => entry.id !== view.id));
+        if (editingViewId === view.id) {
+          setEditingViewId(null);
+          setEditingName("");
+        }
+        const updates: Record<string, number | null> = {};
+        if (defaultViewIdMobile === view.id) {
+          updates.default_map_view_id_mobile = null;
+        }
+        if (defaultViewIdDesktop === view.id) {
+          updates.default_map_view_id_desktop = null;
+        }
+        if (Object.keys(updates).length > 0) {
+          const settingsResponse = await fetch(`${apiBase}/settings`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updates),
+          });
+          if (!settingsResponse.ok) {
+            setStatus("View deleted, but failed to clear defaults.");
+            window.setTimeout(() => setStatus(null), 2500);
+            return;
+          }
+          if (defaultViewIdMobile === view.id) {
+            setDefaultViewIdMobile(null);
+          }
+          if (defaultViewIdDesktop === view.id) {
+            setDefaultViewIdDesktop(null);
+          }
+        }
+        setStatus("View deleted.");
+        window.setTimeout(() => setStatus(null), 2000);
+      } catch (error) {
+        console.error(error);
+        setStatus("Failed to delete view.");
+        window.setTimeout(() => setStatus(null), 2000);
+      }
+    },
+    [apiBase, defaultViewIdDesktop, defaultViewIdMobile, editingViewId]
+  );
+
   const handleMobilePanel = useCallback(
     (panel: "views" | "settings") => {
       setMobileBarsVisible(true);
@@ -1340,23 +1394,54 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
                         />
                       </svg>
                     </button>
+                    {isDefault ? (
+                      <button
+                        type="button"
+                        className="map-view-card__action"
+                        onClick={() => void handleClearDefaultView()}
+                        aria-label="Clear default view"
+                      >
+                        <svg viewBox="0 0 20 20" aria-hidden="true">
+                          <path
+                            d="M10 3.3 12.2 8l5.1.7-3.7 3.6.9 5.1-4.5-2.4-4.5 2.4.9-5.1-3.7-3.6 5.1-.7L10 3.3Z"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.3"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M5 15.5 15 4.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="map-view-card__action"
-                      onClick={() => void handleClearDefaultView()}
-                      disabled={!isDefault}
-                      aria-label="Clear default view"
+                      onClick={() => void handleDeleteView(view)}
+                      aria-label="Delete view"
                     >
                       <svg viewBox="0 0 20 20" aria-hidden="true">
                         <path
-                          d="M10 3.3 12.2 8l5.1.7-3.7 3.6.9 5.1-4.5-2.4-4.5 2.4.9-5.1-3.7-3.6 5.1-.7L10 3.3Z"
+                          d="M5.5 6.5h9l-.6 9a1.2 1.2 0 0 1-1.2 1.1H7.3A1.2 1.2 0 0 1 6.1 15.5l-.6-9Z"
                           fill="none"
                           stroke="currentColor"
-                          strokeWidth="1.3"
+                          strokeWidth="1.4"
                           strokeLinejoin="round"
                         />
                         <path
-                          d="M5 15.5 15 4.5"
+                          d="M8 6.5V5.2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.3"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M4 6.5h12"
                           fill="none"
                           stroke="currentColor"
                           strokeWidth="1.4"
