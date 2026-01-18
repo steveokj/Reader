@@ -380,7 +380,7 @@ function ensureLabelLayers(map: MapLibreMap) {
       "text-field": ["get", "name"],
       "text-size": 14,
       "text-letter-spacing": 0.08,
-      "text-font": ["Lato Bold", "Arial Unicode MS Regular"],
+      "text-font": ["Roboto Bold", "Arial Unicode MS Regular"],
     },
     paint: {
       "text-color": "#5f5f5f",
@@ -397,7 +397,7 @@ function ensureLabelLayers(map: MapLibreMap) {
       "text-field": ["get", "name"],
       "text-size": 13,
       "text-letter-spacing": 0.08,
-      "text-font": ["Lato Bold", "Arial Unicode MS Regular"],
+      "text-font": ["Roboto Bold", "Arial Unicode MS Regular"],
     },
     paint: {
       "text-color": "#5f5f5f",
@@ -714,7 +714,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
               "text-field": ["coalesce", ["get", "label"], ["get", "name"]],
               "text-size": 14,
               "text-letter-spacing": 0.08,
-              "text-font": ["Lato Semibold", "Arial Unicode MS Regular"],
+              "text-font": ["Roboto Medium", "Arial Unicode MS Regular"],
             },
             paint: {
               "text-color": "#5f7890",
@@ -994,7 +994,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
           layout: {
             "text-field": ["get", "name"],
             "text-size": 11,
-            "text-font": ["Lato Regular", "Arial Unicode MS Regular"],
+            "text-font": ["Roboto Regular", "Arial Unicode MS Regular"],
             "text-offset": [0, 0.6],
             "text-allow-overlap": false,
             "text-ignore-placement": false,
@@ -1085,7 +1085,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
               layout: {
                 "text-field": ["get", "name"],
                 "text-size": 11,
-                "text-font": ["Lato Semibold", "Arial Unicode MS Regular"],
+                "text-font": ["Roboto Medium", "Arial Unicode MS Regular"],
                 "text-offset": [0, 0.6],
                 "text-transform": "uppercase",
                 "text-allow-overlap": false,
