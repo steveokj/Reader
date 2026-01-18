@@ -33,7 +33,7 @@ type SavedView = {
 
 const DEFAULT_CENTER: [number, number] = [12, 22];
 const DEFAULT_ZOOM = 1.6;
-const DEFAULT_MAP_SCALE = 0.9;
+const DEFAULT_MAP_SCALE = 0.7;
 const SCALE_MIN = 0.7;
 const SCALE_MAX = 1;
 const SHOW_MAP_CONTROLS = process.env.NEXT_PUBLIC_MAP_CONTROLS === "1";
@@ -506,8 +506,16 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
       const data = await response.json();
       const settings = data?.settings ?? {};
       const legacyId = settings.default_map_view_id ?? null;
-      const mobileId = settings.default_map_view_id_mobile ?? legacyId ?? null;
-      const desktopId = settings.default_map_view_id_desktop ?? legacyId ?? null;
+      const hasMobile = Object.prototype.hasOwnProperty.call(
+        settings,
+        "default_map_view_id_mobile"
+      );
+      const hasDesktop = Object.prototype.hasOwnProperty.call(
+        settings,
+        "default_map_view_id_desktop"
+      );
+      const mobileId = hasMobile ? settings.default_map_view_id_mobile : legacyId;
+      const desktopId = hasDesktop ? settings.default_map_view_id_desktop : legacyId;
       setDefaultViewIdMobile(typeof mobileId === "number" ? mobileId : null);
       setDefaultViewIdDesktop(typeof desktopId === "number" ? desktopId : null);
     } catch (error) {
@@ -614,6 +622,31 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     },
     [apiBase, isMobile]
   );
+
+  const handleClearDefaultView = useCallback(async () => {
+    try {
+      const field = isMobile ? "default_map_view_id_mobile" : "default_map_view_id_desktop";
+      const response = await fetch(`${apiBase}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: null }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update settings");
+      }
+      if (isMobile) {
+        setDefaultViewIdMobile(null);
+      } else {
+        setDefaultViewIdDesktop(null);
+      }
+      setStatus("Default view cleared.");
+      window.setTimeout(() => setStatus(null), 2000);
+    } catch (error) {
+      console.error(error);
+      setStatus("Failed to clear default view.");
+      window.setTimeout(() => setStatus(null), 2000);
+    }
+  }, [apiBase, isMobile]);
 
   const handleMobilePanel = useCallback(
     (panel: "views" | "settings") => {
@@ -1277,16 +1310,59 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
                       type="button"
                       className="map-view-card__action"
                       onClick={() => void handleRenameView(view)}
+                      aria-label="Save name"
                     >
-                      Save
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path
+                          d="M4 10.5 8.2 14.5 16 6.5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
                     </button>
                     <button
                       type="button"
                       className="map-view-card__action"
                       onClick={() => void handleSetDefaultView(view)}
                       disabled={isDefault}
+                      aria-label="Set default view"
                     >
-                      {isDefault ? "Default" : "Set default"}
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path
+                          d="M10 3.3 12.2 8l5.1.7-3.7 3.6.9 5.1-4.5-2.4-4.5 2.4.9-5.1-3.7-3.6 5.1-.7L10 3.3Z"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.3"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="map-view-card__action"
+                      onClick={() => void handleClearDefaultView()}
+                      disabled={!isDefault}
+                      aria-label="Clear default view"
+                    >
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path
+                          d="M10 3.3 12.2 8l5.1.7-3.7 3.6.9 5.1-4.5-2.4-4.5 2.4.9-5.1-3.7-3.6 5.1-.7L10 3.3Z"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.3"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M5 15.5 15 4.5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                          strokeLinecap="round"
+                        />
+                      </svg>
                     </button>
                     <button
                       type="button"
@@ -1295,8 +1371,17 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
                         setEditingViewId(null);
                         setEditingName("");
                       }}
+                      aria-label="Cancel edit"
                     >
-                      Cancel
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path
+                          d="M5.5 5.5 14.5 14.5M14.5 5.5 5.5 14.5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        />
+                      </svg>
                     </button>
                   </div>
                 </>
@@ -1450,16 +1535,17 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     top: `-${scaleOffset}%`,
     transform: `scale(${scaleValue})`,
   } as const;
+  const hideMobileBars = isMobile && scaleSliderOpen;
   const showToolbar = !scaleTest;
   const showSidepanel = !scaleTest && (!isMobile || mobilePanel !== null);
-  const showBottomNav = !scaleTest && isMobile && mobileBarsVisible;
+  const showBottomNav = !scaleTest && isMobile && mobileBarsVisible && !scaleSliderOpen;
 
   return (
     <div className="map-page">
       {showToolbar ? (
         <header
           className={`map-toolbar${isMobile ? " map-toolbar--mobile" : ""}${
-            isMobile && !mobileBarsVisible ? " map-toolbar--hidden" : ""
+            isMobile && (!mobileBarsVisible || hideMobileBars) ? " map-toolbar--hidden" : ""
           }`}
         >
           <div className="map-toolbar__title">Map</div>

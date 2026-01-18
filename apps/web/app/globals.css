@@ -2265,13 +2265,30 @@ html[data-reader-theme="dark"] .reader-layout {
   background: var(--reader-panel, #fffaf5);
   color: var(--reader-ink, var(--ink));
   border-radius: 999px;
-  padding: 4px 8px;
-  font-size: 11px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 0;
+  line-height: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
 }
 
 .map-view-card__action--ghost {
   opacity: 0.7;
+}
+
+.map-view-card__action svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.map-view-card__action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .map-toggle {
