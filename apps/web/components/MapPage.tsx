@@ -1818,10 +1818,10 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
           source: "cities",
           minzoom: 1.2,
           paint: {
-            "circle-color": "#2f78d0",
-            "circle-radius": 4,
-            "circle-stroke-width": 1,
-            "circle-stroke-color": "rgba(255,255,255,0.8)",
+            "circle-color": "rgba(47,120,208,0)",
+            "circle-radius": 6,
+            "circle-stroke-width": 2,
+            "circle-stroke-color": "#2f78d0",
           },
           filter: ["==", ["to-string", ["get", "ne_id"]], ""],
         });

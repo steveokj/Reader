@@ -2317,7 +2317,7 @@ html[data-reader-theme="dark"] .reader-layout {
 
 .map-toast {
   position: absolute;
-  left: 16px;
+  left: 50%;
   bottom: 16px;
   background: var(--reader-panel, #fffaf5);
   border: 1px solid var(--reader-border, rgba(31, 28, 22, 0.12));
@@ -2327,6 +2327,7 @@ html[data-reader-theme="dark"] .reader-layout {
   color: var(--reader-ink, var(--ink));
   box-shadow: 0 10px 20px var(--reader-shadow, var(--shadow));
   z-index: 2;
+  transform: translateX(-50%);
 }
 
 @media (max-width: 900px) {
