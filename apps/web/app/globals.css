@@ -2442,6 +2442,11 @@ html[data-reader-theme="dark"] .reader-layout {
   color: var(--reader-ink, var(--ink));
 }
 
+.map-modal__textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
 .map-modal__actions {
   display: flex;
   align-items: center;
