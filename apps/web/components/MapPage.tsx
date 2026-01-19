@@ -486,6 +486,15 @@ function applySelection(map: MapLibreMap, iso2Codes: string[], selectedStateCode
     return;
   }
   const normalized = iso2Codes.map((code) => code.toUpperCase());
+  const stateCountryCodes = new Set(
+    selectedStateCodes
+      .map((code) => code.split("-")[0]?.toUpperCase())
+      .filter((code) => Boolean(code))
+  );
+  const outlineCodes =
+    stateCountryCodes.size > 0
+      ? normalized.filter((code) => !stateCountryCodes.has(code))
+      : normalized;
   map.setPaintProperty("countries-fill", "fill-color", [
     "case",
     ["in", ["get", "ISO3166-1-Alpha-2"], ["literal", normalized]],
@@ -495,14 +504,14 @@ function applySelection(map: MapLibreMap, iso2Codes: string[], selectedStateCode
   if (!map.getLayer("countries-selected-outline")) {
     return;
   }
-  if (selectedStateCodes.length > 0 || normalized.length === 0) {
+  if (outlineCodes.length === 0) {
     map.setFilter("countries-selected-outline", ["==", ["get", "ISO3166-1-Alpha-2"], ""]);
     return;
   }
   map.setFilter("countries-selected-outline", [
     "in",
     ["get", "ISO3166-1-Alpha-2"],
-    ["literal", normalized],
+    ["literal", outlineCodes],
   ]);
 }
 
@@ -1052,8 +1061,11 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     }
     if (exploreMatches.states.length > 0) {
       const stateCodes = exploreMatches.states.map((entry) => entry.code);
+      const stateCountryCodes = exploreMatches.states
+        .map((entry) => entry.countryCode)
+        .filter(Boolean);
       const countryCodes = Array.from(
-        new Set(exploreMatches.states.map((entry) => entry.countryCode).filter(Boolean))
+        new Set([...exploreMatches.countries.map((entry) => entry.code), ...stateCountryCodes])
       );
       setSelectedStateCodes(stateCodes);
       setSelectedIso2(countryCodes);
@@ -2411,8 +2423,16 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
           </div>
         ) : null}
         {exploreModalOpen ? (
-          <div className="map-modal" role="dialog" aria-modal="true">
-            <div className="map-modal__panel map-modal__panel--overlay">
+          <div
+            className="map-modal map-modal--explore"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => handleCloseExplore()}
+          >
+            <div
+              className="map-modal__panel map-modal__panel--explore"
+              onClick={(event) => event.stopPropagation()}
+            >
               <div className="map-modal__header">
                 <div className="map-modal__title">Explore map</div>
                 <button

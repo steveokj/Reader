@@ -1907,6 +1907,14 @@ html[data-reader-theme="dark"] .reader-layout {
 }
 
 .map-button--icon-only .map-button__icon {
+  display: block;
+}
+
+.map-button--icon-only .map-button__text {
+  display: none;
+}
+
+.map-button--icon-only .map-button__icon {
   width: 18px;
   height: 18px;
 }
@@ -2360,6 +2368,11 @@ html[data-reader-theme="dark"] .reader-layout {
   z-index: 4;
 }
 
+.map-modal--explore {
+  align-items: flex-end;
+  padding: 0 14px 16px;
+}
+
 .map-modal__panel {
   width: min(520px, 92vw);
   height: min(560px, 80vh);
@@ -2381,6 +2394,18 @@ html[data-reader-theme="dark"] .reader-layout {
   max-width: none;
   max-height: 80vh;
   border-radius: 16px;
+}
+
+.map-modal__panel--explore {
+  width: min(720px, 100%);
+  height: auto;
+  max-height: 92vh;
+  margin: 0;
+  border-radius: 18px 18px 0 0;
+}
+
+.map-modal__panel--explore .map-modal__body {
+  overflow-y: auto;
 }
 
 .map-modal__header {
