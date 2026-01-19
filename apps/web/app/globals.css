@@ -1831,6 +1831,18 @@ html[data-reader-theme="dark"] .reader-layout {
   font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
 }
 
+.reader-map-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--reader-paper, #f6f1e9);
+}
+
+.reader-map-overlay .map-page {
+  position: absolute;
+  inset: 0;
+}
+
 .map-toolbar {
   display: flex;
   align-items: center;
@@ -1869,6 +1881,10 @@ html[data-reader-theme="dark"] .reader-layout {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.map-toolbar__close {
+  flex-shrink: 0;
 }
 
 .map-input {

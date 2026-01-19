@@ -17,6 +17,7 @@ type ActionMenuProps = {
   onAudio: () => void;
   onGrammar: () => void;
   onExplore: () => void;
+  onMap: () => void;
   onClose: () => void;
 };
 
@@ -95,6 +96,15 @@ function IconMore() {
   );
 }
 
+function IconMap() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 6l6-2 6 2 4-1v13l-4 1-6-2-6 2-4-1V5l4 1z" />
+      <path d="M10 4v14M16 6v14" />
+    </svg>
+  );
+}
+
 export default function ActionMenu({
   top,
   left,
@@ -109,6 +119,7 @@ export default function ActionMenu({
   onAudio,
   onGrammar,
   onExplore,
+  onMap,
   onClose,
   variant = "floating",
 }: ActionMenuProps) {
@@ -170,6 +181,9 @@ export default function ActionMenu({
         </button>
         <button type="button" aria-label="More" title="More">
           <IconMore />
+        </button>
+        <button type="button" onClick={onMap} aria-label="Map" title="Map">
+          <IconMap />
         </button>
       </div>
     </div>

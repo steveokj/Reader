@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import ActionMenu from "@/components/ActionMenu";
 import ExploreChatModal from "@/components/ExploreChatModal";
+import MapPage from "@/components/MapPage";
 import LookupPanel from "@/components/LookupPanel";
 import ReaderDocument from "@/components/ReaderDocument";
 import ReaderHighlightsPanel from "@/components/ReaderHighlightsPanel";
@@ -674,6 +675,8 @@ export default function ReaderClient({
   const [exploreModalOpen, setExploreModalOpen] = useState(false);
   const [exploreSelectionText, setExploreSelectionText] = useState("");
   const [exploreAnchor, setExploreAnchor] = useState<ExploreAnchor | null>(null);
+  const [mapOverlayOpen, setMapOverlayOpen] = useState(false);
+  const [mapSelectionText, setMapSelectionText] = useState("");
   const [editingNote, setEditingNote] = useState<Addition | null>(null);
   const [artifactNoteOpen, setArtifactNoteOpen] = useState(false);
   const [artifactNoteSource, setArtifactNoteSource] = useState<ArtifactSource | null>(null);
@@ -2874,6 +2877,20 @@ export default function ReaderClient({
     ]
   );
 
+  const handleOpenMap = useCallback(
+    (selectionText: string) => {
+      setMapSelectionText(selectionText?.trim() ?? "");
+      setMapOverlayOpen(true);
+      if (isMobile) {
+        setMobilePanel(null);
+        setMobileNavOpen(false);
+        setMobilePageNavOpen(false);
+      }
+      clearSelection();
+    },
+    [clearSelection, isMobile]
+  );
+
   const handleRequestExploreAnchor = useCallback(() => {
     const draft = buildDraftSelectionFromPosition();
     if (!draft) {
@@ -3717,6 +3734,7 @@ export default function ReaderClient({
               onAudio={handleOpenAudio}
               onGrammar={handleOpenGrammar}
               onExplore={() => handleOpenExplore(menuState.selectionText)}
+              onMap={() => handleOpenMap(menuState.selectionText)}
               onClose={clearSelection}
             />
           ) : null}
@@ -3768,6 +3786,7 @@ export default function ReaderClient({
                   onAudio={handleOpenAudio}
                   onGrammar={handleOpenGrammar}
                   onExplore={() => handleOpenExplore(menuState.selectionText)}
+                  onMap={() => handleOpenMap(menuState.selectionText)}
                   onClose={() => {
                     setMobilePanel(null);
                     setMobileNavOpen(false);
@@ -4187,6 +4206,15 @@ export default function ReaderClient({
         onRefresh={handleRefreshLookup}
         onClose={handleCloseLookup}
       />
+      {mapOverlayOpen ? (
+        <div className="reader-map-overlay">
+          <MapPage
+            initialExploreText={mapSelectionText}
+            autoExplore
+            onClose={() => setMapOverlayOpen(false)}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -680,9 +680,17 @@ function applyLabelState(
 
 type MapPageProps = {
   scaleTest?: boolean;
+  initialExploreText?: string;
+  autoExplore?: boolean;
+  onClose?: () => void;
 };
 
-export default function MapPage({ scaleTest = false }: MapPageProps) {
+export default function MapPage({
+  scaleTest = false,
+  initialExploreText,
+  autoExplore = false,
+  onClose,
+}: MapPageProps) {
   const mapRef = useRef<MapLibreMap | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const countriesRef = useRef<GeoFeatureCollection | null>(null);
@@ -691,6 +699,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
   const statesLookupRef = useRef<StateLookup | null>(null);
   const citiesRef = useRef<GeoFeatureCollection | null>(null);
   const citiesLookupRef = useRef<CityLookup | null>(null);
+  const autoExploreRequestedRef = useRef(false);
   const apiBase = getClientApiBase();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -1278,6 +1287,38 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     }
     setExploreModalOpen(false);
   }, [dataStatus, exploreMatches, mapReady]);
+
+  useEffect(() => {
+    if (!initialExploreText) {
+      return;
+    }
+    setExploreInput(initialExploreText);
+    setExploreModalOpen(true);
+    setExploreMessage(null);
+    setExploreMatches(null);
+    setExploreStatus("idle");
+    autoExploreRequestedRef.current = false;
+  }, [initialExploreText]);
+
+  useEffect(() => {
+    if (!autoExplore || !initialExploreText) {
+      return;
+    }
+    if (autoExploreRequestedRef.current) {
+      return;
+    }
+    if (dataStatus !== "ready") {
+      return;
+    }
+    if (countriesIndexRef.current.size === 0) {
+      return;
+    }
+    if (exploreStatus === "loading") {
+      return;
+    }
+    autoExploreRequestedRef.current = true;
+    void handleExploreRequest();
+  }, [autoExplore, dataStatus, exploreStatus, handleExploreRequest, initialExploreText]);
 
   const handleDeleteView = useCallback(
     async (view: SavedView) => {
@@ -2500,6 +2541,24 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
               <span className="map-button__text">Go</span>
             </button>
           </form>
+          {onClose ? (
+            <button
+              type="button"
+              className="map-icon-button map-icon-button--inline map-toolbar__close"
+              onClick={onClose}
+              aria-label="Close map"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path
+                  d="M5 5 15 15M15 5 5 15"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          ) : null}
         </header>
       ) : null}
       <div className="map-shell">
