@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "concurrently -k -n web,api -c blue,green \"npm run dev:web\" \"npm run dev:api\"",
-    "dev:web": "set \"NODE_EXTRA_CA_CERTS=%LOCALAPPDATA%\\mkcert\\rootCA.pem\"&& set \"NODE_OPTIONS=--use-system-ca\"&& npm --prefix apps/web run dev -- --hostname 0.0.0.0 --port 3002 --experimental-https --experimental-https-key ..\\..\\192.168.2.34-key.pem --experimental-https-cert ..\\..\\192.168.2.34.pem",
-    "dev:api": ".\\.venv\\Scripts\\python -m uvicorn apps.api.main:app --reload --host 0.0.0.0 --port 8002 --ssl-keyfile 192.168.2.34-key.pem --ssl-certfile 192.168.2.34.pem"
+    "dev:web": "set \"NEXT_PUBLIC_API_URL=https://192.168.2.34:8002\"&& set \"NODE_EXTRA_CA_CERTS=%LOCALAPPDATA%\\mkcert\\rootCA.pem\"&& set \"NODE_OPTIONS=--use-system-ca\"&& npm --prefix apps/web run dev -- --hostname 0.0.0.0 --port 3002 --experimental-https --experimental-https-key ..\\..\\192.168.2.34-key.pem --experimental-https-cert ..\\..\\192.168.2.34.pem",
+    "dev:api": "powershell -NoProfile -Command \"if (Get-NetTCPConnection -LocalPort 8002 -ErrorAction SilentlyContinue) { Write-Error 'Port 8002 in use'; exit 1 }; & .\\.venv\\Scripts\\python -m uvicorn apps.api.main:app --reload --access-log --log-level debug --host 0.0.0.0 --port 8002 --ssl-keyfile 192.168.2.34-key.pem --ssl-certfile 192.168.2.34.pem\""
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
