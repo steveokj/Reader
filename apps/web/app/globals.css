@@ -2329,6 +2329,12 @@ html[data-reader-theme="dark"] .reader-layout {
   z-index: 2;
 }
 
+@media (max-width: 900px) {
+  .map-toast {
+    bottom: calc(16px + var(--map-mobile-nav-height, 60px));
+  }
+}
+
 .map-toast--error {
   border-color: rgba(192, 57, 43, 0.4);
   color: #c0392b;
@@ -2406,6 +2412,14 @@ html[data-reader-theme="dark"] .reader-layout {
 
 .map-modal__panel--explore .map-modal__body {
   overflow-y: auto;
+}
+
+.map-modal--explore .map-button__icon {
+  display: block;
+}
+
+.map-modal--explore .map-button__text {
+  display: none;
 }
 
 .map-modal__header {

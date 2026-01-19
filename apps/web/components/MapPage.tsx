@@ -1982,7 +1982,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
   ]);
 
   const handleSubmit = useCallback(
-    (event: React.FormEvent<HTMLFormElement>) => {
+    async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       const trimmed = query.trim();
       if (!trimmed) {
@@ -2001,44 +2001,143 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
         return;
       }
       const terms = parsePlaces(trimmed);
-      const matches = terms
-        .map((term) => index.get(normalizeKey(term)) ?? null)
-        .filter(Boolean) as GeoFeature[];
-      if (matches.length === 0) {
-        setStatus("No countries matched.");
+      if (terms.length === 0) {
+        setStatus("No places found.");
         window.setTimeout(() => setStatus(null), 2000);
         return;
       }
-      const bbox = unionBounds(matches);
-      if (!bbox) {
-        setStatus("Unable to compute bounds.");
+      const countryMatches: GeoFeature[] = [];
+      const stateMatches: GeoFeature[] = [];
+      const cityMatches: GeoFeature[] = [];
+      const unmatchedTerms: string[] = [];
+
+      terms.forEach((term) => {
+        const feature = index.get(normalizeKey(term)) ?? null;
+        if (feature) {
+          countryMatches.push(feature);
+        } else {
+          unmatchedTerms.push(term);
+        }
+      });
+
+      if (unmatchedTerms.length > 0) {
+        try {
+          await Promise.all([loadStatesData(), loadCitiesData()]);
+        } catch (error) {
+          console.warn("Failed to load states or cities", error);
+        }
+        const stateLookup = statesLookupRef.current;
+        const cityLookup = citiesLookupRef.current;
+        unmatchedTerms.forEach((term) => {
+          const normalizedTerm = normalizeKey(term);
+          if (!normalizedTerm) {
+            return;
+          }
+          if (stateLookup) {
+            const upper = term.trim().toUpperCase();
+            let candidates: GeoFeature[] = [];
+            if (upper.includes("-")) {
+              const match = stateLookup.byIso.get(upper);
+              if (match) {
+                candidates = [match];
+              }
+            }
+            if (!candidates.length && upper.length <= 3) {
+              candidates = stateLookup.byPostal.get(normalizeKey(upper)) ?? [];
+            }
+            if (!candidates.length) {
+              candidates = stateLookup.byName.get(normalizedTerm) ?? [];
+            }
+            candidates.forEach((feature) => {
+              if (!feature.geometry) {
+                return;
+              }
+              stateMatches.push(feature);
+            });
+          }
+          if (cityLookup) {
+            const candidates = cityLookup.byName.get(normalizedTerm) ?? [];
+            candidates.forEach((feature) => {
+              if (!feature.geometry) {
+                return;
+              }
+              cityMatches.push(feature);
+            });
+          }
+        });
+      }
+
+      if (countryMatches.length === 0 && stateMatches.length === 0 && cityMatches.length === 0) {
+        setStatus("No matches found.");
         window.setTimeout(() => setStatus(null), 2000);
         return;
       }
-      const iso2Codes = matches
-        .map((feature) => String(feature.properties?.["ISO3166-1-Alpha-2"] ?? "").trim())
-        .filter(Boolean);
+
+      const stateCodes = Array.from(
+        new Set(
+          stateMatches
+            .map((feature) => String(feature.properties?.iso_3166_2 ?? "").trim())
+            .filter(Boolean)
+        )
+      );
+      const cityKeys = Array.from(
+        new Set(
+          cityMatches.map((feature) => getCityKey(feature)).filter((key) => Boolean(key))
+        )
+      );
+      const countryCodes = new Set<string>();
+      countryMatches.forEach((feature) => {
+        const iso2 = String(feature.properties?.["ISO3166-1-Alpha-2"] ?? "").trim();
+        if (iso2) {
+          countryCodes.add(iso2.toUpperCase());
+        }
+      });
+      stateMatches.forEach((feature) => {
+        const iso2 = String(feature.properties?.iso_a2 ?? "").trim();
+        if (iso2) {
+          countryCodes.add(iso2.toUpperCase());
+        }
+      });
+      cityMatches.forEach((feature) => {
+        const iso2 = String(feature.properties?.iso_a2 ?? "").trim();
+        if (iso2) {
+          countryCodes.add(iso2.toUpperCase());
+        }
+      });
+
+      const iso2Codes = Array.from(countryCodes);
       setSelectedIso2(iso2Codes);
-      setSelectedStateCodes([]);
-      setSelectedCityKeys([]);
+      setSelectedStateCodes(stateCodes);
+      setSelectedCityKeys(cityKeys);
       setLabelsMode("selected");
-      applySelection(map, iso2Codes, []);
-      applyStateSelection(map, []);
-      applyCitySelection(map, []);
+      applySelection(map, iso2Codes, stateCodes);
+      applyStateSelection(map, stateCodes);
+      applyCitySelection(map, cityKeys);
       applyLabelState(map, "selected", iso2Codes);
       applyCityFilter(map, "selected", iso2Codes);
       applyStateFilter(map, "selected", iso2Codes);
-      map.fitBounds(
-        [
-          [bbox.west, bbox.south],
-          [bbox.east, bbox.north],
-        ],
-        { padding: 60, duration: 800 }
-      );
-      setStatus(`Showing ${iso2Codes.join(", ") || matches.length} countries.`);
+
+      const bbox = unionBounds([...countryMatches, ...stateMatches, ...cityMatches]);
+      if (bbox) {
+        map.fitBounds(
+          [
+            [bbox.west, bbox.south],
+            [bbox.east, bbox.north],
+          ],
+          { padding: 60, duration: 800 }
+        );
+      }
+      const label = [
+        stateCodes.length ? `${stateCodes.length} states` : null,
+        cityKeys.length ? `${cityKeys.length} cities` : null,
+        iso2Codes.length ? `${iso2Codes.length} countries` : null,
+      ]
+        .filter(Boolean)
+        .join(", ");
+      setStatus(label ? `Showing ${label}.` : "Showing selection.");
       window.setTimeout(() => setStatus(null), 2000);
     },
-    [dataStatus, labelsMode, mapReady, query]
+    [dataStatus, labelsMode, loadCitiesData, loadStatesData, mapReady, query]
   );
 
   const savedViewsList =
