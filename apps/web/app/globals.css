@@ -2318,7 +2318,7 @@ html[data-reader-theme="dark"] .reader-layout {
 .map-toast {
   position: absolute;
   left: 50%;
-  bottom: 16px;
+  top: 50%;
   background: var(--reader-panel, #fffaf5);
   border: 1px solid var(--reader-border, rgba(31, 28, 22, 0.12));
   border-radius: 999px;
@@ -2327,12 +2327,12 @@ html[data-reader-theme="dark"] .reader-layout {
   color: var(--reader-ink, var(--ink));
   box-shadow: 0 10px 20px var(--reader-shadow, var(--shadow));
   z-index: 2;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
 }
 
 @media (max-width: 900px) {
   .map-toast {
-    bottom: calc(16px + var(--map-mobile-nav-height, 60px));
+    top: 50%;
   }
 }
 
