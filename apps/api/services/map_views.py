@@ -22,6 +22,13 @@ def _serialize_view(row: Dict[str, Any]) -> Dict[str, Any]:
             selected_state_codes = json.loads(raw_states)
         except json.JSONDecodeError:
             selected_state_codes = []
+    selected_city_keys = []
+    raw_cities = row.get("selected_city_keys")
+    if raw_cities:
+        try:
+            selected_city_keys = json.loads(raw_cities)
+        except json.JSONDecodeError:
+            selected_city_keys = []
     return {
         "id": row["id"],
         "name": row["name"],
@@ -41,6 +48,7 @@ def _serialize_view(row: Dict[str, Any]) -> Dict[str, Any]:
         "focus_seas_only": bool(row["focus_seas_only"]),
         "selected_iso2": selected_iso2,
         "selected_state_codes": selected_state_codes,
+        "selected_city_keys": selected_city_keys,
         "created_at": row["created_at"],
     }
 
@@ -67,6 +75,7 @@ def list_map_views(conn) -> List[Dict[str, Any]]:
           focus_seas_only,
           selected_iso2,
           selected_state_codes,
+          selected_city_keys,
           created_at
         FROM map_saved_views
         ORDER BY created_at DESC, id DESC
@@ -97,9 +106,10 @@ def create_map_view(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
           focus_seas_only,
           selected_iso2,
           selected_state_codes,
+          selected_city_keys,
           created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             payload["name"],
@@ -119,6 +129,7 @@ def create_map_view(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
             1 if payload.get("focus_seas_only") else 0,
             json.dumps(payload.get("selected_iso2") or []),
             json.dumps(payload.get("selected_state_codes") or []),
+            json.dumps(payload.get("selected_city_keys") or []),
             now,
         ),
     )
@@ -144,6 +155,7 @@ def create_map_view(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
           focus_seas_only,
           selected_iso2,
           selected_state_codes,
+          selected_city_keys,
           created_at
         FROM map_saved_views
         WHERE id = ?
@@ -190,6 +202,7 @@ def update_map_view(conn, view_id: int, name: str) -> Optional[Dict[str, Any]]:
           focus_seas_only,
           selected_iso2,
           selected_state_codes,
+          selected_city_keys,
           created_at
         FROM map_saved_views
         WHERE id = ?

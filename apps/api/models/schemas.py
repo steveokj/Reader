@@ -117,6 +117,7 @@ class MapViewCreate(BaseModel):
     focus_seas_only: bool
     selected_iso2: List[str]
     selected_state_codes: List[str] = []
+    selected_city_keys: List[str] = []
 
 
 class MapView(MapViewCreate):

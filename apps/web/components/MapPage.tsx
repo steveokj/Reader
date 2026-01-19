@@ -29,6 +29,7 @@ type SavedView = {
   focus_seas_only: boolean;
   selected_iso2: string[];
   selected_state_codes: string[];
+  selected_city_keys: string[];
   created_at: string;
 };
 type MapExploreCountry = { name?: string; code?: string };
@@ -51,6 +52,10 @@ type StateLookup = {
   byIso: Map<string, GeoFeature>;
   byPostal: Map<string, GeoFeature[]>;
 };
+type CityLookup = {
+  byName: Map<string, GeoFeature[]>;
+  byNameCountry: Map<string, GeoFeature[]>;
+};
 type MapExploreCountryMatch = {
   name: string;
   code: string;
@@ -62,11 +67,17 @@ type MapExploreStateMatch = {
   countryCode: string;
   feature: GeoFeature;
 };
+type MapExploreCityMatch = {
+  name: string;
+  key: string;
+  countryCode: string;
+  feature: GeoFeature;
+};
 type MapExploreMatches = {
   query: string;
   countries: MapExploreCountryMatch[];
   states: MapExploreStateMatch[];
-  cities: string[];
+  cities: MapExploreCityMatch[];
 };
 
 const DEFAULT_CENTER: [number, number] = [12, 22];
@@ -460,6 +471,61 @@ function buildStateLookup(features: GeoFeature[]): StateLookup {
   return { byName, byIso, byPostal };
 }
 
+function getCityKey(feature: GeoFeature) {
+  const props = feature.properties ?? {};
+  const raw = props.ne_id ?? props["ne_id"] ?? props.id ?? props["id"];
+  if (raw !== undefined && raw !== null) {
+    return String(raw).trim();
+  }
+  const name = String(props.name ?? props.nameascii ?? "").trim();
+  const iso2 = String(props.iso_a2 ?? props["iso_a2"] ?? "").trim();
+  return normalizeKey(`${name}-${iso2}`) || `${name}-${iso2}` || "";
+}
+
+function buildCityLookup(features: GeoFeature[]): CityLookup {
+  const byName = new Map<string, GeoFeature[]>();
+  const byNameCountry = new Map<string, GeoFeature[]>();
+
+  features.forEach((feature) => {
+    const props = feature.properties ?? {};
+    const name = String(props.name ?? "").trim();
+    const nameAscii = String(props.nameascii ?? "").trim();
+    const nameAlt = String(props.name_alt ?? "").trim();
+    const iso2 = String(props.iso_a2 ?? props["iso_a2"] ?? "").trim().toUpperCase();
+    const add = (label: string) => {
+      if (!label) {
+        return;
+      }
+      const normalized = normalizeKey(label);
+      if (!normalized) {
+        return;
+      }
+      const list = byName.get(normalized);
+      if (list) {
+        list.push(feature);
+      } else {
+        byName.set(normalized, [feature]);
+      }
+      if (iso2) {
+        const key = `${normalized}|${iso2}`;
+        const scoped = byNameCountry.get(key);
+        if (scoped) {
+          scoped.push(feature);
+        } else {
+          byNameCountry.set(key, [feature]);
+        }
+      }
+    };
+    add(name);
+    add(nameAscii);
+    if (nameAlt) {
+      nameAlt.split("|").forEach((alt) => add(alt.trim()));
+    }
+  });
+
+  return { byName, byNameCountry };
+}
+
 function unionBounds(features: GeoFeature[]): Bounds | null {
   if (features.length === 0) {
     return null;
@@ -526,6 +592,21 @@ function applyStateSelection(map: MapLibreMap, stateCodes: string[]) {
   }
   const normalized = stateCodes.map((code) => code.toUpperCase());
   map.setFilter("state-selection", ["in", ["get", "iso_3166_2"], ["literal", normalized]]);
+}
+
+function applyCitySelection(map: MapLibreMap, cityKeys: string[]) {
+  if (!map.getLayer("city-selection")) {
+    return;
+  }
+  if (cityKeys.length === 0) {
+    map.setFilter("city-selection", ["==", ["to-string", ["get", "ne_id"]], ""]);
+    return;
+  }
+  map.setFilter("city-selection", [
+    "in",
+    ["to-string", ["get", "ne_id"]],
+    ["literal", cityKeys],
+  ]);
 }
 
 function ensureLabelLayers(map: MapLibreMap) {
@@ -608,6 +689,8 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
   const countriesIndexRef = useRef<Map<string, GeoFeature>>(new Map());
   const statesRef = useRef<GeoFeatureCollection | null>(null);
   const statesLookupRef = useRef<StateLookup | null>(null);
+  const citiesRef = useRef<GeoFeatureCollection | null>(null);
+  const citiesLookupRef = useRef<CityLookup | null>(null);
   const apiBase = getClientApiBase();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -631,6 +714,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
   const [labelsMode, setLabelsMode] = useState<"none" | "selected" | "all">("all");
   const [selectedIso2, setSelectedIso2] = useState<string[]>([]);
   const [selectedStateCodes, setSelectedStateCodes] = useState<string[]>([]);
+  const [selectedCityKeys, setSelectedCityKeys] = useState<string[]>([]);
   const [citiesVisible, setCitiesVisible] = useState(false);
   const [citiesStatus, setCitiesStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle"
@@ -712,6 +796,20 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     return data;
   }, []);
 
+  const loadCitiesData = useCallback(async () => {
+    if (citiesRef.current && citiesLookupRef.current) {
+      return citiesRef.current;
+    }
+    const response = await fetch("/data/cities.geojson");
+    if (!response.ok) {
+      throw new Error("Failed to load cities");
+    }
+    const data = (await response.json()) as GeoFeatureCollection;
+    citiesRef.current = data;
+    citiesLookupRef.current = buildCityLookup(data.features ?? []);
+    return data;
+  }, []);
+
   const resolveCountryCode = useCallback((value: string) => {
     const trimmed = value.trim();
     if (!trimmed) {
@@ -742,15 +840,18 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
       const labelsModeValue = view.labels_mode ?? "all";
       const selected = view.selected_iso2 ?? [];
       const selectedStates = view.selected_state_codes ?? [];
+      const selectedCities = view.selected_city_keys ?? [];
       setLabelsMode(labelsModeValue);
       setCitiesVisible(view.cities_visible);
       setStatesVisible(view.states_visible);
       setFocusSeasOnly(view.focus_seas_only);
       setSelectedIso2(selected);
       setSelectedStateCodes(selectedStates);
+      setSelectedCityKeys(selectedCities);
       setMapScale(view.map_scale ?? DEFAULT_MAP_SCALE);
       applySelection(map, selected, selectedStates);
       applyStateSelection(map, selectedStates);
+      applyCitySelection(map, selectedCities);
       applyLabelState(map, labelsModeValue, selected);
       applyCityFilter(map, labelsModeValue, selected);
       applyStateFilter(map, labelsModeValue, selected);
@@ -879,9 +980,10 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     async (response: MapExploreResponse): Promise<MapExploreMatches> => {
       const countries: MapExploreCountryMatch[] = [];
       const states: MapExploreStateMatch[] = [];
-      const cities: string[] = [];
+      const cities: MapExploreCityMatch[] = [];
       const countryCodes = new Set<string>();
       const stateCodes = new Set<string>();
+      const cityKeys = new Set<string>();
       const query = String(response.query ?? "").trim();
       const countryEntries = response.countries ?? [];
       const stateEntries = response.states ?? [];
@@ -987,12 +1089,55 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
         });
       }
 
-      cityEntries.forEach((entry) => {
-        const name = typeof entry === "string" ? entry : String(entry.name ?? "").trim();
-        if (name) {
-          cities.push(name);
-        }
-      });
+      if (cityEntries.length > 0) {
+        await loadCitiesData();
+      }
+      const cityLookup = citiesLookupRef.current;
+      if (cityLookup) {
+        cityEntries.forEach((entry) => {
+          const name = typeof entry === "string" ? entry : String(entry.name ?? "").trim();
+          if (!name) {
+            return;
+          }
+          const countryInput =
+            typeof entry === "string"
+              ? ""
+              : String(entry.country_code ?? entry.country ?? "").trim();
+          const countryCode = countryInput ? resolveCountryCode(countryInput) : null;
+          const normalized = normalizeKey(name);
+          if (!normalized) {
+            return;
+          }
+          let candidates: GeoFeature[] = [];
+          if (countryCode) {
+            const key = `${normalized}|${countryCode}`;
+            candidates = cityLookup.byNameCountry.get(key) ?? [];
+          }
+          if (!candidates.length) {
+            candidates = cityLookup.byName.get(normalized) ?? [];
+          }
+          candidates.forEach((feature) => {
+            const iso2 = String(feature.properties?.iso_a2 ?? "")
+              .trim()
+              .toUpperCase();
+            if (countryCode && iso2 && iso2 !== countryCode) {
+              return;
+            }
+            const key = getCityKey(feature);
+            if (!key || cityKeys.has(key)) {
+              return;
+            }
+            const displayName = String(feature.properties?.name ?? name).trim();
+            cityKeys.add(key);
+            cities.push({
+              name: displayName || name,
+              key,
+              countryCode: iso2 || countryCode || "",
+              feature,
+            });
+          });
+        });
+      }
 
       return {
         query: query || [...states, ...countries].map((item) => item.name).join(", "),
@@ -1001,7 +1146,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
         cities,
       };
     },
-    [loadStatesData, resolveCountryCode]
+    [loadCitiesData, loadStatesData, resolveCountryCode]
   );
 
   const handleExploreRequest = useCallback(async () => {
@@ -1042,8 +1187,12 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
       }
       const matches = await buildExploreMatches(parsed);
       setExploreMatches(matches);
-      if (matches.states.length === 0 && matches.countries.length === 0) {
-        setExploreMessage("No countries or states matched.");
+      if (
+        matches.states.length === 0 &&
+        matches.countries.length === 0 &&
+        matches.cities.length === 0
+      ) {
+        setExploreMessage("No countries, states, or cities matched.");
       }
       setExploreStatus("ready");
     } catch (error) {
@@ -1061,19 +1210,29 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     if (!map) {
       return;
     }
+    const cityKeys = exploreMatches.cities.map((entry) => entry.key);
+    const cityCountryCodes = exploreMatches.cities
+      .map((entry) => entry.countryCode)
+      .filter(Boolean);
     if (exploreMatches.states.length > 0) {
       const stateCodes = exploreMatches.states.map((entry) => entry.code);
       const stateCountryCodes = exploreMatches.states
         .map((entry) => entry.countryCode)
         .filter(Boolean);
       const countryCodes = Array.from(
-        new Set([...exploreMatches.countries.map((entry) => entry.code), ...stateCountryCodes])
+        new Set([
+          ...exploreMatches.countries.map((entry) => entry.code),
+          ...stateCountryCodes,
+          ...cityCountryCodes,
+        ])
       );
       setSelectedStateCodes(stateCodes);
+      setSelectedCityKeys(cityKeys);
       setSelectedIso2(countryCodes);
       setLabelsMode("selected");
       applySelection(map, countryCodes, stateCodes);
       applyStateSelection(map, stateCodes);
+      applyCitySelection(map, cityKeys);
       applyLabelState(map, "selected", countryCodes);
       applyCityFilter(map, "selected", countryCodes);
       applyStateFilter(map, "selected", countryCodes);
@@ -1087,17 +1246,23 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
           { padding: 60, duration: 800 }
         );
       }
-    } else if (exploreMatches.countries.length > 0) {
+    } else if (exploreMatches.countries.length > 0 || cityKeys.length > 0) {
       const iso2Codes = exploreMatches.countries.map((entry) => entry.code);
+      const combinedCodes = Array.from(new Set([...iso2Codes, ...cityCountryCodes]));
       setSelectedStateCodes([]);
-      setSelectedIso2(iso2Codes);
+      setSelectedCityKeys(cityKeys);
+      setSelectedIso2(combinedCodes);
       setLabelsMode("selected");
-      applySelection(map, iso2Codes, []);
+      applySelection(map, combinedCodes, []);
       applyStateSelection(map, []);
-      applyLabelState(map, "selected", iso2Codes);
-      applyCityFilter(map, "selected", iso2Codes);
-      applyStateFilter(map, "selected", iso2Codes);
-      const bbox = unionBounds(exploreMatches.countries.map((entry) => entry.feature));
+      applyCitySelection(map, cityKeys);
+      applyLabelState(map, "selected", combinedCodes);
+      applyCityFilter(map, "selected", combinedCodes);
+      applyStateFilter(map, "selected", combinedCodes);
+      const bbox =
+        exploreMatches.countries.length > 0
+          ? unionBounds(exploreMatches.countries.map((entry) => entry.feature))
+          : unionBounds(exploreMatches.cities.map((entry) => entry.feature));
       if (bbox) {
         map.fitBounds(
           [
@@ -1219,6 +1384,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
           focus_seas_only: focusSeasOnly,
           selected_iso2: selectedIso2,
           selected_state_codes: selectedStateCodes,
+          selected_city_keys: selectedCityKeys,
           map_scale: mapScale,
         }),
       });
@@ -1600,22 +1766,30 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
     if (!mapReady || dataStatus !== "ready" || !map) {
       return;
     }
+    const needsCities = citiesVisible || selectedCityKeys.length > 0;
+    if (!needsCities) {
+      if (map.getLayer("city-labels")) {
+        map.setLayoutProperty("city-labels", "visibility", "none");
+      }
+      if (map.getLayer("city-selection")) {
+        applyCitySelection(map, []);
+        map.setLayoutProperty("city-selection", "visibility", "none");
+      }
+      return;
+    }
     const ensureCities = async () => {
       if (map.getSource("cities")) {
         map.setLayoutProperty("city-labels", "visibility", citiesVisible ? "visible" : "none");
+        if (map.getLayer("city-selection")) {
+          map.setLayoutProperty("city-selection", "visibility", "visible");
+        }
         applyCityFilter(map, labelsMode, selectedIso2);
-        return;
-      }
-      if (!citiesVisible) {
+        applyCitySelection(map, selectedCityKeys);
         return;
       }
       setCitiesStatus("loading");
       try {
-        const response = await fetch("/data/cities.geojson");
-        if (!response.ok) {
-          throw new Error("Failed to load cities");
-        }
-        const data = await response.json();
+        const data = await loadCitiesData();
         map.addSource("cities", {
           type: "geojson",
           data,
@@ -1638,8 +1812,22 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
             "text-halo-width": 1,
           },
         });
+        map.addLayer({
+          id: "city-selection",
+          type: "circle",
+          source: "cities",
+          minzoom: 1.2,
+          paint: {
+            "circle-color": "#2f78d0",
+            "circle-radius": 4,
+            "circle-stroke-width": 1,
+            "circle-stroke-color": "rgba(255,255,255,0.8)",
+          },
+          filter: ["==", ["to-string", ["get", "ne_id"]], ""],
+        });
         map.setLayoutProperty("city-labels", "visibility", "visible");
         applyCityFilter(map, labelsMode, selectedIso2);
+        applyCitySelection(map, selectedCityKeys);
         setCitiesStatus("ready");
       } catch (error) {
         console.error(error);
@@ -1647,7 +1835,15 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
       }
     };
     void ensureCities();
-  }, [citiesVisible, dataStatus, labelsMode, mapReady, selectedIso2]);
+  }, [
+    citiesVisible,
+    dataStatus,
+    labelsMode,
+    loadCitiesData,
+    mapReady,
+    selectedCityKeys,
+    selectedIso2,
+  ]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1824,9 +2020,11 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
         .filter(Boolean);
       setSelectedIso2(iso2Codes);
       setSelectedStateCodes([]);
+      setSelectedCityKeys([]);
       setLabelsMode("selected");
       applySelection(map, iso2Codes, []);
       applyStateSelection(map, []);
+      applyCitySelection(map, []);
       applyLabelState(map, "selected", iso2Codes);
       applyCityFilter(map, "selected", iso2Codes);
       applyStateFilter(map, "selected", iso2Codes);
@@ -2134,7 +2332,10 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
   const showSidepanel = !scaleTest && (!isMobile || mobilePanel !== null);
   const showBottomNav = !scaleTest && isMobile && mobileBarsVisible && !scaleSliderOpen;
   const hasExploreMatches =
-    !!exploreMatches && (exploreMatches.states.length > 0 || exploreMatches.countries.length > 0);
+    !!exploreMatches &&
+    (exploreMatches.states.length > 0 ||
+      exploreMatches.countries.length > 0 ||
+      exploreMatches.cities.length > 0);
 
   return (
     <div className="map-page">
@@ -2447,19 +2648,46 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
                 <div className="map-modal__actions">
                   <button
                     type="button"
-                    className="map-button"
+                    className="map-button map-button--icon-only"
                     onClick={() => void handleExploreRequest()}
                     disabled={exploreStatus === "loading"}
+                    aria-label="Explore"
                   >
-                    {exploreStatus === "loading" ? "Exploring..." : "Explore"}
+                    <span className="map-button__icon" aria-hidden="true">
+                      <svg viewBox="0 0 20 20">
+                        <path
+                          d="M8.5 14.5a6 6 0 1 1 4.2-1.8L16 16"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </span>
+                    <span className="map-button__text">
+                      {exploreStatus === "loading" ? "Exploring..." : "Explore"}
+                    </span>
                   </button>
                   <button
                     type="button"
-                    className="map-button map-button--secondary"
+                    className="map-button map-button--icon-only map-button--secondary"
                     onClick={() => handleExploreUse()}
                     disabled={!hasExploreMatches}
+                    aria-label="Use selection"
                   >
-                    Use
+                    <span className="map-button__icon" aria-hidden="true">
+                      <svg viewBox="0 0 20 20">
+                        <path
+                          d="M4 10.5 8.2 14.5 16 6.5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.7"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+                    <span className="map-button__text">Use</span>
                   </button>
                 </div>
                 {exploreMessage ? <div className="map-modal__status">{exploreMessage}</div> : null}
@@ -2481,7 +2709,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
                     </div>
                     {exploreMatches.cities.length > 0 ? (
                       <div className="map-modal__status">
-                        Cities: {exploreMatches.cities.join(", ")}
+                        Cities: {exploreMatches.cities.map((city) => city.name).join(", ")}
                       </div>
                     ) : null}
                     {exploreMatches.query ? (
