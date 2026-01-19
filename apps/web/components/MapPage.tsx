@@ -28,6 +28,7 @@ type SavedView = {
   states_visible: boolean;
   focus_seas_only: boolean;
   selected_iso2: string[];
+  selected_state_codes: string[];
   created_at: string;
 };
 type MapExploreCountry = { name?: string; code?: string };
@@ -740,15 +741,16 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
       }
       const labelsModeValue = view.labels_mode ?? "all";
       const selected = view.selected_iso2 ?? [];
+      const selectedStates = view.selected_state_codes ?? [];
       setLabelsMode(labelsModeValue);
       setCitiesVisible(view.cities_visible);
       setStatesVisible(view.states_visible);
       setFocusSeasOnly(view.focus_seas_only);
       setSelectedIso2(selected);
-      setSelectedStateCodes([]);
+      setSelectedStateCodes(selectedStates);
       setMapScale(view.map_scale ?? DEFAULT_MAP_SCALE);
-      applySelection(map, selected, []);
-      applyStateSelection(map, []);
+      applySelection(map, selected, selectedStates);
+      applyStateSelection(map, selectedStates);
       applyLabelState(map, labelsModeValue, selected);
       applyCityFilter(map, labelsModeValue, selected);
       applyStateFilter(map, labelsModeValue, selected);
@@ -1216,6 +1218,7 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
           states_visible: statesVisible,
           focus_seas_only: focusSeasOnly,
           selected_iso2: selectedIso2,
+          selected_state_codes: selectedStateCodes,
           map_scale: mapScale,
         }),
       });
@@ -2143,25 +2146,6 @@ export default function MapPage({ scaleTest = false }: MapPageProps) {
         >
           <div className="map-toolbar__title">Map</div>
           <form className="map-toolbar__controls" onSubmit={handleSubmit}>
-            <button
-              type="button"
-              className="map-button map-button--icon-only"
-              onClick={() => handleOpenExplore()}
-              aria-label="Explore map"
-            >
-              <span className="map-button__icon" aria-hidden="true">
-                <svg viewBox="0 0 20 20">
-                  <path
-                    d="M8.5 14.5a6 6 0 1 1 4.2-1.8L16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </span>
-              <span className="map-button__text">Explore</span>
-            </button>
             <button
               type="button"
               className={`map-button map-button--icon-only darkgrey ${
