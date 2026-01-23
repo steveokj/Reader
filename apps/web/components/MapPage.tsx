@@ -99,6 +99,63 @@ const MAP_EXPLORE_INSTRUCTION = [
 
 const MAP_STYLE_URL = "/map-style-physical.json";
 const FEATURED_STATE_BORDER_ISO2 = ["US", "CA", "RU", "AU"];
+const ALL_COUNTRY_LABELS = [
+  "CA",
+  "US",
+  "MX",
+  "VE",
+  "CO",
+  "PE",
+  "BO",
+  "BR",
+  "CL",
+  "AR",
+  "IS",
+  "GB",
+  "NO",
+  "SE",
+  "FI",
+  "ES",
+  "FR",
+  "DE",
+  "PL",
+  "UA",
+  "IT",
+  "DZ",
+  "LY",
+  "EG",
+  "ML",
+  "NE",
+  "TD",
+  "SD",
+  "ET",
+  "NG",
+  "CD",
+  "KE",
+  "TZ",
+  "AO",
+  "NA",
+  "BW",
+  "ZA",
+  "MG",
+  "TR",
+  "IQ",
+  "IR",
+  "SA",
+  "AF",
+  "PK",
+  "IN",
+  "KZ",
+  "CN",
+  "MN",
+  "KR",
+  "JP",
+  "TH",
+  "ID",
+  "AU",
+  "PG",
+  "NZ",
+];
 const COUNTRY_ALIAS_TO_ISO2: Record<string, string> = {
   "united states": "US",
   "united states of america": "US",
@@ -660,12 +717,18 @@ function applyLabelState(
   if (!map.getLayer("country-labels-all") || !map.getLayer("country-labels-selected")) {
     return;
   }
+  const allFilter: any[] = [
+    "in",
+    ["get", "ISO3166-1-Alpha-2"],
+    ["literal", ALL_COUNTRY_LABELS],
+  ];
   const selectedNormalized = selectedIso2.map((code) => code.toUpperCase());
   map.setFilter("country-labels-selected", [
     "in",
     ["get", "ISO3166-1-Alpha-2"],
     ["literal", selectedNormalized],
   ]);
+  map.setFilter("country-labels-all", allFilter);
   map.setLayoutProperty(
     "country-labels-all",
     "visibility",
