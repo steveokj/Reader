@@ -983,7 +983,8 @@ function applyLabelState(
   mode: "none" | "selected" | "all",
   selectedIso2: string[],
   allLabelsFiltered: boolean,
-  showExcludedCountries: boolean
+  showExcludedCountries: boolean,
+  allowLabelOverlap: boolean
 ) {
   if (!map.getLayer("country-labels-all") || !map.getLayer("country-labels-selected")) {
     return;
@@ -1032,9 +1033,11 @@ function applyLabelState(
     "visibility",
     mode === "selected" ? "visible" : "none"
   );
-  const allowOverlap = Boolean(allLabelsFiltered);
+  const allowOverlap = Boolean(allLabelsFiltered || allowLabelOverlap);
   map.setLayoutProperty("country-labels-all", "text-allow-overlap", allowOverlap);
   map.setLayoutProperty("country-labels-all", "text-ignore-placement", allowOverlap);
+  map.setLayoutProperty("country-labels-selected", "text-allow-overlap", allowOverlap);
+  map.setLayoutProperty("country-labels-selected", "text-ignore-placement", allowOverlap);
 }
 
 type MapPageProps = {
@@ -1082,6 +1085,7 @@ export default function MapPage({
   const [labelsMode, setLabelsMode] = useState<"none" | "selected" | "all">("all");
   const [allLabelsFiltered, setAllLabelsFiltered] = useState(false);
   const [showExcludedCountries, setShowExcludedCountries] = useState(false);
+  const [allowLabelOverlap, setAllowLabelOverlap] = useState(false);
   const [selectedIso2, setSelectedIso2] = useState<string[]>([]);
   const [selectedStateCodes, setSelectedStateCodes] = useState<string[]>([]);
   const [selectedCityKeys, setSelectedCityKeys] = useState<string[]>([]);
@@ -1222,7 +1226,14 @@ export default function MapPage({
       applySelection(map, selected, selectedStates, showExcludedCountries);
       applyStateSelection(map, selectedStates);
       applyCitySelection(map, selectedCities);
-      applyLabelState(map, labelsModeValue, selected, allLabelsFiltered, showExcludedCountries);
+      applyLabelState(
+        map,
+        labelsModeValue,
+        selected,
+        allLabelsFiltered,
+        showExcludedCountries,
+        allowLabelOverlap
+      );
       applyCityFilter(map, labelsModeValue, selected);
       applyStateFilter(map, labelsModeValue, selected);
       applyMarineFilter(map, view.focus_seas_only);
@@ -1603,7 +1614,14 @@ export default function MapPage({
       applySelection(map, countryCodes, stateCodes, showExcludedCountries);
       applyStateSelection(map, stateCodes);
       applyCitySelection(map, cityKeys);
-      applyLabelState(map, "selected", countryCodes, allLabelsFiltered, showExcludedCountries);
+      applyLabelState(
+        map,
+        "selected",
+        countryCodes,
+        allLabelsFiltered,
+        showExcludedCountries,
+        allowLabelOverlap
+      );
       applyCityFilter(map, "selected", countryCodes);
       applyStateFilter(map, "selected", countryCodes);
       const bbox = unionBounds(exploreMatches.states.map((entry) => entry.feature));
@@ -1626,7 +1644,14 @@ export default function MapPage({
       applySelection(map, combinedCodes, [], showExcludedCountries);
       applyStateSelection(map, []);
       applyCitySelection(map, cityKeys);
-      applyLabelState(map, "selected", combinedCodes, allLabelsFiltered, showExcludedCountries);
+      applyLabelState(
+        map,
+        "selected",
+        combinedCodes,
+        allLabelsFiltered,
+        showExcludedCountries,
+        allowLabelOverlap
+      );
       applyCityFilter(map, "selected", combinedCodes);
       applyStateFilter(map, "selected", combinedCodes);
       const bbox =
@@ -2176,8 +2201,23 @@ export default function MapPage({
       return;
     }
     ensureLabelLayers(map);
-    applyLabelState(map, labelsMode, selectedIso2, allLabelsFiltered, showExcludedCountries);
-  }, [allLabelsFiltered, dataStatus, labelsMode, mapReady, selectedIso2, showExcludedCountries]);
+    applyLabelState(
+      map,
+      labelsMode,
+      selectedIso2,
+      allLabelsFiltered,
+      showExcludedCountries,
+      allowLabelOverlap
+    );
+  }, [
+    allLabelsFiltered,
+    allowLabelOverlap,
+    dataStatus,
+    labelsMode,
+    mapReady,
+    selectedIso2,
+    showExcludedCountries,
+  ]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -2577,7 +2617,14 @@ export default function MapPage({
       applySelection(map, iso2Codes, stateCodes, showExcludedCountries);
       applyStateSelection(map, stateCodes);
       applyCitySelection(map, cityKeys);
-      applyLabelState(map, "selected", iso2Codes, allLabelsFiltered, showExcludedCountries);
+      applyLabelState(
+        map,
+        "selected",
+        iso2Codes,
+        allLabelsFiltered,
+        showExcludedCountries,
+        allowLabelOverlap
+      );
       applyCityFilter(map, "selected", iso2Codes);
       applyStateFilter(map, "selected", iso2Codes);
 
@@ -2840,6 +2887,14 @@ export default function MapPage({
           onChange={(event) => setShowExcludedCountries(event.target.checked)}
         />
         <span>Show minor territories</span>
+      </label>
+      <label className="map-toggle">
+        <input
+          type="checkbox"
+          checked={allowLabelOverlap}
+          onChange={(event) => setAllowLabelOverlap(event.target.checked)}
+        />
+        <span>Allow label overlap</span>
       </label>
       <div className="map-sidepanel__divider" />
       <label className={`map-toggle${!mapReady ? " map-toggle--disabled" : ""}`}>
