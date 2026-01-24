@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 export default function KeyboardTestPage() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -8,27 +9,19 @@ export default function KeyboardTestPage() {
   const [value, setValue] = useState("");
 
   const openSheet = useCallback(() => {
-    setSheetOpen(true);
+    flushSync(() => {
+      setSheetOpen(true);
+    });
+    const input = inputRef.current;
+    if (input) {
+      input.focus();
+      input.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
   }, []);
 
   const closeSheet = useCallback(() => {
     setSheetOpen(false);
   }, []);
-
-  useEffect(() => {
-    if (!sheetOpen) {
-      return;
-    }
-    const id = window.setTimeout(() => {
-      const input = inputRef.current;
-      if (!input) {
-        return;
-      }
-      input.focus();
-      input.scrollIntoView({ block: "center", behavior: "smooth" });
-    }, 60);
-    return () => window.clearTimeout(id);
-  }, [sheetOpen]);
 
   return (
     <main className="reader-main documents-page">
