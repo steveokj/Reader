@@ -342,6 +342,12 @@ type SearchResult = {
   snippet: string;
 };
 
+type SearchHighlight = {
+  sectionId: number;
+  start: number;
+  end: number;
+};
+
 type PageEntry = {
   section_id: number;
   page_index: number;
@@ -406,6 +412,7 @@ type Selection = {
   id: number;
   document_id: number;
   section_id: number;
+  isSearchHit?: boolean;
   selector: MenuState["selector"];
   created_at: string;
 };
@@ -703,6 +710,7 @@ export default function ReaderClient({
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [searchResultsQuery, setSearchResultsQuery] = useState("");
+  const [searchHighlight, setSearchHighlight] = useState<SearchHighlight | null>(null);
   const [pageCount, setPageCount] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInput, setPageInput] = useState("1");
@@ -2869,7 +2877,16 @@ export default function ReaderClient({
         input.scrollIntoView({ block: "center", behavior: "smooth" });
       }
     }
+    if (nextPanel !== "search") {
+      setSearchHighlight(null);
+    }
   }, []);
+
+  useEffect(() => {
+    if (mobilePanel !== "search") {
+      setSearchHighlight(null);
+    }
+  }, [mobilePanel]);
 
   const handleRefreshLookup = useCallback(() => {
     setLookupRefreshKey((prev) => prev + 1);
@@ -3575,6 +3592,7 @@ export default function ReaderClient({
       event.preventDefault();
       const query = searchQuery.trim();
       setSearchPerformed(true);
+      setSearchHighlight(null);
       if (!query) {
         setSearchResults([]);
         setSearchResultsQuery("");
@@ -3615,6 +3633,7 @@ export default function ReaderClient({
   const handleSearchResultClick = useCallback(
     (result: SearchResult) => {
       void recordPageHistory();
+      setSearchHighlight({ sectionId: result.sectionId, start: result.start, end: result.end });
       scrollToOffsets(result.sectionId, result.start, result.end);
     },
     [recordPageHistory, scrollToOffsets]
@@ -3657,9 +3676,28 @@ export default function ReaderClient({
   const modalToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
   const actionMenuMarkerKinds = isCommitted ? selectionMarkerKinds : pendingMarkerKinds;
   const actionMenuToggle = isCommitted ? handleToggleMarker : handleTogglePendingMarker;
+  const searchHighlightSelection = useMemo(() => {
+    if (!searchHighlight) {
+      return null;
+    }
+    return {
+      id: -2,
+      document_id: documentId,
+      section_id: searchHighlight.sectionId,
+      isSearchHit: true,
+      selector: {
+        position: { start: searchHighlight.start, end: searchHighlight.end },
+        quote: { exact: "", prefix: "", suffix: "" },
+      },
+      created_at: "",
+    } as Selection;
+  }, [documentId, searchHighlight]);
   const overlaySelections = useMemo(() => {
     if (!isMobile || !menuState || isCommitted) {
-      return selections;
+      if (!searchHighlightSelection) {
+        return selections;
+      }
+      return [...selections, searchHighlightSelection];
     }
     const draftSelection: Selection = {
       id: -1,
@@ -3667,9 +3705,12 @@ export default function ReaderClient({
       section_id: menuState.sectionId,
       selector: menuState.selector,
       created_at: "",
-    };
-    return [...selections, draftSelection];
-  }, [documentId, isCommitted, isMobile, menuState, selections]);
+      };
+    if (!searchHighlightSelection) {
+      return [...selections, draftSelection];
+    }
+    return [...selections, draftSelection, searchHighlightSelection];
+  }, [documentId, isCommitted, isMobile, menuState, searchHighlightSelection, selections]);
   const overlayActiveSelectionId =
     isMobile && menuState && !isCommitted ? -1 : activeSelectionId;
   const handleOverlaySelect = useCallback(

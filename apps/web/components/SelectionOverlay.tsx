@@ -9,6 +9,7 @@ type Selection = {
   id: number;
   document_id: number;
   section_id: number;
+  isSearchHit?: boolean;
   selector: {
     position: {
       start: number;
@@ -121,12 +122,14 @@ export default function SelectionOverlay({
     <div className="selection-overlay">
       {highlights.map((highlight) =>
         highlight.rects.map((rect, index) => {
-          const isDraft = highlight.selection.id <= 0;
-          const isInteractive = !isDraft;
+          const isSearchHit = Boolean(highlight.selection.isSearchHit);
+          const isDraft = !isSearchHit && highlight.selection.id <= 0;
+          const isInteractive = !isDraft && !isSearchHit;
           const className = [
             "selection-highlight",
             highlight.selection.id === activeSelectionId ? "is-active" : "",
             isDraft ? "selection-highlight--draft" : "",
+            isSearchHit ? "selection-highlight--search" : "",
           ]
             .filter(Boolean)
             .join(" ");
