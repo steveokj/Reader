@@ -156,6 +156,10 @@ const ALL_COUNTRY_LABELS = [
   "PG",
   "NZ",
 ];
+const COUNTRY_CODE_OVERRIDES: Record<string, { iso2: string; iso3: string }> = {
+  France: { iso2: "FR", iso3: "FRA" },
+  Norway: { iso2: "NO", iso3: "NOR" },
+};
 const COUNTRY_ALIAS_TO_ISO2: Record<string, string> = {
   "united states": "US",
   "united states of america": "US",
@@ -1627,6 +1631,26 @@ export default function MapPage({
         if (cancelled || map.getSource("countries")) {
           return;
         }
+        (data.features ?? []).forEach((feature: GeoFeature) => {
+          const props = feature.properties ?? {};
+          const name = String(props.name ?? "").trim();
+          if (!name) {
+            return;
+          }
+          const iso2 = String(props["ISO3166-1-Alpha-2"] ?? "").trim();
+          if (iso2 && iso2 !== "-99") {
+            return;
+          }
+          const override = COUNTRY_CODE_OVERRIDES[name];
+          if (!override) {
+            return;
+          }
+          feature.properties = {
+            ...props,
+            "ISO3166-1-Alpha-2": override.iso2,
+            "ISO3166-1-Alpha-3": override.iso3,
+          };
+        });
         map.addSource("countries", {
           type: "geojson",
           data,
