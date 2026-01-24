@@ -1476,11 +1476,14 @@ export default function MapPage({
       return;
     }
     setMapScale(view.map_scale ?? DEFAULT_MAP_SCALE);
+    const center = map.getCenter();
+    const bearing = map.getBearing();
+    const pitch = map.getPitch();
     map.flyTo({
-      center: [view.center_lng, view.center_lat],
+      center: [center.lng, center.lat],
       zoom: view.zoom,
-      bearing: view.bearing,
-      pitch: view.pitch,
+      bearing,
+      pitch,
       duration: 800,
     });
   }, []);
