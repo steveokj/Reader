@@ -186,6 +186,24 @@ const COUNTRY_LABEL_OVERRIDES: Record<string, [number, number]> = {
   US: [-98.5, 39.8],
   CA: [-100.5, 55.0],
 };
+const COUNTRY_LABEL_TEXT_OVERRIDES: Record<string, string> = {
+  CD: "DRC",
+  CG: "Congo",
+  CF: "C. African Rep.",
+  DO: "Dominican Rep.",
+  GB: "UK",
+  IR: "Iran",
+  LA: "Laos",
+  MM: "Myanmar",
+  RU: "Russia",
+  SA: "Saudi",
+  TR: "Turkey",
+  TZ: "Tanzania",
+  UA: "Ukraine",
+  US: "United States",
+  AE: "UAE",
+  VN: "Vietnam",
+};
 const EXCLUDED_COUNTRY_NAMES = new Set<string>([
   "Akrotiri Sovereign Base Area",
   "American Samoa",
@@ -279,6 +297,14 @@ function normalizeKey(value: string) {
 
 function isExcludedCountryName(name: string) {
   return EXCLUDED_COUNTRY_NAMES.has(name);
+}
+
+function getCountryLabel(name: string, iso2: string) {
+  const override = COUNTRY_LABEL_TEXT_OVERRIDES[iso2.toUpperCase()];
+  if (override) {
+    return override;
+  }
+  return name;
 }
 
 function parsePlaces(value: string) {
@@ -566,6 +592,7 @@ function buildCountryLabelCollection(
         geometry: { type: "Point", coordinates: coord },
         properties: {
           name: country.name,
+          label: getCountryLabel(country.name, country.iso2),
           "ISO3166-1-Alpha-2": country.iso2,
           excluded_country: isExcludedCountryName(country.name),
         },
@@ -586,6 +613,7 @@ function buildCountryLabelCollection(
       },
       properties: {
         name: entry.name,
+        label: getCountryLabel(entry.name, iso2),
         "ISO3166-1-Alpha-2": iso2,
         excluded_country: isExcludedCountryName(entry.name),
       },
@@ -613,6 +641,7 @@ function buildCountryLabelCollection(
       geometry: { type: "Point", coordinates: coords },
       properties: {
         name,
+        label: getCountryLabel(name, iso2),
         "ISO3166-1-Alpha-2": iso2,
         excluded_country: excluded,
       },
@@ -919,7 +948,7 @@ function ensureLabelLayers(map: MapLibreMap) {
     source: "country-labels",
     maxzoom: 4.4,
     layout: {
-      "text-field": ["get", "name"],
+      "text-field": ["coalesce", ["get", "label"], ["get", "name"]],
       "text-size": 14,
       "text-letter-spacing": 0.08,
       "text-font": ["Roboto Bold", "Arial Unicode MS Regular"],
@@ -936,7 +965,7 @@ function ensureLabelLayers(map: MapLibreMap) {
     source: "country-labels",
     maxzoom: 5.2,
     layout: {
-      "text-field": ["get", "name"],
+      "text-field": ["coalesce", ["get", "label"], ["get", "name"]],
       "text-size": 13,
       "text-letter-spacing": 0.08,
       "text-font": ["Roboto Bold", "Arial Unicode MS Regular"],
