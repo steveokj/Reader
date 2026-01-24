@@ -1195,6 +1195,7 @@ export default function MapPage({
   );
   const [stateLabelsVisible, setStateLabelsVisible] = useState(true);
   const [stateBordersVisible, setStateBordersVisible] = useState(true);
+  const [stateBordersAllCountries, setStateBordersAllCountries] = useState(false);
   const [stateAbbrevLabels, setStateAbbrevLabels] = useState(true);
   const [focusSeasOnly, setFocusSeasOnly] = useState(true);
   const [statesStatus, setStatesStatus] = useState<"idle" | "loading" | "ready" | "error">(
@@ -1414,7 +1415,7 @@ export default function MapPage({
         allowLabelOverlap
       );
       applyCityFilter(map, labelsModeValue, selected);
-      applyStateFilter(map, labelsModeValue, selected);
+      applyStateFilter(map, labelsModeValue, selected, stateBordersAllCountries);
       applyMarineFilter(map, view.focus_seas_only);
       map.flyTo({
         center: [view.center_lng, view.center_lat],
@@ -1881,7 +1882,7 @@ export default function MapPage({
         allowLabelOverlap
       );
       applyCityFilter(map, "selected", countryCodes);
-      applyStateFilter(map, "selected", countryCodes);
+      applyStateFilter(map, "selected", countryCodes, stateBordersAllCountries);
       const bbox = unionBounds(exploreMatches.states.map((entry) => entry.feature));
       if (bbox) {
         map.fitBounds(
@@ -1911,7 +1912,7 @@ export default function MapPage({
         allowLabelOverlap
       );
       applyCityFilter(map, "selected", combinedCodes);
-      applyStateFilter(map, "selected", combinedCodes);
+      applyStateFilter(map, "selected", combinedCodes, stateBordersAllCountries);
       const bbox =
         exploreMatches.countries.length > 0
           ? unionBounds(exploreMatches.countries.map((entry) => entry.feature))
@@ -2102,6 +2103,7 @@ export default function MapPage({
     loadSavedViews,
     mapReady,
     selectedIso2,
+    stateBordersAllCountries,
     stateBordersVisible,
     stateLabelsVisible,
   ]);
@@ -2656,7 +2658,7 @@ export default function MapPage({
             selectedStateCodes.length > 0 ? "visible" : "none"
           );
         }
-        applyStateFilter(map, labelsMode, selectedIso2);
+        applyStateFilter(map, labelsMode, selectedIso2, stateBordersAllCountries);
         applyStateSelection(map, selectedStateCodes);
         return;
       }
@@ -2788,7 +2790,7 @@ export default function MapPage({
             selectedStateCodes.length > 0 ? "visible" : "none"
           );
         }
-        applyStateFilter(map, labelsMode, selectedIso2);
+        applyStateFilter(map, labelsMode, selectedIso2, stateBordersAllCountries);
         applyStateSelection(map, selectedStateCodes);
         setStatesStatus("ready");
       } catch (error) {
@@ -2805,6 +2807,7 @@ export default function MapPage({
     selectedIso2,
     selectedStateCodes,
     stateAbbrevLabels,
+    stateBordersAllCountries,
     stateBordersVisible,
     stateLabelsVisible,
   ]);
@@ -2950,7 +2953,7 @@ export default function MapPage({
         allowLabelOverlap
       );
       applyCityFilter(map, "selected", iso2Codes);
-      applyStateFilter(map, "selected", iso2Codes);
+      applyStateFilter(map, "selected", iso2Codes, stateBordersAllCountries);
 
       const bbox = unionBounds([...countryMatches, ...stateMatches, ...cityMatches]);
       if (bbox) {
@@ -3268,6 +3271,19 @@ export default function MapPage({
           disabled={!mapReady}
         />
         <span>State/Province borders</span>
+      </label>
+      <label
+        className={`map-toggle${
+          !mapReady || !stateBordersVisible ? " map-toggle--disabled" : ""
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={stateBordersAllCountries}
+          onChange={(event) => setStateBordersAllCountries(event.target.checked)}
+          disabled={!mapReady || !stateBordersVisible}
+        />
+        <span>All country borders</span>
       </label>
       <label className="map-toggle">
         <input
@@ -3818,7 +3834,8 @@ function applyCityFilter(
 function applyStateFilter(
   map: MapLibreMap,
   mode: "none" | "selected" | "all",
-  selectedIso2: string[]
+  selectedIso2: string[],
+  showAllBorders: boolean
 ) {
   const hasLabels = map.getLayer("state-labels");
   const hasAbbrevLabels = map.getLayer("state-labels-abbrev");
@@ -3835,6 +3852,7 @@ function applyStateFilter(
     featuredIso2.length === 0
       ? ["==", ["get", "iso_a2"], ""]
       : ["in", ["get", "iso_a2"], ["literal", featuredIso2]];
+  const borderFilter = showAllBorders ? null : featuredFilter;
   if (mode === "none") {
     if (hasLabels) {
       map.setFilter("state-labels", ["==", ["get", "iso_a2"], ""]);
@@ -3856,7 +3874,7 @@ function applyStateFilter(
         map.setFilter("state-labels-abbrev", ["==", ["get", "iso_a2"], ""]);
       }
       if (hasBorders) {
-        map.setFilter("state-borders", featuredFilter);
+        map.setFilter("state-borders", borderFilter);
       }
       return;
     }
@@ -3883,7 +3901,11 @@ function applyStateFilter(
     map.setFilter("state-labels-abbrev", abbrevFilter);
   }
   if (hasBorders) {
-    map.setFilter("state-borders", featuredFilter);
+    if (borderFilter === null) {
+      map.setFilter("state-borders", null);
+    } else {
+      map.setFilter("state-borders", borderFilter);
+    }
   }
 }
 
