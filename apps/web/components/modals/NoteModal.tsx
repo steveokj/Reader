@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 
 import MarkerToggle from "@/components/MarkerToggle";
 
@@ -13,6 +14,7 @@ type NoteModalProps = {
   onSave: (text: string) => void;
   onClose: () => void;
   showMarkers?: boolean;
+  inputRef?: RefObject<HTMLTextAreaElement>;
 };
 
 export default function NoteModal({
@@ -24,6 +26,7 @@ export default function NoteModal({
   onSave,
   onClose,
   showMarkers = true,
+  inputRef,
 }: NoteModalProps) {
   const [text, setText] = useState(initialText);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -32,17 +35,7 @@ export default function NoteModal({
     setText(initialText);
   }, [initialText, isOpen]);
 
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 0);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [isOpen]);
+  const resolvedRef = inputRef ?? textareaRef;
 
   if (!isOpen) {
     return null;
@@ -64,7 +57,7 @@ export default function NoteModal({
         ) : null}
         <textarea
           className="modal-textarea"
-          ref={textareaRef}
+          ref={resolvedRef}
           value={text}
           onChange={(event) => setText(event.target.value)}
           placeholder="Write your note..."

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, MouseEvent } from "react";
+import { flushSync } from "react-dom";
 import { useRouter } from "next/navigation";
 
 import ActionMenu from "@/components/ActionMenu";
@@ -695,6 +696,8 @@ export default function ReaderClient({
   const [mobilePanel, setMobilePanel] = useState<
     "chapters" | "highlights" | "search" | "settings" | "history" | "selection" | null
   >(null);
+  const noteInputRef = useRef<HTMLTextAreaElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [sidePanelTab, setSidePanelTab] = useState<"active" | "highlights">("highlights");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -2723,10 +2726,21 @@ export default function ReaderClient({
     );
   }, []);
 
+  const openNoteModal = useCallback(() => {
+    flushSync(() => {
+      setNoteModalOpen(true);
+    });
+    const input = noteInputRef.current;
+    if (input) {
+      input.focus();
+      input.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, []);
+
   const handleOpenNote = useCallback(async () => {
     if (isCommitted && activeSelectionId) {
       setEditingNote(null);
-      setNoteModalOpen(true);
+      openNoteModal();
       return;
     }
     if (!menuState) {
@@ -2736,7 +2750,7 @@ export default function ReaderClient({
       }
       setDraftSelection(draft);
       setEditingNote(null);
-      setNoteModalOpen(true);
+      openNoteModal();
       return;
     }
     setDraftSelection({
@@ -2746,12 +2760,13 @@ export default function ReaderClient({
     });
     setMenuState(null);
     setEditingNote(null);
-    setNoteModalOpen(true);
+    openNoteModal();
   }, [
     activeSelectionId,
     buildDraftSelectionFromPosition,
     isCommitted,
     menuState,
+    openNoteModal,
     setDraftSelection,
   ]);
 
@@ -2791,6 +2806,23 @@ export default function ReaderClient({
     setLookupPanelOpen(false);
     setLookupSourceAdditionId(null);
     setLookupSourceSelectionId(null);
+  }, []);
+
+  const handleToggleSearchPanel = useCallback(() => {
+    let nextPanel: typeof mobilePanel = null;
+    flushSync(() => {
+      setMobilePanel((prev) => {
+        nextPanel = prev === "search" ? null : "search";
+        return nextPanel;
+      });
+    });
+    if (nextPanel === "search") {
+      const input = searchInputRef.current;
+      if (input) {
+        input.focus();
+        input.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    }
   }, []);
 
   const handleRefreshLookup = useCallback(() => {
@@ -3222,10 +3254,13 @@ export default function ReaderClient({
     [bumpHighlightsRefresh, ensureSelectionForAddition, refreshAdditions]
   );
 
-  const handleEditNote = useCallback((note: Addition) => {
-    setEditingNote(note);
-    setNoteModalOpen(true);
-  }, []);
+  const handleEditNote = useCallback(
+    (note: Addition) => {
+      setEditingNote(note);
+      openNoteModal();
+    },
+    [openNoteModal]
+  );
 
   const handleToggleMarker = useCallback(
     async (kind: MarkerKind) => {
@@ -3802,6 +3837,7 @@ export default function ReaderClient({
                     <input
                       className="mobile-search__input"
                       type="search"
+                      ref={searchInputRef}
                       value={searchQuery}
                       onChange={(event) => setSearchQuery(event.target.value)}
                       placeholder="Search this book"
@@ -4032,9 +4068,7 @@ export default function ReaderClient({
                 </button>
                 <button
                   type="button"
-                  onClick={() =>
-                    setMobilePanel((prev) => (prev === "search" ? null : "search"))
-                  }
+                  onClick={handleToggleSearchPanel}
                   aria-label="Search"
                   className={mobilePanel === "search" ? "is-active" : undefined}
                   style={navButtonStyle(mobilePanel === "search")}
@@ -4130,6 +4164,7 @@ export default function ReaderClient({
         markerKinds={modalMarkerKinds}
         onToggleMarker={modalToggle}
         onSave={handleSaveNote}
+        inputRef={noteInputRef}
         onClose={() => {
           if (!editingNote && !isCommitted) {
             discardDraftSelection();
