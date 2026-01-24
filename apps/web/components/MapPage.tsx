@@ -289,17 +289,123 @@ function boundsFromGeometry(geometry: GeoJSON.Geometry): Bounds | null {
   return bounds;
 }
 
+type PolygonInfo = {
+  area: number;
+  centroid: [number, number];
+  polygon: number[][][];
+};
+
+function ringArea(ring: number[][]) {
+  let area = 0;
+  for (let i = 0; i < ring.length; i += 1) {
+    const [x1, y1] = ring[i];
+    const [x2, y2] = ring[(i + 1) % ring.length];
+    area += x1 * y2 - x2 * y1;
+  }
+  return area / 2;
+}
+
+function ringCentroid(ring: number[][]) {
+  const area = ringArea(ring);
+  if (!area) {
+    return ring[0] ?? [0, 0];
+  }
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < ring.length; i += 1) {
+    const [x1, y1] = ring[i];
+    const [x2, y2] = ring[(i + 1) % ring.length];
+    const cross = x1 * y2 - x2 * y1;
+    cx += (x1 + x2) * cross;
+    cy += (y1 + y2) * cross;
+  }
+  const factor = 1 / (6 * area);
+  return [cx * factor, cy * factor] as [number, number];
+}
+
+function pointInRing(point: [number, number], ring: number[][]) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    const intersects =
+      yi > point[1] !== yj > point[1] &&
+      point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi;
+    if (intersects) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function pointInPolygon(point: [number, number], polygon: number[][][]) {
+  if (!polygon.length) {
+    return false;
+  }
+  if (!pointInRing(point, polygon[0])) {
+    return false;
+  }
+  for (let i = 1; i < polygon.length; i += 1) {
+    if (pointInRing(point, polygon[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function getLargestPolygonInfo(geometry: GeoJSON.Geometry): PolygonInfo | null {
+  let best: PolygonInfo | null = null;
+  if (geometry.type === "Polygon") {
+    const rings = geometry.coordinates as number[][][];
+    const outer = rings[0];
+    if (outer && outer.length > 2) {
+      const area = Math.abs(ringArea(outer));
+      best = {
+        area,
+        centroid: ringCentroid(outer),
+        polygon: rings,
+      };
+    }
+  } else if (geometry.type === "MultiPolygon") {
+    const polygons = geometry.coordinates as number[][][][];
+    polygons.forEach((rings) => {
+      const outer = rings[0];
+      if (!outer || outer.length <= 2) {
+        return;
+      }
+      const area = Math.abs(ringArea(outer));
+      if (!best || area > best.area) {
+        best = {
+          area,
+          centroid: ringCentroid(outer),
+          polygon: rings,
+        };
+      }
+    });
+  } else if (geometry.type === "GeometryCollection") {
+    geometry.geometries.forEach((geom) => {
+      const candidate = getLargestPolygonInfo(geom);
+      if (candidate && (!best || candidate.area > best.area)) {
+        best = candidate;
+      }
+    });
+  }
+  return best;
+}
+
 function buildCountryLabelCollection(
   countries: GeoFeature[],
   labelPoints?: GeoFeature[]
 ): GeoFeatureCollection {
   const fallbackByIso2 = new Map<
     string,
-    { bounds: Bounds; area: number; name: string; iso2: string }
+    { centroid: [number, number]; area: number; name: string; iso2: string; polygon: number[][][] }
   >();
   const byIso3 = new Map<
     string,
-    { name: string; iso2: string; bounds: Bounds; area: number }
+    { name: string; iso2: string; centroid: [number, number]; area: number; polygon: number[][][] }
   >();
 
   countries.forEach((feature) => {
@@ -310,19 +416,31 @@ function buildCountryLabelCollection(
     if (!iso2 || !feature.geometry) {
       return;
     }
-    const bounds = boundsFromGeometry(feature.geometry);
-    if (!bounds) {
+    const polygonInfo = getLargestPolygonInfo(feature.geometry);
+    if (!polygonInfo) {
       return;
     }
-    const area = Math.abs((bounds.east - bounds.west) * (bounds.north - bounds.south));
+    const area = polygonInfo.area;
     const existing = fallbackByIso2.get(iso2);
     if (!existing || area > existing.area) {
-      fallbackByIso2.set(iso2, { bounds, area, name, iso2 });
+      fallbackByIso2.set(iso2, {
+        centroid: polygonInfo.centroid,
+        area,
+        name,
+        iso2,
+        polygon: polygonInfo.polygon,
+      });
     }
     if (iso3) {
       const existingIso3 = byIso3.get(iso3);
       if (!existingIso3 || area > existingIso3.area) {
-        byIso3.set(iso3, { name, iso2, bounds, area });
+        byIso3.set(iso3, {
+          name,
+          iso2,
+          centroid: polygonInfo.centroid,
+          area,
+          polygon: polygonInfo.polygon,
+        });
       }
     }
   });
@@ -331,7 +449,7 @@ function buildCountryLabelCollection(
   const usedIso2 = new Set<string>();
 
   if (labelPoints && labelPoints.length > 0) {
-    const bestByIso3 = new Map<string, { coord: [number, number]; rank: number }>();
+    const pointsByIso3 = new Map<string, { coord: [number, number]; rank: number }[]>();
     labelPoints.forEach((feature) => {
       if (!feature.geometry || feature.geometry.type !== "Point") {
         return;
@@ -347,20 +465,31 @@ function buildCountryLabelCollection(
       }
       const rankValue = Number(props.scalerank ?? Number.POSITIVE_INFINITY);
       const coord = feature.geometry.coordinates as [number, number];
-      const existing = bestByIso3.get(iso3);
-      if (!existing || rankValue < existing.rank) {
-        bestByIso3.set(iso3, { coord, rank: rankValue });
-      }
+      const existing = pointsByIso3.get(iso3) ?? [];
+      existing.push({ coord, rank: rankValue });
+      pointsByIso3.set(iso3, existing);
     });
 
-    bestByIso3.forEach((entry, iso3) => {
+    pointsByIso3.forEach((entries, iso3) => {
       const country = byIso3.get(iso3);
       if (!country) {
         return;
       }
+      let bestInside: { coord: [number, number]; rank: number } | null = null;
+      if (country.polygon) {
+        entries.forEach((entry) => {
+          if (!pointInPolygon(entry.coord, country.polygon)) {
+            return;
+          }
+          if (!bestInside || entry.rank < bestInside.rank) {
+            bestInside = entry;
+          }
+        });
+      }
+      const coord = bestInside?.coord ?? country.centroid;
       labelFeatures.push({
         type: "Feature",
-        geometry: { type: "Point", coordinates: entry.coord },
+        geometry: { type: "Point", coordinates: coord },
         properties: {
           name: country.name,
           "ISO3166-1-Alpha-2": country.iso2,
@@ -378,7 +507,7 @@ function buildCountryLabelCollection(
       type: "Feature",
       geometry: {
         type: "Point",
-        coordinates: [(entry.bounds.west + entry.bounds.east) / 2, (entry.bounds.south + entry.bounds.north) / 2],
+        coordinates: entry.centroid,
       },
       properties: {
         name: entry.name,
