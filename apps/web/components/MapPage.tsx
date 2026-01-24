@@ -503,7 +503,8 @@ function getLargestPolygonInfo(geometry: GeoJSON.Geometry): PolygonInfo | null {
 
 function buildCountryLabelCollection(
   countries: GeoFeature[],
-  labelPoints?: GeoFeature[]
+  labelPoints?: GeoFeature[],
+  useCentroidLabels = false
 ): GeoFeatureCollection {
   const fallbackByIso2 = new Map<
     string,
@@ -554,7 +555,7 @@ function buildCountryLabelCollection(
   const labelFeatures: GeoFeature[] = [];
   const usedIso2 = new Set<string>();
 
-  if (labelPoints && labelPoints.length > 0) {
+  if (!useCentroidLabels && labelPoints && labelPoints.length > 0) {
     const pointsByIso3 = new Map<string, { coord: [number, number]; rank: number }[]>();
     labelPoints.forEach((feature) => {
       if (!feature.geometry || feature.geometry.type !== "Point") {
@@ -1063,6 +1064,7 @@ export default function MapPage({
   const containerRef = useRef<HTMLDivElement>(null);
   const countriesRef = useRef<GeoFeatureCollection | null>(null);
   const countriesIndexRef = useRef<Map<string, GeoFeature>>(new Map());
+  const countryLabelPointsRef = useRef<GeoFeature[] | null>(null);
   const statesRef = useRef<GeoFeatureCollection | null>(null);
   const statesLookupRef = useRef<StateLookup | null>(null);
   const citiesRef = useRef<GeoFeatureCollection | null>(null);
@@ -1092,6 +1094,7 @@ export default function MapPage({
   const [allLabelsFiltered, setAllLabelsFiltered] = useState(false);
   const [showExcludedCountries, setShowExcludedCountries] = useState(false);
   const [allowLabelOverlap, setAllowLabelOverlap] = useState(false);
+  const [useCentroidLabels, setUseCentroidLabels] = useState(false);
   const [selectedIso2, setSelectedIso2] = useState<string[]>([]);
   const [selectedStateCodes, setSelectedStateCodes] = useState<string[]>([]);
   const [selectedCityKeys, setSelectedCityKeys] = useState<string[]>([]);
@@ -1189,6 +1192,24 @@ export default function MapPage({
     citiesLookupRef.current = buildCityLookup(data.features ?? []);
     return data;
   }, []);
+
+  const rebuildCountryLabels = useCallback(() => {
+    const map = mapRef.current;
+    if (!mapReady || dataStatus !== "ready" || !map) {
+      return;
+    }
+    const countries = countriesRef.current?.features ?? [];
+    if (countries.length === 0) {
+      return;
+    }
+    const labelCollection = buildCountryLabelCollection(
+      countries,
+      countryLabelPointsRef.current ?? undefined,
+      useCentroidLabels
+    );
+    const source = map.getSource("country-labels") as { setData?: (data: any) => void } | undefined;
+    source?.setData?.(labelCollection);
+  }, [dataStatus, mapReady, useCentroidLabels]);
 
   const resolveCountryCode = useCallback((value: string) => {
     const trimmed = value.trim();
@@ -2004,9 +2025,11 @@ export default function MapPage({
           } catch (error) {
             console.warn("Failed to load country label points", error);
           }
+          countryLabelPointsRef.current = labelPoints ?? null;
           const labelCollection = buildCountryLabelCollection(
             data.features ?? [],
-            labelPoints
+            labelPoints,
+            useCentroidLabels
           );
           map.addSource("country-labels", {
             type: "geojson",
@@ -2200,6 +2223,10 @@ export default function MapPage({
     void loadSavedViews();
     void loadSettings();
   }, [loadSavedViews, loadSettings]);
+
+  useEffect(() => {
+    rebuildCountryLabels();
+  }, [rebuildCountryLabels]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -2901,6 +2928,14 @@ export default function MapPage({
           onChange={(event) => setAllowLabelOverlap(event.target.checked)}
         />
         <span>Allow label overlap</span>
+      </label>
+      <label className="map-toggle">
+        <input
+          type="checkbox"
+          checked={useCentroidLabels}
+          onChange={(event) => setUseCentroidLabels(event.target.checked)}
+        />
+        <span>Center labels (centroid)</span>
       </label>
       <div className="map-sidepanel__divider" />
       <label className={`map-toggle${!mapReady ? " map-toggle--disabled" : ""}`}>
