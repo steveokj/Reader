@@ -158,6 +158,8 @@ const ALL_COUNTRY_LABELS = [
 ];
 const COUNTRY_CODE_OVERRIDES: Record<string, { iso2: string; iso3: string }> = {
   France: { iso2: "FR", iso3: "FRA" },
+  Kosovo: { iso2: "XK", iso3: "XKX" },
+  Cyprus: { iso2: "CY", iso3: "CYP" },
   Norway: { iso2: "NO", iso3: "NOR" },
 };
 const COUNTRY_ALIAS_TO_ISO2: Record<string, string> = {
