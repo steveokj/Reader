@@ -32,9 +32,11 @@ type Marker = {
   id: number;
   target_type: string;
   target_id: number;
-  kind: string;
+  kind: MarkerKind;
   created_at: string;
 };
+
+type MarkerKind = "like" | "highlight" | "todo" | "laugh" | "pending";
 
 type DocumentSection = {
   id: number;
@@ -347,7 +349,7 @@ export default function ReaderHighlightsPanel({
   }, [documentId, isActive, loadAll, refreshSelectionBundle, refreshSignal, sectionsById]);
 
   const toggleSelectionMarker = useCallback(
-    async (selectionId: number, kind: "like" | "highlight" | "todo") => {
+    async (selectionId: number, kind: MarkerKind) => {
       const bundle = bundlesRef.current.find((item) => item.selection.id === selectionId);
       if (!bundle) {
         return;
@@ -405,7 +407,7 @@ export default function ReaderHighlightsPanel({
   );
 
   const toggleAdditionMarker = useCallback(
-    async (selectionId: number, additionId: number, kind: "like" | "highlight" | "todo") => {
+    async (selectionId: number, additionId: number, kind: MarkerKind) => {
       const bundle = bundlesRef.current.find((item) => item.selection.id === selectionId);
       if (!bundle) {
         return;

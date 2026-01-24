@@ -11,8 +11,8 @@ type GrammarPayload = {
 type GrammarModalProps = {
   isOpen: boolean;
   selectionText: string;
-  markerKinds: Array<"like" | "highlight" | "todo">;
-  onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
+  markerKinds: Array<"like" | "highlight" | "todo" | "laugh" | "pending">;
+  onToggleMarker: (kind: "like" | "highlight" | "todo" | "laugh" | "pending") => void;
   onSave: (payload: GrammarPayload) => void;
   onClose: () => void;
 };

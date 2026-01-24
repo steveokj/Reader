@@ -9,8 +9,8 @@ type NoteModalProps = {
   isOpen: boolean;
   initialText: string;
   title: string;
-  markerKinds: Array<"like" | "highlight" | "todo">;
-  onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
+  markerKinds: Array<"like" | "highlight" | "todo" | "laugh" | "pending">;
+  onToggleMarker: (kind: "like" | "highlight" | "todo" | "laugh" | "pending") => void;
   onSave: (text: string) => void;
   onClose: () => void;
   showMarkers?: boolean;

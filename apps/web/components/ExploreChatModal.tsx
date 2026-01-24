@@ -64,7 +64,7 @@ type MessagePart =
 
 type AdditionMarker = {
   id: number;
-  kind: "like" | "highlight" | "todo";
+  kind: "like" | "highlight" | "todo" | "laugh" | "pending";
 };
 
 type ArtifactMenuState = {
@@ -579,7 +579,7 @@ export default function ExploreChatModal({
   );
 
   const toggleArtifactMarker = useCallback(
-    async (kind: "like" | "highlight" | "todo") => {
+    async (kind: "like" | "highlight" | "todo" | "laugh" | "pending") => {
       if (!artifactMenu) {
         return;
       }

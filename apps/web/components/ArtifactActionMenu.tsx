@@ -8,8 +8,8 @@ type ArtifactActionMenuProps = {
   variant?: "floating" | "mobile";
   label: string;
   contextText?: string;
-  markerKinds: Array<"like" | "highlight" | "todo">;
-  onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
+  markerKinds: Array<"like" | "highlight" | "todo" | "laugh" | "pending">;
+  onToggleMarker: (kind: "like" | "highlight" | "todo" | "laugh" | "pending") => void;
   onNote: () => void;
   onAudio: () => void;
   onExplore: () => void;

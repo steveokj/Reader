@@ -1,6 +1,6 @@
 ﻿"use client";
 
-type MarkerKind = "like" | "highlight" | "todo";
+type MarkerKind = "like" | "highlight" | "todo" | "laugh" | "pending";
 
 type MarkerToggleProps = {
   activeKinds: MarkerKind[];
@@ -32,6 +32,22 @@ function IconTodo() {
       <rect x="5" y="4" width="14" height="16" rx="2" />
       <path d="M9 12l2 2 4-4" />
     </svg>
+  );
+}
+
+function IconLaugh() {
+  return (
+    <span className="marker-emoji" role="img" aria-label="Laugh">
+      😂
+    </span>
+  );
+}
+
+function IconPending() {
+  return (
+    <span className="marker-emoji" role="img" aria-label="Pending">
+      ⏳
+    </span>
   );
 }
 
@@ -83,6 +99,20 @@ export default function MarkerToggle({
       </MarkerButton>
       <MarkerButton active={activeKinds.includes("todo")} onClick={() => onToggle("todo")} title="Todo">
         <IconTodo />
+      </MarkerButton>
+      <MarkerButton
+        active={activeKinds.includes("laugh")}
+        onClick={() => onToggle("laugh")}
+        title="Laugh"
+      >
+        <IconLaugh />
+      </MarkerButton>
+      <MarkerButton
+        active={activeKinds.includes("pending")}
+        onClick={() => onToggle("pending")}
+        title="Pending"
+      >
+        <IconPending />
       </MarkerButton>
     </div>
   );

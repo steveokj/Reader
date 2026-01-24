@@ -6,13 +6,13 @@ type ActionMenuProps = {
   top: number;
   left: number;
   variant?: "floating" | "mobile";
-  selectionText: string;
   isSaving: boolean;
   isCommitted: boolean;
-  markerKinds: Array<"like" | "highlight" | "todo">;
+  markerKinds: Array<"like" | "highlight" | "todo" | "laugh" | "pending">;
   showMarkers: boolean;
-  onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
+  onToggleMarker: (kind: "like" | "highlight" | "todo" | "laugh" | "pending") => void;
   onCommit: () => void;
+  onCopy: () => void;
   onNote: () => void;
   onAudio: () => void;
   onGrammar: () => void;
@@ -20,19 +20,6 @@ type ActionMenuProps = {
   onMap: () => void;
   onClose: () => void;
 };
-
-const MAX_SELECTION_PREVIEW = 160;
-
-function truncateSelectionText(value: string, limit = MAX_SELECTION_PREVIEW) {
-  const normalized = value.replace(/\s+/g, " ").trim();
-  if (!normalized) {
-    return "";
-  }
-  if (normalized.length <= limit) {
-    return normalized;
-  }
-  return `${normalized.slice(0, limit).trimEnd()}...`;
-}
 
 function IconCheck() {
   return (
@@ -105,16 +92,25 @@ function IconMap() {
   );
 }
 
+function IconCopy() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="7" y="7" width="11" height="11" rx="2" />
+      <path d="M6 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
 export default function ActionMenu({
   top,
   left,
-  selectionText,
   isSaving,
   isCommitted,
   markerKinds,
   showMarkers,
   onToggleMarker,
   onCommit,
+  onCopy,
   onNote,
   onAudio,
   onGrammar,
@@ -124,8 +120,6 @@ export default function ActionMenu({
   variant = "floating",
 }: ActionMenuProps) {
   const status = isSaving ? "Saving..." : isCommitted ? "Saved" : "Not saved";
-  const fullSelectionText = selectionText.replace(/\s+/g, " ").trim();
-  const previewText = truncateSelectionText(selectionText);
   const stopEvent = (event: { stopPropagation: () => void }) => {
     event.stopPropagation();
   };
@@ -163,15 +157,15 @@ export default function ActionMenu({
           <MarkerToggle activeKinds={markerKinds} onToggle={onToggleMarker} compact />
         </div>
       ) : null}
-      <div className="action-menu__text" title={fullSelectionText}>
-        {previewText}
-      </div>
       <div className="action-menu__actions">
         <button type="button" onClick={onNote} aria-label="Note" title="Note">
           <IconNote />
         </button>
         <button type="button" onClick={onAudio} aria-label="Audio" title="Audio">
           <IconAudio />
+        </button>
+        <button type="button" onClick={onCopy} aria-label="Copy" title="Copy">
+          <IconCopy />
         </button>
         <button type="button" onClick={onExplore} aria-label="Explore" title="Explore">
           <IconExplore />

@@ -421,11 +421,13 @@ type Addition = {
   updated_at: string;
 };
 
+type MarkerKind = "like" | "highlight" | "todo" | "laugh" | "pending";
+
 type Marker = {
   id: number;
   target_type: string;
   target_id: number;
-  kind: "like" | "highlight" | "todo";
+  kind: MarkerKind;
 };
 
 type WordBanner = {
@@ -439,8 +441,6 @@ type WordBanner = {
 type WordSelectionTap = WordBanner & {
   range: Range | null;
 };
-
-type MarkerKind = "like" | "highlight" | "todo";
 
 type DraftSelection = {
   selector: MenuState["selector"];
@@ -2726,6 +2726,52 @@ export default function ReaderClient({
     );
   }, []);
 
+  const closeSelectionMenu = useCallback(() => {
+    clearSelection();
+    if (isMobile) {
+      setMobilePanel(null);
+      setMobileNavOpen(false);
+      setMobilePageNavOpen(false);
+    }
+  }, [clearSelection, isMobile]);
+
+  const copyTextToClipboard = useCallback(async (text: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    if (typeof document === "undefined") {
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "true");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    textarea.style.pointerEvents = "none";
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+      document.execCommand("copy");
+    } finally {
+      document.body.removeChild(textarea);
+    }
+  }, []);
+
+  const handleCopySelection = useCallback(async () => {
+    const text = menuState?.selectionText ?? "";
+    const trimmed = text.trim();
+    if (!trimmed) {
+      closeSelectionMenu();
+      return;
+    }
+    try {
+      await copyTextToClipboard(trimmed);
+    } finally {
+      closeSelectionMenu();
+    }
+  }, [closeSelectionMenu, copyTextToClipboard, menuState]);
+
   const openNoteModal = useCallback(() => {
     flushSync(() => {
       setNoteModalOpen(true);
@@ -3758,19 +3804,19 @@ export default function ReaderClient({
             <ActionMenu
               top={menuState.top}
               left={menuState.left}
-              selectionText={menuState.selectionText}
               isSaving={isSaving}
               isCommitted={isCommitted}
               markerKinds={actionMenuMarkerKinds}
               showMarkers
               onToggleMarker={actionMenuToggle}
               onCommit={handleCommitSelection}
+              onCopy={handleCopySelection}
               onNote={handleOpenNote}
               onAudio={handleOpenAudio}
               onGrammar={handleOpenGrammar}
               onExplore={() => handleOpenExplore(menuState.selectionText)}
               onMap={() => handleOpenMap(menuState.selectionText)}
-              onClose={clearSelection}
+              onClose={closeSelectionMenu}
             />
           ) : null}
           {isMobile && mobilePanel ? (
@@ -3810,24 +3856,19 @@ export default function ReaderClient({
                   top={0}
                   left={0}
                   variant="mobile"
-                  selectionText={menuState.selectionText}
                   isSaving={isSaving}
                   isCommitted={isCommitted}
                   markerKinds={actionMenuMarkerKinds}
                   showMarkers
                   onToggleMarker={actionMenuToggle}
                   onCommit={handleCommitSelection}
+                  onCopy={handleCopySelection}
                   onNote={handleOpenNote}
                   onAudio={handleOpenAudio}
                   onGrammar={handleOpenGrammar}
                   onExplore={() => handleOpenExplore(menuState.selectionText)}
                   onMap={() => handleOpenMap(menuState.selectionText)}
-                  onClose={() => {
-                    setMobilePanel(null);
-                    setMobileNavOpen(false);
-                    setMobilePageNavOpen(false);
-                    clearSelection();
-                  }}
+                  onClose={closeSelectionMenu}
                 />
               ) : null}
               {mobilePanel === "search" ? (

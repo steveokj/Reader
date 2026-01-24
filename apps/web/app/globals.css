@@ -3028,6 +3028,11 @@ html[data-reader-theme="dark"] .reader-layout {
   stroke-linejoin: round;
 }
 
+.marker-emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
 .marker-button.is-active {
   color: var(--accent);
 }
@@ -3046,6 +3051,10 @@ html[data-reader-theme="dark"] .reader-layout {
 .marker-toggle--compact .marker-button svg {
   width: 14px;
   height: 14px;
+}
+
+.marker-toggle--compact .marker-emoji {
+  font-size: 14px;
 }
 
 .modal-card audio {

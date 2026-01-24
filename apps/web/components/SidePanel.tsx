@@ -41,6 +41,8 @@ type Marker = {
   kind: string;
 };
 
+type MarkerKind = "like" | "highlight" | "todo" | "laugh" | "pending";
+
 type SidePanelProps = {
   selection: Selection | null;
   additions: Addition[];
@@ -54,8 +56,8 @@ type SidePanelProps = {
   activeTab?: "active" | "highlights";
   onTabChange?: (tab: "active" | "highlights") => void;
   onEditNote: (note: Addition) => void;
-  onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
-  onToggleAdditionMarker: (additionId: number, kind: "like" | "highlight" | "todo") => void;
+  onToggleMarker: (kind: MarkerKind) => void;
+  onToggleAdditionMarker: (additionId: number, kind: MarkerKind) => void;
   onDeleteSelection: () => void;
   onJumpToSelection: (selection: Selection) => void;
 };
@@ -99,7 +101,7 @@ export default function SidePanel({
   const grammarItems = additions.filter((addition) => addition.type === "grammar");
   const audioItems = additions.filter((addition) => addition.type === "audio");
   const exploreItems = additions.filter((addition) => addition.type === "explore");
-  const markerKinds = markers.map((marker) => marker.kind as "like" | "highlight" | "todo");
+  const markerKinds = markers.map((marker) => marker.kind as MarkerKind);
 
   return (
     <aside className="side-panel">
@@ -163,9 +165,7 @@ export default function SidePanel({
                 <div className="note-list">
                   {notes.map((note) => {
                     const noteMarkers = additionMarkers[note.id] ?? [];
-                    const noteMarkerKinds = noteMarkers.map(
-                      (marker) => marker.kind as "like" | "highlight" | "todo"
-                    );
+                    const noteMarkerKinds = noteMarkers.map((marker) => marker.kind as MarkerKind);
                     return (
                       <div key={note.id} className="note-card">
                         <div className="note-card__header">
@@ -213,9 +213,7 @@ export default function SidePanel({
                 <div className="note-list">
                   {audioItems.map((item) => {
                     const audioMarkers = additionMarkers[item.id] ?? [];
-                    const audioMarkerKinds = audioMarkers.map(
-                      (marker) => marker.kind as "like" | "highlight" | "todo"
-                    );
+                    const audioMarkerKinds = audioMarkers.map((marker) => marker.kind as MarkerKind);
                     const audio = item.payload as { audio?: { url?: string; mime?: string } };
                     const src = audio.audio?.url
                       ? resolveMediaUrl(audio.audio.url, mediaBase)

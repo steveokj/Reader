@@ -13,8 +13,8 @@ type AudioPayload = {
 type AudioRecorderModalProps = {
   isOpen: boolean;
   apiBase: string;
-  markerKinds: Array<"like" | "highlight" | "todo">;
-  onToggleMarker: (kind: "like" | "highlight" | "todo") => void;
+  markerKinds: Array<"like" | "highlight" | "todo" | "laugh" | "pending">;
+  onToggleMarker: (kind: "like" | "highlight" | "todo" | "laugh" | "pending") => void;
   onSave: (payload: AudioPayload) => void;
   onClearSelection: () => void;
   onClose: () => void;

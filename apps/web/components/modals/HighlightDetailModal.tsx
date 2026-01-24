@@ -7,7 +7,7 @@ import MarkerToggle from "@/components/MarkerToggle";
 import { getClientApiBase } from "@/lib/apiBase";
 import { formatRelativeTime } from "@/lib/time";
 
-type MarkerKind = "like" | "highlight" | "todo";
+type MarkerKind = "like" | "highlight" | "todo" | "laugh" | "pending";
 
 type Selection = {
   id: number;
