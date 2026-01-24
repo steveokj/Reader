@@ -114,6 +114,8 @@ class MapViewCreate(BaseModel):
     labels_mode: str
     cities_visible: bool
     states_visible: bool
+    states_labels_visible: Optional[bool] = None
+    states_borders_visible: Optional[bool] = None
     focus_seas_only: bool
     selected_iso2: List[str]
     selected_state_codes: List[str] = []

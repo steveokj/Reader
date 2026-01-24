@@ -45,6 +45,12 @@ def _serialize_view(row: Dict[str, Any]) -> Dict[str, Any]:
         "labels_mode": row["labels_mode"],
         "cities_visible": bool(row["cities_visible"]),
         "states_visible": bool(row["states_visible"]),
+        "states_labels_visible": bool(row["states_labels_visible"])
+        if row.get("states_labels_visible") is not None
+        else bool(row["states_visible"]),
+        "states_borders_visible": bool(row["states_borders_visible"])
+        if row.get("states_borders_visible") is not None
+        else bool(row["states_visible"]),
         "focus_seas_only": bool(row["focus_seas_only"]),
         "selected_iso2": selected_iso2,
         "selected_state_codes": selected_state_codes,
@@ -72,6 +78,8 @@ def list_map_views(conn) -> List[Dict[str, Any]]:
           labels_mode,
           cities_visible,
           states_visible,
+          states_labels_visible,
+          states_borders_visible,
           focus_seas_only,
           selected_iso2,
           selected_state_codes,
@@ -86,6 +94,11 @@ def list_map_views(conn) -> List[Dict[str, Any]]:
 
 def create_map_view(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
     now = _iso_now()
+    states_visible = bool(payload.get("states_visible"))
+    labels_visible = payload.get("states_labels_visible")
+    borders_visible = payload.get("states_borders_visible")
+    labels_value = states_visible if labels_visible is None else bool(labels_visible)
+    borders_value = states_visible if borders_visible is None else bool(borders_visible)
     cur = conn.execute(
         """
         INSERT INTO map_saved_views (
@@ -103,13 +116,15 @@ def create_map_view(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
           labels_mode,
           cities_visible,
           states_visible,
+          states_labels_visible,
+          states_borders_visible,
           focus_seas_only,
           selected_iso2,
           selected_state_codes,
           selected_city_keys,
           created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             payload["name"],
@@ -125,7 +140,9 @@ def create_map_view(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
             payload.get("bounds_north"),
             payload["labels_mode"],
             1 if payload.get("cities_visible") else 0,
-            1 if payload.get("states_visible") else 0,
+            1 if states_visible else 0,
+            1 if labels_value else 0,
+            1 if borders_value else 0,
             1 if payload.get("focus_seas_only") else 0,
             json.dumps(payload.get("selected_iso2") or []),
             json.dumps(payload.get("selected_state_codes") or []),
@@ -152,6 +169,8 @@ def create_map_view(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
           labels_mode,
           cities_visible,
           states_visible,
+          states_labels_visible,
+          states_borders_visible,
           focus_seas_only,
           selected_iso2,
           selected_state_codes,
@@ -199,6 +218,8 @@ def update_map_view(conn, view_id: int, name: str) -> Optional[Dict[str, Any]]:
           labels_mode,
           cities_visible,
           states_visible,
+          states_labels_visible,
+          states_borders_visible,
           focus_seas_only,
           selected_iso2,
           selected_state_codes,

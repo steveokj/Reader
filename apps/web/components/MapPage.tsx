@@ -26,6 +26,8 @@ type SavedView = {
   labels_mode: "none" | "selected" | "all";
   cities_visible: boolean;
   states_visible: boolean;
+  states_labels_visible?: boolean | null;
+  states_borders_visible?: boolean | null;
   focus_seas_only: boolean;
   selected_iso2: string[];
   selected_state_codes: string[];
@@ -988,14 +990,14 @@ function applyStateSelection(map: MapLibreMap, stateCodes: string[]) {
 function applyStateLabelMode(
   map: MapLibreMap,
   enableAbbrev: boolean,
-  statesVisible: boolean
+  stateLabelsVisible: boolean
 ) {
   const hasLabels = map.getLayer("state-labels");
   if (!hasLabels) {
     return;
   }
   if (map.getLayer("state-labels")) {
-    map.setLayoutProperty("state-labels", "visibility", statesVisible ? "visible" : "none");
+    map.setLayoutProperty("state-labels", "visibility", stateLabelsVisible ? "visible" : "none");
     map.setLayerZoomRange(
       "state-labels",
       enableAbbrev ? STATE_LABEL_SWITCH_ZOOM : STATE_LABEL_FULL_MIN_ZOOM,
@@ -1006,7 +1008,7 @@ function applyStateLabelMode(
     map.setLayoutProperty(
       "state-labels-abbrev",
       "visibility",
-      statesVisible && enableAbbrev ? "visible" : "none"
+      stateLabelsVisible && enableAbbrev ? "visible" : "none"
     );
     map.setLayerZoomRange(
       "state-labels-abbrev",
@@ -1191,7 +1193,8 @@ export default function MapPage({
   const [citiesStatus, setCitiesStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle"
   );
-  const [statesVisible, setStatesVisible] = useState(true);
+  const [stateLabelsVisible, setStateLabelsVisible] = useState(true);
+  const [stateBordersVisible, setStateBordersVisible] = useState(true);
   const [stateAbbrevLabels, setStateAbbrevLabels] = useState(true);
   const [focusSeasOnly, setFocusSeasOnly] = useState(true);
   const [statesStatus, setStatesStatus] = useState<"idle" | "loading" | "ready" | "error">(
@@ -1390,7 +1393,10 @@ export default function MapPage({
       const selectedCities = view.selected_city_keys ?? [];
       setLabelsMode(labelsModeValue);
       setCitiesVisible(view.cities_visible);
-      setStatesVisible(view.states_visible);
+      const labelsVisible = view.states_labels_visible ?? view.states_visible;
+      const bordersVisible = view.states_borders_visible ?? view.states_visible;
+      setStateLabelsVisible(labelsVisible);
+      setStateBordersVisible(bordersVisible);
       setFocusSeasOnly(view.focus_seas_only);
       setSelectedIso2(selected);
       setSelectedStateCodes(selectedStates);
@@ -2059,7 +2065,9 @@ export default function MapPage({
           bounds_north: bounds.getNorth(),
           labels_mode: labelsMode,
           cities_visible: citiesVisible,
-          states_visible: statesVisible,
+          states_visible: stateLabelsVisible || stateBordersVisible,
+          states_labels_visible: stateLabelsVisible,
+          states_borders_visible: stateBordersVisible,
           focus_seas_only: focusSeasOnly,
           selected_iso2: selectedIso2,
           selected_state_codes: selectedStateCodes,
@@ -2094,7 +2102,8 @@ export default function MapPage({
     loadSavedViews,
     mapReady,
     selectedIso2,
-    statesVisible,
+    stateBordersVisible,
+    stateLabelsVisible,
   ]);
 
   useEffect(() => {
@@ -2612,13 +2621,18 @@ export default function MapPage({
     if (!mapReady || dataStatus !== "ready" || !map) {
       return;
     }
-    const needsStates = statesVisible || selectedStateCodes.length > 0;
+    const needsStates =
+      stateLabelsVisible || stateBordersVisible || selectedStateCodes.length > 0;
     if (!needsStates) {
       if (map.getLayer("state-selection")) {
         applyStateSelection(map, []);
+        map.setLayoutProperty("state-selection", "visibility", "none");
       }
       if (map.getLayer("state-labels")) {
         map.setLayoutProperty("state-labels", "visibility", "none");
+      }
+      if (map.getLayer("state-labels-abbrev")) {
+        map.setLayoutProperty("state-labels-abbrev", "visibility", "none");
       }
       if (map.getLayer("state-borders")) {
         map.setLayoutProperty("state-borders", "visibility", "none");
@@ -2627,12 +2641,20 @@ export default function MapPage({
     }
     const ensureStates = async () => {
     if (map.getSource("state-labels") && map.getSource("states")) {
-        applyStateLabelMode(map, stateAbbrevLabels, statesVisible);
+        applyStateLabelMode(map, stateAbbrevLabels, stateLabelsVisible);
         if (map.getLayer("state-borders")) {
-          map.setLayoutProperty("state-borders", "visibility", statesVisible ? "visible" : "none");
+          map.setLayoutProperty(
+            "state-borders",
+            "visibility",
+            stateBordersVisible ? "visible" : "none"
+          );
         }
         if (map.getLayer("state-selection")) {
-          map.setLayoutProperty("state-selection", "visibility", "visible");
+          map.setLayoutProperty(
+            "state-selection",
+            "visibility",
+            selectedStateCodes.length > 0 ? "visible" : "none"
+          );
         }
         applyStateFilter(map, labelsMode, selectedIso2);
         applyStateSelection(map, selectedStateCodes);
@@ -2753,8 +2775,19 @@ export default function MapPage({
             labelBefore
           );
         }
-        applyStateLabelMode(map, stateAbbrevLabels, statesVisible);
-        map.setLayoutProperty("state-borders", "visibility", statesVisible ? "visible" : "none");
+        applyStateLabelMode(map, stateAbbrevLabels, stateLabelsVisible);
+        map.setLayoutProperty(
+          "state-borders",
+          "visibility",
+          stateBordersVisible ? "visible" : "none"
+        );
+        if (map.getLayer("state-selection")) {
+          map.setLayoutProperty(
+            "state-selection",
+            "visibility",
+            selectedStateCodes.length > 0 ? "visible" : "none"
+          );
+        }
         applyStateFilter(map, labelsMode, selectedIso2);
         applyStateSelection(map, selectedStateCodes);
         setStatesStatus("ready");
@@ -2772,7 +2805,8 @@ export default function MapPage({
     selectedIso2,
     selectedStateCodes,
     stateAbbrevLabels,
-    statesVisible,
+    stateBordersVisible,
+    stateLabelsVisible,
   ]);
 
   const handleSubmit = useCallback(
@@ -3207,24 +3241,33 @@ export default function MapPage({
       <label className={`map-toggle${!mapReady ? " map-toggle--disabled" : ""}`}>
         <input
           type="checkbox"
-          checked={statesVisible}
-          onChange={(event) => setStatesVisible(event.target.checked)}
+          checked={stateLabelsVisible}
+          onChange={(event) => setStateLabelsVisible(event.target.checked)}
           disabled={!mapReady}
         />
-        <span>State/Province labels + borders</span>
+        <span>State/Province labels</span>
       </label>
       <label
         className={`map-toggle${
-          !mapReady || !statesVisible ? " map-toggle--disabled" : ""
+          !mapReady || !stateLabelsVisible ? " map-toggle--disabled" : ""
         }`}
       >
         <input
           type="checkbox"
           checked={stateAbbrevLabels}
           onChange={(event) => setStateAbbrevLabels(event.target.checked)}
-          disabled={!mapReady || !statesVisible}
+          disabled={!mapReady || !stateLabelsVisible}
         />
         <span>Abbreviations when zoomed out</span>
+      </label>
+      <label className={`map-toggle${!mapReady ? " map-toggle--disabled" : ""}`}>
+        <input
+          type="checkbox"
+          checked={stateBordersVisible}
+          onChange={(event) => setStateBordersVisible(event.target.checked)}
+          disabled={!mapReady}
+        />
+        <span>State/Province borders</span>
       </label>
       <label className="map-toggle">
         <input
