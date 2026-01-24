@@ -186,6 +186,75 @@ const COUNTRY_LABEL_OVERRIDES: Record<string, [number, number]> = {
   US: [-98.5, 39.8],
   CA: [-100.5, 55.0],
 };
+const EXCLUDED_COUNTRY_NAMES = new Set<string>([
+  "Akrotiri Sovereign Base Area",
+  "American Samoa",
+  "Andorra",
+  "Anguilla",
+  "Antigua and Barbuda",
+  "Aruba",
+  "Ashmore and Cartier Islands",
+  "Bajo Nuevo Bank (Petrel Is.)",
+  "Barbados",
+  "Bermuda",
+  "British Indian Ocean Territory",
+  "British Virgin Islands",
+  "Brazilian Island",
+  "Cayman Islands",
+  "Clipperton Island",
+  "Cook Islands",
+  "Coral Sea Islands",
+  "Curaçao",
+  "Cyprus No Mans Area",
+  "Dhekelia Sovereign Base Area",
+  "Falkland Islands",
+  "Federated States of Micronesia",
+  "French Southern and Antarctic Lands",
+  "Gibraltar",
+  "Grenada",
+  "Guam",
+  "Guernsey",
+  "Indian Ocean Territories",
+  "Jersey",
+  "Kiribati",
+  "Liechtenstein",
+  "Macao S.A.R",
+  "Maldives",
+  "Malta",
+  "Marshall Islands",
+  "Monaco",
+  "Montserrat",
+  "Nauru",
+  "New Caledonia",
+  "Niue",
+  "Norfolk Island",
+  "Northern Mariana Islands",
+  "Palau",
+  "Pitcairn Islands",
+  "Puerto Rico",
+  "Saint Barthelemy",
+  "Saint Helena",
+  "Saint Kitts and Nevis",
+  "Saint Martin",
+  "Saint Pierre and Miquelon",
+  "Saint Vincent and the Grenadines",
+  "San Marino",
+  "Scarborough Reef",
+  "Serranilla Bank",
+  "Seychelles",
+  "Singapore",
+  "Sint Maarten",
+  "South Georgia and the Islands",
+  "Spratly Islands",
+  "Tonga",
+  "Turks and Caicos Islands",
+  "Tuvalu",
+  "US Naval Base Guantanamo Bay",
+  "United States Minor Outlying Islands",
+  "United States Virgin Islands",
+  "Vatican",
+  "Wallis and Futuna",
+]);
 const LOW_ZOOM_OVERLAY = [
   { iso2: "GL", color: "#f6f8fb", opacity: 0.9 },
   { iso2: "CA", color: "#dde6de", opacity: 0.22 },
@@ -206,6 +275,10 @@ type Bounds = { west: number; south: number; east: number; north: number };
 
 function normalizeKey(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function isExcludedCountryName(name: string) {
+  return EXCLUDED_COUNTRY_NAMES.has(name);
 }
 
 function parsePlaces(value: string) {
@@ -414,7 +487,7 @@ function buildCountryLabelCollection(
     const iso2 = String(props["ISO3166-1-Alpha-2"] ?? "").trim().toUpperCase();
     const iso3 = String(props["ISO3166-1-Alpha-3"] ?? "").trim().toUpperCase();
     const name = String(props.name ?? "").trim();
-    if (!iso2 || !feature.geometry) {
+    if (!iso2 || !feature.geometry || isExcludedCountryName(name)) {
       return;
     }
     const polygonInfo = getLargestPolygonInfo(feature.geometry);
@@ -474,6 +547,9 @@ function buildCountryLabelCollection(
     pointsByIso3.forEach((entries, iso3) => {
       const country = byIso3.get(iso3);
       if (!country) {
+        return;
+      }
+      if (isExcludedCountryName(country.name)) {
         return;
       }
       let bestInside: { coord: [number, number]; rank: number } | null = null;
@@ -776,6 +852,7 @@ function applySelection(map: MapLibreMap, iso2Codes: string[], selectedStateCode
       ["literal", outlineCodes],
     ],
     [">=", ["get", "largest_area"], SMALL_ISLAND_AREA_CUTOFF],
+    ["!=", ["get", "excluded_country"], true],
   ]);
 }
 
@@ -1773,6 +1850,7 @@ export default function MapPage({
           if (!name) {
             return;
           }
+          const excluded = isExcludedCountryName(name);
           const polygonInfo = feature.geometry
             ? getLargestPolygonInfo(feature.geometry)
             : null;
@@ -1782,6 +1860,7 @@ export default function MapPage({
             feature.properties = {
               ...props,
               largest_area: largestArea,
+              excluded_country: excluded,
             };
             return;
           }
@@ -1790,6 +1869,7 @@ export default function MapPage({
             feature.properties = {
               ...props,
               largest_area: largestArea,
+              excluded_country: excluded,
             };
             return;
           }
@@ -1798,6 +1878,7 @@ export default function MapPage({
             "ISO3166-1-Alpha-2": override.iso2,
             "ISO3166-1-Alpha-3": override.iso3,
             largest_area: largestArea,
+            excluded_country: excluded,
           };
         });
         map.addSource("countries", {
@@ -1881,7 +1962,11 @@ export default function MapPage({
             id: "countries-outline",
             type: "line",
             source: "countries",
-            filter: [">=", ["get", "largest_area"], SMALL_ISLAND_AREA_CUTOFF],
+            filter: [
+              "all",
+              [">=", ["get", "largest_area"], SMALL_ISLAND_AREA_CUTOFF],
+              ["!=", ["get", "excluded_country"], true],
+            ],
             paint: {
               "line-color": "#8c7b6f",
               "line-width": 1.1,
@@ -1903,6 +1988,7 @@ export default function MapPage({
               "all",
               ["==", ["get", "ISO3166-1-Alpha-2"], ""],
               [">=", ["get", "largest_area"], SMALL_ISLAND_AREA_CUTOFF],
+              ["!=", ["get", "excluded_country"], true],
             ],
           });
         }
