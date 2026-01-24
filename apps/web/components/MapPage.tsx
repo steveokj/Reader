@@ -487,7 +487,7 @@ function buildCountryLabelCollection(
     const iso2 = String(props["ISO3166-1-Alpha-2"] ?? "").trim().toUpperCase();
     const iso3 = String(props["ISO3166-1-Alpha-3"] ?? "").trim().toUpperCase();
     const name = String(props.name ?? "").trim();
-    if (!iso2 || !feature.geometry || isExcludedCountryName(name)) {
+    if (!iso2 || !feature.geometry) {
       return;
     }
     const polygonInfo = getLargestPolygonInfo(feature.geometry);
@@ -549,9 +549,6 @@ function buildCountryLabelCollection(
       if (!country) {
         return;
       }
-      if (isExcludedCountryName(country.name)) {
-        return;
-      }
       let bestInside: { coord: [number, number]; rank: number } | null = null;
       if (country.polygon) {
         entries.forEach((entry) => {
@@ -570,6 +567,7 @@ function buildCountryLabelCollection(
         properties: {
           name: country.name,
           "ISO3166-1-Alpha-2": country.iso2,
+          excluded_country: isExcludedCountryName(country.name),
         },
       });
       usedIso2.add(country.iso2);
@@ -589,6 +587,7 @@ function buildCountryLabelCollection(
       properties: {
         name: entry.name,
         "ISO3166-1-Alpha-2": iso2,
+        excluded_country: isExcludedCountryName(entry.name),
       },
     });
   });
@@ -608,12 +607,14 @@ function buildCountryLabelCollection(
       return;
     }
     const name = fallbackByIso2.get(iso2)?.name ?? iso2;
+    const excluded = isExcludedCountryName(name);
     normalizedFeatures.push({
       type: "Feature",
       geometry: { type: "Point", coordinates: coords },
       properties: {
         name,
         "ISO3166-1-Alpha-2": iso2,
+        excluded_country: excluded,
       },
     });
   });
@@ -817,7 +818,12 @@ function unionBounds(features: GeoFeature[]): Bounds | null {
   return bounds;
 }
 
-function applySelection(map: MapLibreMap, iso2Codes: string[], selectedStateCodes: string[]) {
+function applySelection(
+  map: MapLibreMap,
+  iso2Codes: string[],
+  selectedStateCodes: string[],
+  showExcludedCountries: boolean
+) {
   if (!map.getLayer("countries-fill")) {
     return;
   }
@@ -844,7 +850,7 @@ function applySelection(map: MapLibreMap, iso2Codes: string[], selectedStateCode
     map.setFilter("countries-selected-outline", ["==", ["get", "ISO3166-1-Alpha-2"], ""]);
     return;
   }
-  map.setFilter("countries-selected-outline", [
+  const outlineFilter: any[] = [
     "all",
     [
       "in",
@@ -852,8 +858,25 @@ function applySelection(map: MapLibreMap, iso2Codes: string[], selectedStateCode
       ["literal", outlineCodes],
     ],
     [">=", ["get", "largest_area"], SMALL_ISLAND_AREA_CUTOFF],
-    ["!=", ["get", "excluded_country"], true],
-  ]);
+  ];
+  if (!showExcludedCountries) {
+    outlineFilter.push(["!=", ["get", "excluded_country"], true]);
+  }
+  map.setFilter("countries-selected-outline", outlineFilter);
+}
+
+function applyCountryOutlineFilter(map: MapLibreMap, showExcludedCountries: boolean) {
+  if (!map.getLayer("countries-outline")) {
+    return;
+  }
+  const outlineFilter: any[] = [
+    "all",
+    [">=", ["get", "largest_area"], SMALL_ISLAND_AREA_CUTOFF],
+  ];
+  if (!showExcludedCountries) {
+    outlineFilter.push(["!=", ["get", "excluded_country"], true]);
+  }
+  map.setFilter("countries-outline", outlineFilter);
 }
 
 function applyStateSelection(map: MapLibreMap, stateCodes: string[]) {
@@ -930,25 +953,45 @@ function applyLabelState(
   map: MapLibreMap,
   mode: "none" | "selected" | "all",
   selectedIso2: string[],
-  allLabelsFiltered: boolean
+  allLabelsFiltered: boolean,
+  showExcludedCountries: boolean
 ) {
   if (!map.getLayer("country-labels-all") || !map.getLayer("country-labels-selected")) {
     return;
   }
   const selectedNormalized = selectedIso2.map((code) => code.toUpperCase());
-  map.setFilter("country-labels-selected", [
+  const selectedFilter: any[] = [
     "in",
     ["get", "ISO3166-1-Alpha-2"],
     ["literal", selectedNormalized],
-  ]);
+  ];
+  if (!showExcludedCountries) {
+    map.setFilter("country-labels-selected", [
+      "all",
+      selectedFilter,
+      ["!=", ["get", "excluded_country"], true],
+    ]);
+  } else {
+    map.setFilter("country-labels-selected", selectedFilter);
+  }
+
+  const allFilters: any[] = [];
   if (allLabelsFiltered) {
-    map.setFilter("country-labels-all", [
+    allFilters.push([
       "in",
       ["get", "ISO3166-1-Alpha-2"],
       ["literal", ALL_COUNTRY_LABELS],
     ]);
-  } else {
+  }
+  if (!showExcludedCountries) {
+    allFilters.push(["!=", ["get", "excluded_country"], true]);
+  }
+  if (allFilters.length === 0) {
     map.setFilter("country-labels-all", null);
+  } else if (allFilters.length === 1) {
+    map.setFilter("country-labels-all", allFilters[0]);
+  } else {
+    map.setFilter("country-labels-all", ["all", ...allFilters]);
   }
   map.setLayoutProperty(
     "country-labels-all",
@@ -1006,6 +1049,7 @@ export default function MapPage({
   const [mobilePanel, setMobilePanel] = useState<"views" | "settings" | null>(null);
   const [labelsMode, setLabelsMode] = useState<"none" | "selected" | "all">("all");
   const [allLabelsFiltered, setAllLabelsFiltered] = useState(false);
+  const [showExcludedCountries, setShowExcludedCountries] = useState(false);
   const [selectedIso2, setSelectedIso2] = useState<string[]>([]);
   const [selectedStateCodes, setSelectedStateCodes] = useState<string[]>([]);
   const [selectedCityKeys, setSelectedCityKeys] = useState<string[]>([]);
@@ -1143,10 +1187,10 @@ export default function MapPage({
       setSelectedStateCodes(selectedStates);
       setSelectedCityKeys(selectedCities);
       setMapScale(view.map_scale ?? DEFAULT_MAP_SCALE);
-      applySelection(map, selected, selectedStates);
+      applySelection(map, selected, selectedStates, showExcludedCountries);
       applyStateSelection(map, selectedStates);
       applyCitySelection(map, selectedCities);
-      applyLabelState(map, labelsModeValue, selected, allLabelsFiltered);
+      applyLabelState(map, labelsModeValue, selected, allLabelsFiltered, showExcludedCountries);
       applyCityFilter(map, labelsModeValue, selected);
       applyStateFilter(map, labelsModeValue, selected);
       applyMarineFilter(map, view.focus_seas_only);
@@ -1524,10 +1568,10 @@ export default function MapPage({
       setSelectedCityKeys(cityKeys);
       setSelectedIso2(countryCodes);
       setLabelsMode("selected");
-      applySelection(map, countryCodes, stateCodes);
+      applySelection(map, countryCodes, stateCodes, showExcludedCountries);
       applyStateSelection(map, stateCodes);
       applyCitySelection(map, cityKeys);
-      applyLabelState(map, "selected", countryCodes, allLabelsFiltered);
+      applyLabelState(map, "selected", countryCodes, allLabelsFiltered, showExcludedCountries);
       applyCityFilter(map, "selected", countryCodes);
       applyStateFilter(map, "selected", countryCodes);
       const bbox = unionBounds(exploreMatches.states.map((entry) => entry.feature));
@@ -1547,10 +1591,10 @@ export default function MapPage({
       setSelectedCityKeys(cityKeys);
       setSelectedIso2(combinedCodes);
       setLabelsMode("selected");
-      applySelection(map, combinedCodes, []);
+      applySelection(map, combinedCodes, [], showExcludedCountries);
       applyStateSelection(map, []);
       applyCitySelection(map, cityKeys);
-      applyLabelState(map, "selected", combinedCodes, allLabelsFiltered);
+      applyLabelState(map, "selected", combinedCodes, allLabelsFiltered, showExcludedCountries);
       applyCityFilter(map, "selected", combinedCodes);
       applyStateFilter(map, "selected", combinedCodes);
       const bbox =
@@ -2100,8 +2144,23 @@ export default function MapPage({
       return;
     }
     ensureLabelLayers(map);
-    applyLabelState(map, labelsMode, selectedIso2, allLabelsFiltered);
-  }, [allLabelsFiltered, dataStatus, labelsMode, mapReady, selectedIso2]);
+    applyLabelState(map, labelsMode, selectedIso2, allLabelsFiltered, showExcludedCountries);
+  }, [allLabelsFiltered, dataStatus, labelsMode, mapReady, selectedIso2, showExcludedCountries]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || dataStatus !== "ready" || !map) {
+      return;
+    }
+    applySelection(map, selectedIso2, selectedStateCodes, showExcludedCountries);
+    applyCountryOutlineFilter(map, showExcludedCountries);
+  }, [
+    dataStatus,
+    mapReady,
+    selectedIso2,
+    selectedStateCodes,
+    showExcludedCountries,
+  ]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -2483,10 +2542,10 @@ export default function MapPage({
       setSelectedStateCodes(stateCodes);
       setSelectedCityKeys(cityKeys);
       setLabelsMode("selected");
-      applySelection(map, iso2Codes, stateCodes);
+      applySelection(map, iso2Codes, stateCodes, showExcludedCountries);
       applyStateSelection(map, stateCodes);
       applyCitySelection(map, cityKeys);
-      applyLabelState(map, "selected", iso2Codes, allLabelsFiltered);
+      applyLabelState(map, "selected", iso2Codes, allLabelsFiltered, showExcludedCountries);
       applyCityFilter(map, "selected", iso2Codes);
       applyStateFilter(map, "selected", iso2Codes);
 
@@ -2741,6 +2800,14 @@ export default function MapPage({
           disabled={labelsMode !== "all"}
         />
         <span>Curated list only</span>
+      </label>
+      <label className="map-toggle">
+        <input
+          type="checkbox"
+          checked={showExcludedCountries}
+          onChange={(event) => setShowExcludedCountries(event.target.checked)}
+        />
+        <span>Show minor territories</span>
       </label>
       <div className="map-sidepanel__divider" />
       <label className={`map-toggle${!mapReady ? " map-toggle--disabled" : ""}`}>
