@@ -85,6 +85,7 @@ const DEFAULT_ZOOM = 1.6;
 const DEFAULT_MAP_SCALE = 0.7;
 const SCALE_MIN = 0.7;
 const SCALE_MAX = 1;
+const SMALL_ISLAND_AREA_CUTOFF = 0.02;
 const SHOW_MAP_CONTROLS = process.env.NEXT_PUBLIC_MAP_CONTROLS === "1";
 const MAP_EXPLORE_MODE = "codex-cli";
 const MAP_EXPLORE_INSTRUCTION = [
@@ -768,9 +769,13 @@ function applySelection(map: MapLibreMap, iso2Codes: string[], selectedStateCode
     return;
   }
   map.setFilter("countries-selected-outline", [
-    "in",
-    ["get", "ISO3166-1-Alpha-2"],
-    ["literal", outlineCodes],
+    "all",
+    [
+      "in",
+      ["get", "ISO3166-1-Alpha-2"],
+      ["literal", outlineCodes],
+    ],
+    [">=", ["get", "largest_area"], SMALL_ISLAND_AREA_CUTOFF],
   ]);
 }
 
@@ -1768,18 +1773,31 @@ export default function MapPage({
           if (!name) {
             return;
           }
+          const polygonInfo = feature.geometry
+            ? getLargestPolygonInfo(feature.geometry)
+            : null;
+          const largestArea = polygonInfo?.area ?? 0;
           const iso2 = String(props["ISO3166-1-Alpha-2"] ?? "").trim();
           if (iso2 && iso2 !== "-99") {
+            feature.properties = {
+              ...props,
+              largest_area: largestArea,
+            };
             return;
           }
           const override = COUNTRY_CODE_OVERRIDES[name];
           if (!override) {
+            feature.properties = {
+              ...props,
+              largest_area: largestArea,
+            };
             return;
           }
           feature.properties = {
             ...props,
             "ISO3166-1-Alpha-2": override.iso2,
             "ISO3166-1-Alpha-3": override.iso3,
+            largest_area: largestArea,
           };
         });
         map.addSource("countries", {
@@ -1863,6 +1881,7 @@ export default function MapPage({
             id: "countries-outline",
             type: "line",
             source: "countries",
+            filter: [">=", ["get", "largest_area"], SMALL_ISLAND_AREA_CUTOFF],
             paint: {
               "line-color": "#8c7b6f",
               "line-width": 1.1,
@@ -1880,7 +1899,11 @@ export default function MapPage({
               "line-width": 2,
               "line-opacity": 0.9,
             },
-            filter: ["==", ["get", "ISO3166-1-Alpha-2"], ""],
+            filter: [
+              "all",
+              ["==", ["get", "ISO3166-1-Alpha-2"], ""],
+              [">=", ["get", "largest_area"], SMALL_ISLAND_AREA_CUTOFF],
+            ],
           });
         }
         ensureLabelLayers(map);
