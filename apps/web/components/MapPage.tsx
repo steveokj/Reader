@@ -124,6 +124,7 @@ const ALL_COUNTRY_LABELS = [
   "PL",
   "UA",
   "IT",
+  "RU",
   "MA",
   "TN",
   "GH",
