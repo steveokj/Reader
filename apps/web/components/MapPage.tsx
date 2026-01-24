@@ -32,6 +32,14 @@ type SavedView = {
   selected_city_keys: string[];
   created_at: string;
 };
+type MapToggleView = {
+  center_lng: number;
+  center_lat: number;
+  zoom: number;
+  bearing: number;
+  pitch: number;
+  map_scale: number | null;
+};
 type MapExploreCountry = { name?: string; code?: string };
 type MapExploreState = {
   name?: string;
@@ -345,6 +353,43 @@ function parseMapExploreResponse(value: string): MapExploreResponse | null {
   } catch {
     return null;
   }
+}
+
+function parseMapToggleView(value: unknown): MapToggleView | null {
+  if (!value) {
+    return null;
+  }
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof parsed !== "object" || parsed === null) {
+    return null;
+  }
+  const data = parsed as Record<string, unknown>;
+  const centerLng = Number(data.center_lng);
+  const centerLat = Number(data.center_lat);
+  const zoom = Number(data.zoom);
+  const bearing = Number(data.bearing);
+  const pitch = Number(data.pitch);
+  if (!Number.isFinite(centerLng) || !Number.isFinite(centerLat) || !Number.isFinite(zoom)) {
+    return null;
+  }
+  return {
+    center_lng: centerLng,
+    center_lat: centerLat,
+    zoom,
+    bearing: Number.isFinite(bearing) ? bearing : 0,
+    pitch: Number.isFinite(pitch) ? pitch : 0,
+    map_scale:
+      data.map_scale === null || data.map_scale === undefined
+        ? null
+        : Number(data.map_scale),
+  };
 }
 
 function expandCoords(coords: number[][], bounds: Bounds) {
@@ -1121,6 +1166,11 @@ export default function MapPage({
   const [defaultViewIdMobile, setDefaultViewIdMobile] = useState<number | null>(null);
   const [defaultViewIdDesktop, setDefaultViewIdDesktop] = useState<number | null>(null);
   const [defaultApplied, setDefaultApplied] = useState(false);
+  const [overviewViewMobile, setOverviewViewMobile] = useState<MapToggleView | null>(null);
+  const [overviewViewDesktop, setOverviewViewDesktop] = useState<MapToggleView | null>(null);
+  const [focusViewMobile, setFocusViewMobile] = useState<MapToggleView | null>(null);
+  const [focusViewDesktop, setFocusViewDesktop] = useState<MapToggleView | null>(null);
+  const [zoomToggleMode, setZoomToggleMode] = useState<"overview" | "focus">("overview");
 
   const loadSavedViews = useCallback(async () => {
     setSavedViewsStatus("loading");
@@ -1159,6 +1209,10 @@ export default function MapPage({
       const desktopId = hasDesktop ? settings.default_map_view_id_desktop : legacyId;
       setDefaultViewIdMobile(typeof mobileId === "number" ? mobileId : null);
       setDefaultViewIdDesktop(typeof desktopId === "number" ? desktopId : null);
+      setOverviewViewMobile(parseMapToggleView(settings.map_toggle_view_overview_mobile));
+      setOverviewViewDesktop(parseMapToggleView(settings.map_toggle_view_overview_desktop));
+      setFocusViewMobile(parseMapToggleView(settings.map_toggle_view_focus_mobile));
+      setFocusViewDesktop(parseMapToggleView(settings.map_toggle_view_focus_desktop));
     } catch (error) {
       console.error(error);
     }
@@ -1263,6 +1317,22 @@ export default function MapPage({
     const iso2 = String(feature.properties?.["ISO3166-1-Alpha-2"] ?? "").trim();
     return iso2 ? iso2.toUpperCase() : null;
   }, []);
+
+  const captureToggleView = useCallback((): MapToggleView | null => {
+    const map = mapRef.current;
+    if (!map) {
+      return null;
+    }
+    const center = map.getCenter();
+    return {
+      center_lng: center.lng,
+      center_lat: center.lat,
+      zoom: map.getZoom(),
+      bearing: map.getBearing(),
+      pitch: map.getPitch(),
+      map_scale: mapScale ?? DEFAULT_MAP_SCALE,
+    };
+  }, [mapScale]);
 
   const applySavedView = useCallback(
     (view: SavedView) => {
@@ -1399,6 +1469,82 @@ export default function MapPage({
       window.setTimeout(() => setStatus(null), 2000);
     }
   }, [apiBase, isMobile]);
+
+  const applyToggleView = useCallback((view: MapToggleView) => {
+    const map = mapRef.current;
+    if (!map) {
+      return;
+    }
+    setMapScale(view.map_scale ?? DEFAULT_MAP_SCALE);
+    map.flyTo({
+      center: [view.center_lng, view.center_lat],
+      zoom: view.zoom,
+      bearing: view.bearing,
+      pitch: view.pitch,
+      duration: 800,
+    });
+  }, []);
+
+  const handleSetToggleView = useCallback(
+    async (kind: "overview" | "focus") => {
+      const view = captureToggleView();
+      if (!view) {
+        return;
+      }
+      const field = isMobile
+        ? `map_toggle_view_${kind}_mobile`
+        : `map_toggle_view_${kind}_desktop`;
+      try {
+        const response = await fetch(`${apiBase}/settings`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [field]: JSON.stringify(view) }),
+        });
+        if (!response.ok) {
+          throw new Error("Failed to update settings");
+        }
+        if (isMobile) {
+          if (kind === "overview") {
+            setOverviewViewMobile(view);
+          } else {
+            setFocusViewMobile(view);
+          }
+        } else if (kind === "overview") {
+          setOverviewViewDesktop(view);
+        } else {
+          setFocusViewDesktop(view);
+        }
+        setStatus(kind === "overview" ? "Overview view saved." : "Focus view saved.");
+        window.setTimeout(() => setStatus(null), 2000);
+      } catch (error) {
+        console.error(error);
+        setStatus("Failed to save view.");
+        window.setTimeout(() => setStatus(null), 2000);
+      }
+    },
+    [apiBase, captureToggleView, isMobile]
+  );
+
+  const handleToggleZoomView = useCallback(() => {
+    const overview = isMobile ? overviewViewMobile : overviewViewDesktop;
+    const focus = isMobile ? focusViewMobile : focusViewDesktop;
+    if (!overview || !focus) {
+      setStatus("Set overview and focus views first.");
+      window.setTimeout(() => setStatus(null), 2200);
+      return;
+    }
+    const nextMode = zoomToggleMode === "overview" ? "focus" : "overview";
+    setZoomToggleMode(nextMode);
+    applyToggleView(nextMode === "overview" ? overview : focus);
+  }, [
+    applyToggleView,
+    focusViewDesktop,
+    focusViewMobile,
+    isMobile,
+    overviewViewDesktop,
+    overviewViewMobile,
+    zoomToggleMode,
+  ]);
 
   const handleOpenExplore = useCallback((prefill?: string) => {
     setExploreModalOpen(true);
@@ -3024,6 +3170,25 @@ export default function MapPage({
           </svg>
         </button>
       </div>
+      <div className="map-sidepanel__row">
+        <span>Toggle view</span>
+        <div className="map-sidepanel__row-actions">
+          <button
+            type="button"
+            className="map-action-button"
+            onClick={() => void handleSetToggleView("overview")}
+          >
+            Set overview
+          </button>
+          <button
+            type="button"
+            className="map-action-button"
+            onClick={() => void handleSetToggleView("focus")}
+          >
+            Set focus
+          </button>
+        </div>
+      </div>
     </div>
   );
 
@@ -3330,6 +3495,23 @@ export default function MapPage({
                   stroke="currentColor"
                   strokeWidth="1.6"
                   strokeLinecap="round"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="map-mobile-nav__button"
+              onClick={() => handleToggleZoomView()}
+              aria-label="Toggle view"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M5 9V5h4M19 15v4h-4M15 5h4v4M9 19H5v-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
               </svg>
             </button>

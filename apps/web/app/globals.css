@@ -2047,6 +2047,22 @@ html[data-reader-theme="dark"] .reader-layout {
   color: var(--reader-ink, var(--ink));
 }
 
+.map-sidepanel__row-actions {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.map-action-button {
+  border: 1px solid var(--reader-border, rgba(31, 28, 22, 0.2));
+  background: var(--reader-panel, #fffaf5);
+  color: var(--reader-ink, var(--ink));
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
 .map-sidepanel__divider {
   height: 1px;
   background: var(--reader-border, rgba(31, 28, 22, 0.12));

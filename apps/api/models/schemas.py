@@ -263,6 +263,10 @@ class ReaderSettings(BaseModel):
     default_map_view_id: Optional[int] = None
     default_map_view_id_mobile: Optional[int] = None
     default_map_view_id_desktop: Optional[int] = None
+    map_toggle_view_overview_mobile: Optional[str] = None
+    map_toggle_view_overview_desktop: Optional[str] = None
+    map_toggle_view_focus_mobile: Optional[str] = None
+    map_toggle_view_focus_desktop: Optional[str] = None
 
 
 class ReaderSettingsUpdate(BaseModel):
@@ -290,6 +294,10 @@ class ReaderSettingsUpdate(BaseModel):
     default_map_view_id: Optional[int] = None
     default_map_view_id_mobile: Optional[int] = None
     default_map_view_id_desktop: Optional[int] = None
+    map_toggle_view_overview_mobile: Optional[str] = None
+    map_toggle_view_overview_desktop: Optional[str] = None
+    map_toggle_view_focus_mobile: Optional[str] = None
+    map_toggle_view_focus_desktop: Optional[str] = None
 
 
 class ReaderSettingsResponse(BaseModel):

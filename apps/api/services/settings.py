@@ -26,6 +26,10 @@ SETTINGS_FIELDS = [
     "default_map_view_id",
     "default_map_view_id_mobile",
     "default_map_view_id_desktop",
+    "map_toggle_view_overview_mobile",
+    "map_toggle_view_overview_desktop",
+    "map_toggle_view_focus_mobile",
+    "map_toggle_view_focus_desktop",
 ]
 
 BOOLEAN_FIELDS = {
@@ -62,6 +66,10 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "default_map_view_id": None,
     "default_map_view_id_mobile": None,
     "default_map_view_id_desktop": None,
+    "map_toggle_view_overview_mobile": None,
+    "map_toggle_view_overview_desktop": None,
+    "map_toggle_view_focus_mobile": None,
+    "map_toggle_view_focus_desktop": None,
 }
 
 
