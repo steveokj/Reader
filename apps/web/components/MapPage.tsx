@@ -712,23 +712,27 @@ function ensureLabelLayers(map: MapLibreMap) {
 function applyLabelState(
   map: MapLibreMap,
   mode: "none" | "selected" | "all",
-  selectedIso2: string[]
+  selectedIso2: string[],
+  allLabelsFiltered: boolean
 ) {
   if (!map.getLayer("country-labels-all") || !map.getLayer("country-labels-selected")) {
     return;
   }
-  const allFilter: any[] = [
-    "in",
-    ["get", "ISO3166-1-Alpha-2"],
-    ["literal", ALL_COUNTRY_LABELS],
-  ];
   const selectedNormalized = selectedIso2.map((code) => code.toUpperCase());
   map.setFilter("country-labels-selected", [
     "in",
     ["get", "ISO3166-1-Alpha-2"],
     ["literal", selectedNormalized],
   ]);
-  map.setFilter("country-labels-all", allFilter);
+  if (allLabelsFiltered) {
+    map.setFilter("country-labels-all", [
+      "in",
+      ["get", "ISO3166-1-Alpha-2"],
+      ["literal", ALL_COUNTRY_LABELS],
+    ]);
+  } else {
+    map.setFilter("country-labels-all", null);
+  }
   map.setLayoutProperty(
     "country-labels-all",
     "visibility",
@@ -784,6 +788,7 @@ export default function MapPage({
   const [mobileBarsVisible, setMobileBarsVisible] = useState(true);
   const [mobilePanel, setMobilePanel] = useState<"views" | "settings" | null>(null);
   const [labelsMode, setLabelsMode] = useState<"none" | "selected" | "all">("all");
+  const [allLabelsFiltered, setAllLabelsFiltered] = useState(false);
   const [selectedIso2, setSelectedIso2] = useState<string[]>([]);
   const [selectedStateCodes, setSelectedStateCodes] = useState<string[]>([]);
   const [selectedCityKeys, setSelectedCityKeys] = useState<string[]>([]);
@@ -924,7 +929,7 @@ export default function MapPage({
       applySelection(map, selected, selectedStates);
       applyStateSelection(map, selectedStates);
       applyCitySelection(map, selectedCities);
-      applyLabelState(map, labelsModeValue, selected);
+      applyLabelState(map, labelsModeValue, selected, allLabelsFiltered);
       applyCityFilter(map, labelsModeValue, selected);
       applyStateFilter(map, labelsModeValue, selected);
       applyMarineFilter(map, view.focus_seas_only);
@@ -1305,7 +1310,7 @@ export default function MapPage({
       applySelection(map, countryCodes, stateCodes);
       applyStateSelection(map, stateCodes);
       applyCitySelection(map, cityKeys);
-      applyLabelState(map, "selected", countryCodes);
+      applyLabelState(map, "selected", countryCodes, allLabelsFiltered);
       applyCityFilter(map, "selected", countryCodes);
       applyStateFilter(map, "selected", countryCodes);
       const bbox = unionBounds(exploreMatches.states.map((entry) => entry.feature));
@@ -1328,7 +1333,7 @@ export default function MapPage({
       applySelection(map, combinedCodes, []);
       applyStateSelection(map, []);
       applyCitySelection(map, cityKeys);
-      applyLabelState(map, "selected", combinedCodes);
+      applyLabelState(map, "selected", combinedCodes, allLabelsFiltered);
       applyCityFilter(map, "selected", combinedCodes);
       applyStateFilter(map, "selected", combinedCodes);
       const bbox =
@@ -1349,7 +1354,7 @@ export default function MapPage({
       setQuery(exploreMatches.query);
     }
     setExploreModalOpen(false);
-  }, [dataStatus, exploreMatches, mapReady]);
+  }, [allLabelsFiltered, dataStatus, exploreMatches, mapReady]);
 
   useEffect(() => {
     if (!initialExploreText) {
@@ -1831,8 +1836,8 @@ export default function MapPage({
       return;
     }
     ensureLabelLayers(map);
-    applyLabelState(map, labelsMode, selectedIso2);
-  }, [dataStatus, labelsMode, mapReady, selectedIso2]);
+    applyLabelState(map, labelsMode, selectedIso2, allLabelsFiltered);
+  }, [allLabelsFiltered, dataStatus, labelsMode, mapReady, selectedIso2]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -2217,7 +2222,7 @@ export default function MapPage({
       applySelection(map, iso2Codes, stateCodes);
       applyStateSelection(map, stateCodes);
       applyCitySelection(map, cityKeys);
-      applyLabelState(map, "selected", iso2Codes);
+      applyLabelState(map, "selected", iso2Codes, allLabelsFiltered);
       applyCityFilter(map, "selected", iso2Codes);
       applyStateFilter(map, "selected", iso2Codes);
 
@@ -2241,7 +2246,7 @@ export default function MapPage({
       setStatus(label ? `Showing ${label}.` : "Showing selection.");
       window.setTimeout(() => setStatus(null), 2000);
     },
-    [dataStatus, labelsMode, loadCitiesData, loadStatesData, mapReady, query]
+    [allLabelsFiltered, dataStatus, labelsMode, loadCitiesData, loadStatesData, mapReady, query]
   );
 
   const savedViewsList =
@@ -2461,6 +2466,17 @@ export default function MapPage({
           onChange={() => setLabelsMode("all")}
         />
         <span>All countries</span>
+      </label>
+      <label
+        className={`map-toggle${labelsMode !== "all" ? " map-toggle--disabled" : ""}`}
+      >
+        <input
+          type="checkbox"
+          checked={allLabelsFiltered}
+          onChange={(event) => setAllLabelsFiltered(event.target.checked)}
+          disabled={labelsMode !== "all"}
+        />
+        <span>Curated list only</span>
       </label>
       <div className="map-sidepanel__divider" />
       <label className={`map-toggle${!mapReady ? " map-toggle--disabled" : ""}`}>
