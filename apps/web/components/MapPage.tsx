@@ -113,7 +113,7 @@ const MAP_EXPLORE_INSTRUCTION = [
 ].join(" ");
 
 const MAP_STYLE_URL = "/map-style-physical.json";
-const FEATURED_STATE_BORDER_ISO2 = ["US", "CA", "RU", "AU"];
+const FEATURED_STATE_BORDER_ISO2 = ["US", "CA"];
 const ALL_COUNTRY_LABELS = [
   "CA",
   "US",
@@ -3248,7 +3248,7 @@ export default function MapPage({
           onChange={(event) => setStateLabelsVisible(event.target.checked)}
           disabled={!mapReady}
         />
-        <span>State/Province labels</span>
+        <span>State labels</span>
       </label>
       <label
         className={`map-toggle${
@@ -3270,7 +3270,7 @@ export default function MapPage({
           onChange={(event) => setStateBordersVisible(event.target.checked)}
           disabled={!mapReady}
         />
-        <span>State/Province borders</span>
+        <span>State borders (US/CA)</span>
       </label>
       <label
         className={`map-toggle${
@@ -3283,7 +3283,7 @@ export default function MapPage({
           onChange={(event) => setStateBordersAllCountries(event.target.checked)}
           disabled={!mapReady || !stateBordersVisible}
         />
-        <span>All country borders</span>
+        <span>State borders (all countries)</span>
       </label>
       <label className="map-toggle">
         <input
