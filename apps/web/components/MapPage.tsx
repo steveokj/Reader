@@ -1207,9 +1207,40 @@ export default function MapPage({
       countryLabelPointsRef.current ?? undefined,
       useCentroidLabels
     );
-    const source = map.getSource("country-labels") as { setData?: (data: any) => void } | undefined;
-    source?.setData?.(labelCollection);
-  }, [dataStatus, mapReady, useCentroidLabels]);
+    const hasAll = Boolean(map.getLayer("country-labels-all"));
+    const hasSelected = Boolean(map.getLayer("country-labels-selected"));
+    if (hasAll) {
+      map.removeLayer("country-labels-all");
+    }
+    if (hasSelected) {
+      map.removeLayer("country-labels-selected");
+    }
+    if (map.getSource("country-labels")) {
+      map.removeSource("country-labels");
+    }
+    map.addSource("country-labels", {
+      type: "geojson",
+      data: labelCollection,
+    });
+    ensureLabelLayers(map);
+    applyLabelState(
+      map,
+      labelsMode,
+      selectedIso2,
+      allLabelsFiltered,
+      showExcludedCountries,
+      allowLabelOverlap
+    );
+  }, [
+    allowLabelOverlap,
+    allLabelsFiltered,
+    dataStatus,
+    labelsMode,
+    mapReady,
+    selectedIso2,
+    showExcludedCountries,
+    useCentroidLabels,
+  ]);
 
   const resolveCountryCode = useCallback((value: string) => {
     const trimmed = value.trim();
