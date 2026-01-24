@@ -94,6 +94,10 @@ const DEFAULT_MAP_SCALE = 0.7;
 const SCALE_MIN = 0.7;
 const SCALE_MAX = 1;
 const SMALL_ISLAND_AREA_CUTOFF = 0.02;
+const STATE_LABEL_FULL_MIN_ZOOM = 4.2;
+const STATE_LABEL_SWITCH_ZOOM = 4.6;
+const STATE_LABEL_ABBREV_MIN_ZOOM = 2.2;
+const STATE_LABEL_ABBREV_COUNTRIES = ["US", "CA", "AU"];
 const SHOW_MAP_CONTROLS = process.env.NEXT_PUBLIC_MAP_CONTROLS === "1";
 const MAP_EXPLORE_MODE = "codex-cli";
 const MAP_EXPLORE_INSTRUCTION = [
@@ -714,6 +718,7 @@ function buildStateLabelCollection(features: GeoFeature[]) {
       bounds: Bounds;
       area: number;
       name: string;
+      abbr: string;
       iso2: string;
       labelX?: number;
       labelY?: number;
@@ -724,6 +729,11 @@ function buildStateLabelCollection(features: GeoFeature[]) {
     const props = feature.properties ?? {};
     const iso2 = String(props.iso_a2 ?? props["iso_a2"] ?? "").trim().toUpperCase();
     const name = String(props.name ?? "").trim();
+    const postal = String(props.postal ?? "").trim().toUpperCase();
+    const isoCode = String(props.iso_3166_2 ?? "").trim().toUpperCase();
+    const abbr =
+      postal ||
+      (isoCode.includes("-") ? isoCode.split("-").pop() ?? "" : "");
     const labelX = Number(props.label_x ?? props["label_x"] ?? props.longitude);
     const labelY = Number(props.label_y ?? props["label_y"] ?? props.latitude);
     const hasLabel = Number.isFinite(labelX) && Number.isFinite(labelY);
@@ -742,6 +752,7 @@ function buildStateLabelCollection(features: GeoFeature[]) {
         bounds,
         area,
         name,
+        abbr,
         iso2,
         labelX: hasLabel ? labelX : undefined,
         labelY: hasLabel ? labelY : undefined,
@@ -763,6 +774,7 @@ function buildStateLabelCollection(features: GeoFeature[]) {
       },
       properties: {
         name: entry.name,
+        abbr: entry.abbr,
         iso_a2: entry.iso2,
       },
     });
@@ -973,6 +985,37 @@ function applyStateSelection(map: MapLibreMap, stateCodes: string[]) {
   map.setFilter("state-selection", ["in", ["get", "iso_3166_2"], ["literal", normalized]]);
 }
 
+function applyStateLabelMode(
+  map: MapLibreMap,
+  enableAbbrev: boolean,
+  statesVisible: boolean
+) {
+  const hasLabels = map.getLayer("state-labels");
+  if (!hasLabels) {
+    return;
+  }
+  if (map.getLayer("state-labels")) {
+    map.setLayoutProperty("state-labels", "visibility", statesVisible ? "visible" : "none");
+    map.setLayerZoomRange(
+      "state-labels",
+      enableAbbrev ? STATE_LABEL_SWITCH_ZOOM : STATE_LABEL_FULL_MIN_ZOOM,
+      24
+    );
+  }
+  if (map.getLayer("state-labels-abbrev")) {
+    map.setLayoutProperty(
+      "state-labels-abbrev",
+      "visibility",
+      statesVisible && enableAbbrev ? "visible" : "none"
+    );
+    map.setLayerZoomRange(
+      "state-labels-abbrev",
+      STATE_LABEL_ABBREV_MIN_ZOOM,
+      STATE_LABEL_SWITCH_ZOOM
+    );
+  }
+}
+
 function applyCitySelection(map: MapLibreMap, cityKeys: string[]) {
   if (!map.getLayer("city-selection")) {
     return;
@@ -1149,6 +1192,7 @@ export default function MapPage({
     "idle"
   );
   const [statesVisible, setStatesVisible] = useState(true);
+  const [stateAbbrevLabels, setStateAbbrevLabels] = useState(true);
   const [focusSeasOnly, setFocusSeasOnly] = useState(true);
   const [statesStatus, setStatesStatus] = useState<"idle" | "loading" | "ready" | "error">(
     "idle"
@@ -2582,8 +2626,8 @@ export default function MapPage({
       return;
     }
     const ensureStates = async () => {
-      if (map.getSource("state-labels") && map.getSource("states")) {
-        map.setLayoutProperty("state-labels", "visibility", statesVisible ? "visible" : "none");
+    if (map.getSource("state-labels") && map.getSource("states")) {
+        applyStateLabelMode(map, stateAbbrevLabels, statesVisible);
         if (map.getLayer("state-borders")) {
           map.setLayoutProperty("state-borders", "visibility", statesVisible ? "visible" : "none");
         }
@@ -2653,13 +2697,44 @@ export default function MapPage({
             labelBefore
           );
         }
+        if (!map.getLayer("state-labels-abbrev")) {
+          map.addLayer(
+            {
+              id: "state-labels-abbrev",
+              type: "symbol",
+              source: "state-labels",
+              minzoom: STATE_LABEL_ABBREV_MIN_ZOOM,
+              maxzoom: STATE_LABEL_SWITCH_ZOOM,
+              filter: [
+                "in",
+                ["get", "iso_a2"],
+                ["literal", STATE_LABEL_ABBREV_COUNTRIES],
+              ],
+              layout: {
+                "text-field": ["coalesce", ["get", "abbr"], ["get", "name"]],
+                "text-size": 10,
+                "text-font": ["Roboto Medium", "Arial Unicode MS Regular"],
+                "text-offset": [0, 0.6],
+                "text-transform": "uppercase",
+                "text-allow-overlap": false,
+                "text-ignore-placement": false,
+              },
+              paint: {
+                "text-color": "#4f4f4f",
+                "text-halo-color": "rgba(246,244,240,0.9)",
+                "text-halo-width": 1,
+              },
+            },
+            labelBefore
+          );
+        }
         if (!map.getLayer("state-labels")) {
           map.addLayer(
             {
               id: "state-labels",
               type: "symbol",
               source: "state-labels",
-              minzoom: 4.2,
+              minzoom: STATE_LABEL_FULL_MIN_ZOOM,
               layout: {
                 "text-field": ["get", "name"],
                 "text-size": 11,
@@ -2678,7 +2753,7 @@ export default function MapPage({
             labelBefore
           );
         }
-        map.setLayoutProperty("state-labels", "visibility", statesVisible ? "visible" : "none");
+        applyStateLabelMode(map, stateAbbrevLabels, statesVisible);
         map.setLayoutProperty("state-borders", "visibility", statesVisible ? "visible" : "none");
         applyStateFilter(map, labelsMode, selectedIso2);
         applyStateSelection(map, selectedStateCodes);
@@ -2696,6 +2771,7 @@ export default function MapPage({
     mapReady,
     selectedIso2,
     selectedStateCodes,
+    stateAbbrevLabels,
     statesVisible,
   ]);
 
@@ -3136,6 +3212,19 @@ export default function MapPage({
           disabled={!mapReady}
         />
         <span>State/Province labels + borders</span>
+      </label>
+      <label
+        className={`map-toggle${
+          !mapReady || !statesVisible ? " map-toggle--disabled" : ""
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={stateAbbrevLabels}
+          onChange={(event) => setStateAbbrevLabels(event.target.checked)}
+          disabled={!mapReady || !statesVisible}
+        />
+        <span>Abbreviations when zoomed out</span>
       </label>
       <label className="map-toggle">
         <input
@@ -3689,11 +3778,16 @@ function applyStateFilter(
   selectedIso2: string[]
 ) {
   const hasLabels = map.getLayer("state-labels");
+  const hasAbbrevLabels = map.getLayer("state-labels-abbrev");
   const hasBorders = map.getLayer("state-borders");
-  if (!hasLabels && !hasBorders) {
+  if (!hasLabels && !hasAbbrevLabels && !hasBorders) {
     return;
   }
   const featuredIso2 = FEATURED_STATE_BORDER_ISO2.map((code) => code.toUpperCase());
+  const abbrevFilter =
+    STATE_LABEL_ABBREV_COUNTRIES.length === 0
+      ? ["==", ["get", "iso_a2"], ""]
+      : ["in", ["get", "iso_a2"], ["literal", STATE_LABEL_ABBREV_COUNTRIES]];
   const featuredFilter =
     featuredIso2.length === 0
       ? ["==", ["get", "iso_a2"], ""]
@@ -3701,6 +3795,9 @@ function applyStateFilter(
   if (mode === "none") {
     if (hasLabels) {
       map.setFilter("state-labels", ["==", ["get", "iso_a2"], ""]);
+    }
+    if (hasAbbrevLabels) {
+      map.setFilter("state-labels-abbrev", ["==", ["get", "iso_a2"], ""]);
     }
     if (hasBorders) {
       map.setFilter("state-borders", ["==", ["get", "iso_a2"], ""]);
@@ -3712,6 +3809,9 @@ function applyStateFilter(
       if (hasLabels) {
         map.setFilter("state-labels", ["==", ["get", "iso_a2"], ""]);
       }
+      if (hasAbbrevLabels) {
+        map.setFilter("state-labels-abbrev", ["==", ["get", "iso_a2"], ""]);
+      }
       if (hasBorders) {
         map.setFilter("state-borders", featuredFilter);
       }
@@ -3721,6 +3821,13 @@ function applyStateFilter(
     if (hasLabels) {
       map.setFilter("state-labels", ["in", ["get", "iso_a2"], ["literal", normalized]]);
     }
+    if (hasAbbrevLabels) {
+      map.setFilter("state-labels-abbrev", [
+        "all",
+        abbrevFilter,
+        ["in", ["get", "iso_a2"], ["literal", normalized]],
+      ]);
+    }
     if (hasBorders) {
       map.setFilter("state-borders", ["in", ["get", "iso_a2"], ["literal", normalized]]);
     }
@@ -3728,6 +3835,9 @@ function applyStateFilter(
   }
   if (hasLabels) {
     map.setFilter("state-labels", null);
+  }
+  if (hasAbbrevLabels) {
+    map.setFilter("state-labels-abbrev", abbrevFilter);
   }
   if (hasBorders) {
     map.setFilter("state-borders", featuredFilter);
