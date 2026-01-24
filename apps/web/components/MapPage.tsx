@@ -1003,6 +1003,9 @@ function applyLabelState(
     "visibility",
     mode === "selected" ? "visible" : "none"
   );
+  const allowOverlap = Boolean(allLabelsFiltered);
+  map.setLayoutProperty("country-labels-all", "text-allow-overlap", allowOverlap);
+  map.setLayoutProperty("country-labels-all", "text-ignore-placement", allowOverlap);
 }
 
 type MapPageProps = {
