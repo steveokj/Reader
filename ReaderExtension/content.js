@@ -1871,8 +1871,18 @@
         if (url) {
           const audio = document.createElement("audio");
           audio.controls = true;
+          audio.addEventListener("error", () => {
+            log("Audio element error", {
+              code: audio.error?.code,
+              message: audio.error?.message,
+            });
+          });
+          audio.addEventListener("loadedmetadata", () => {
+            log("Audio metadata loaded", { duration: audio.duration });
+          });
           resolveMediaUrl(url).then((src) => {
             audio.src = src;
+            audio.load();
           });
           card.appendChild(audio);
         }
@@ -2194,12 +2204,15 @@
       responseType: "arrayBuffer",
     });
     if (result.ok && result.data) {
+      const size = result.data.byteLength ?? 0;
+      log("Audio fetch ok", { url, size, type: result.headers?.["content-type"] });
       const type = result.headers?.["content-type"] || "application/octet-stream";
       const blob = new Blob([result.data], { type });
       const blobUrl = URL.createObjectURL(blob);
       mediaUrlCache.set(url, blobUrl);
       return blobUrl;
     }
+    log("Audio fetch failed", { url, ok: result.ok, status: result.status });
     const apiBase = await getApiBaseFromBackground();
     if (!apiBase) {
       return url;
