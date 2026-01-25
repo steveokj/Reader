@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reader Extension Settings</title>
+    <style>
+      :root {
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+        color: #1f1c16;
+        background: #f6f1e9;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+      }
+      .card {
+        max-width: 520px;
+        background: #fffaf5;
+        border: 1px solid rgba(31, 28, 22, 0.12);
+        border-radius: 18px;
+        padding: 18px;
+        box-shadow: 0 12px 24px rgba(31, 28, 22, 0.18);
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 20px;
+      }
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: rgba(31, 28, 22, 0.6);
+      }
+      input {
+        margin-top: 6px;
+        border-radius: 12px;
+        border: 1px solid rgba(31, 28, 22, 0.12);
+        padding: 10px 12px;
+        font-size: 14px;
+        font-family: inherit;
+        background: white;
+        color: #1f1c16;
+      }
+      button {
+        margin-top: 14px;
+        border: none;
+        background: #d9663f;
+        color: white;
+        padding: 8px 14px;
+        border-radius: 999px;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .hint {
+        margin-top: 8px;
+        font-size: 12px;
+        color: rgba(31, 28, 22, 0.6);
+      }
+      .status {
+        margin-left: 10px;
+        font-size: 12px;
+        color: rgba(31, 28, 22, 0.7);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Reader Extension</h1>
+      <label>
+        API base URL
+        <input id="api-base" type="url" placeholder="https://192.168.2.34:8002" />
+      </label>
+      <div class="hint">Used for saving selections and notes from any page.</div>
+      <button id="save">Save</button>
+      <span class="status" id="status"></span>
+    </div>
+    <script src="options.js"></script>
+  </body>
+</html>

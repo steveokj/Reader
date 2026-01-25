@@ -32,13 +32,16 @@ from .routes.map_views import router as map_views_router
 from .routes.media import router as media_router
 from .routes.selections import router as selections_router
 from .routes.settings import router as settings_router
+from .routes.web_additions import router as web_additions_router
+from .routes.web_markers import router as web_markers_router
+from .routes.web_selections import router as web_selections_router
 
 cors_origins = os.getenv("CORS_ORIGINS").split(",")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    allow_origin_regex=r"^https?://192\.168\.\d+\.\d+(:\d+)?$",
+    allow_origin_regex=r"^(https?://192\.168\.\d+\.\d+(:\d+)?|chrome-extension://[a-z]+)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -65,6 +68,9 @@ app.include_router(explore_router)
 app.include_router(explore_chat_router)
 app.include_router(lookup_router)
 app.include_router(settings_router)
+app.include_router(web_selections_router)
+app.include_router(web_additions_router)
+app.include_router(web_markers_router)
 
 MEDIA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "media"))
 os.makedirs(MEDIA_DIR, exist_ok=True)

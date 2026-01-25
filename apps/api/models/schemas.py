@@ -234,6 +234,88 @@ class MarkersResponse(BaseModel):
     markers: List[Marker]
 
 
+class WebSelectionCreate(BaseModel):
+    url: str
+    title: Optional[str] = None
+    selection_text: str
+    selector: Dict[str, Any]
+
+
+class WebSelection(BaseModel):
+    id: int
+    page_id: int
+    url: str
+    title: Optional[str] = None
+    selection_text: str
+    selector: Dict[str, Any]
+    created_at: str
+
+
+class WebSelectionResponse(BaseModel):
+    selection: WebSelection
+
+
+class WebSelectionsResponse(BaseModel):
+    selections: List[WebSelection]
+
+
+class WebAdditionCreate(BaseModel):
+    selection_id: int
+    type: str
+    title: Optional[str] = None
+    text_content: Optional[str] = None
+    payload: Dict[str, Any]
+
+
+class WebAdditionUpdate(BaseModel):
+    title: Optional[str] = None
+    text_content: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
+
+
+class WebAddition(BaseModel):
+    id: int
+    selection_id: int
+    type: str
+    title: Optional[str] = None
+    text_content: Optional[str] = None
+    payload: Dict[str, Any]
+    created_at: str
+    updated_at: str
+
+
+class WebAdditionResponse(BaseModel):
+    addition: WebAddition
+
+
+class WebAdditionsResponse(BaseModel):
+    additions: List[WebAddition]
+
+
+class WebMarkerCreate(BaseModel):
+    target_type: str
+    target_id: int
+    kind: str
+    value: Optional[Dict[str, Any]] = None
+
+
+class WebMarker(BaseModel):
+    id: int
+    target_type: str
+    target_id: int
+    kind: str
+    value: Optional[Dict[str, Any]] = None
+    created_at: str
+
+
+class WebMarkerResponse(BaseModel):
+    marker: WebMarker
+
+
+class WebMarkersResponse(BaseModel):
+    markers: List[WebMarker]
+
+
 class ArticleIngest(BaseModel):
     title: Optional[str] = None
     url: Optional[str] = None
