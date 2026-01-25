@@ -135,9 +135,9 @@
     el.appendChild(markers);
     el.appendChild(actions);
 
-    el.addEventListener("mousedown", stopPropagation, true);
-    el.addEventListener("mouseup", stopPropagation, true);
-    el.addEventListener("click", stopPropagation, true);
+    el.addEventListener("mousedown", stopPropagation);
+    el.addEventListener("mouseup", stopPropagation);
+    el.addEventListener("click", stopPropagation);
     el.addEventListener("click", (event) => {
       log("Action menu click", event.target);
     });
@@ -251,8 +251,8 @@
     card.appendChild(actions);
     el.appendChild(card);
 
-    el.addEventListener("mousedown", stopPropagation, true);
-    el.addEventListener("click", stopPropagation, true);
+    el.addEventListener("mousedown", stopPropagation);
+    el.addEventListener("click", stopPropagation);
 
     cancel.addEventListener("click", () => {
       hideNoteModal();
@@ -309,8 +309,8 @@
     card.appendChild(grid);
     el.appendChild(card);
 
-    el.addEventListener("mousedown", stopPropagation, true);
-    el.addEventListener("click", stopPropagation, true);
+    el.addEventListener("mousedown", stopPropagation);
+    el.addEventListener("click", stopPropagation);
 
     close.addEventListener("click", () => {
       hideGrammarModal();
@@ -444,8 +444,8 @@
     card.appendChild(section);
     el.appendChild(card);
 
-    el.addEventListener("mousedown", stopPropagation, true);
-    el.addEventListener("click", stopPropagation, true);
+    el.addEventListener("mousedown", stopPropagation);
+    el.addEventListener("click", stopPropagation);
 
     let recorder = null;
     let stream = null;
@@ -678,8 +678,8 @@
 
     Object.values(buttons).forEach((button) => el.appendChild(button));
 
-    el.addEventListener("mousedown", stopPropagation, true);
-    el.addEventListener("click", stopPropagation, true);
+    el.addEventListener("mousedown", stopPropagation);
+    el.addEventListener("click", stopPropagation);
 
     buttons.note.addEventListener("click", () => {
       openNoteModal();
