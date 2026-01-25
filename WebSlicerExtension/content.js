@@ -15,6 +15,7 @@
     libraryFilter: "page",
     lastPickedElement: null,
     undoStack: [],
+    redoStack: [],
   };
 
   const overlay = mountOverlay();
@@ -253,6 +254,7 @@
     state.segments = [];
     state.excludes = [];
     state.undoStack = [];
+    state.redoStack = [];
     hidePreview();
     hideLibrary();
     clearSegmentHighlights();
@@ -295,6 +297,7 @@
     state.startElement = null;
     state.lastPickedElement = null;
     state.undoStack = [];
+    state.redoStack = [];
     overlay.uiRoot.style.display = "none";
     toolbar.el.style.display = "none";
     hidePreview();
@@ -553,7 +556,13 @@
     if (!state.visible) {
       return;
     }
-    if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "z") {
+    const key = event.key.toLowerCase();
+    if (event.ctrlKey && event.shiftKey && !event.altKey && key === "z") {
+      event.preventDefault();
+      redoLastSegment();
+      return;
+    }
+    if (event.ctrlKey && !event.shiftKey && !event.altKey && key === "z") {
       event.preventDefault();
       undoLastSegment();
       return;
@@ -701,6 +710,7 @@
         end: segment.end,
       }))
     );
+    state.redoStack = [];
   }
 
   function undoLastSegment() {
@@ -708,12 +718,37 @@
       updateStatus("Nothing to undo");
       return;
     }
+    state.redoStack.push(
+      state.segments.map((segment) => ({
+        start: segment.start,
+        end: segment.end,
+      }))
+    );
     const previous = state.undoStack.pop();
     state.segments = previous;
     const last = state.segments[state.segments.length - 1];
     state.lastPickedElement = last ? resolveByLocator(last.end) : null;
     renderSegmentHighlights();
     updateStatus("Undo");
+  }
+
+  function redoLastSegment() {
+    if (!state.redoStack.length) {
+      updateStatus("Nothing to redo");
+      return;
+    }
+    state.undoStack.push(
+      state.segments.map((segment) => ({
+        start: segment.start,
+        end: segment.end,
+      }))
+    );
+    const next = state.redoStack.pop();
+    state.segments = next;
+    const last = state.segments[state.segments.length - 1];
+    state.lastPickedElement = last ? resolveByLocator(last.end) : null;
+    renderSegmentHighlights();
+    updateStatus("Redo");
   }
 
   function addExclude(element) {
