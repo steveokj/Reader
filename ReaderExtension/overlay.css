@@ -48,6 +48,10 @@
   pointer-events: auto;
 }
 
+.reader-extension__ui {
+  display: contents;
+}
+
 .action-menu {
   position: fixed;
   z-index: 20;
