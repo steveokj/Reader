@@ -510,26 +510,14 @@
     event.stopPropagation();
 
     if (state.mode === "pick") {
-      if (!state.startElement) {
-        state.startElement = target;
-        updateStatus("Start set");
-        return;
-      }
-      const segment = buildSegment(state.startElement, target);
+      const segment = buildSegment(target, target);
       if (segment) {
         state.segments.push(segment);
         renderSegmentHighlights();
-        if (event.ctrlKey) {
-          state.startElement = target;
-          updateStatus("Segment added (continue)");
-          return;
-        }
         updateStatus("Segment added");
       } else {
         updateStatus("Could not create segment");
       }
-      state.startElement = null;
-      setMode("idle");
       return;
     }
 
