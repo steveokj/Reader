@@ -19,11 +19,13 @@
   const toolbar = buildToolbar();
   const previewPanel = buildPreviewPanel();
   const libraryPanel = buildLibraryPanel();
+  const segmentLayer = buildSegmentLayer();
   const highlight = buildHighlight();
 
   overlay.uiRoot.appendChild(toolbar.el);
   overlay.uiRoot.appendChild(previewPanel.el);
   overlay.uiRoot.appendChild(libraryPanel.el);
+  overlay.uiRoot.appendChild(segmentLayer.el);
   overlay.uiRoot.appendChild(highlight.el);
 
   updateStatus();
@@ -42,6 +44,8 @@
   document.addEventListener("mousemove", handleHover, true);
   document.addEventListener("click", handleClick, true);
   document.addEventListener("keydown", handleKeyDown, true);
+  window.addEventListener("scroll", handleViewportChange, { passive: true });
+  window.addEventListener("resize", handleViewportChange);
 
   function mountOverlay() {
     const host = document.createElement("div");
@@ -80,9 +84,9 @@
     const library = createButton("Library");
     const save = createButton("Save");
     const reset = createButton("Reset");
-    const close = createButton("×");
-    close.classList.add("slicer-preview__close");
-    close.setAttribute("aria-label", "Close preview");
+    const close = createButton("Close");
+    
+    
 
     left.appendChild(pick);
     left.appendChild(exclude);
@@ -125,7 +129,9 @@
     actions.className = "slicer-preview__actions";
     const showText = createButton("Text");
     const showHtml = createButton("HTML");
-    const close = createButton("Close");
+    const close = createButton("X");
+    close.classList.add("slicer-preview__close");
+    close.setAttribute("aria-label", "Close preview");
     actions.appendChild(showText);
     actions.appendChild(showHtml);
     actions.appendChild(close);
@@ -198,6 +204,12 @@
     return { el, list, filter };
   }
 
+  function buildSegmentLayer() {
+    const el = document.createElement("div");
+    el.className = "slicer-segments";
+    return { el };
+  }
+
   function buildHighlight() {
     const el = document.createElement("div");
     el.className = "slicer-highlight";
@@ -234,6 +246,7 @@
     state.excludes = [];
     hidePreview();
     hideLibrary();
+    clearSegmentHighlights();
     updateStatus();
   }
 
@@ -250,15 +263,20 @@
     if (state.visible) {
       hideToolbar();
     } else {
-      showToolbar();
+      showToolbar({ startPick: true });
     }
   }
 
-  function showToolbar() {
+  function showToolbar(options = {}) {
     state.visible = true;
     overlay.uiRoot.style.display = "block";
     toolbar.el.style.display = "flex";
+    if (options.startPick) {
+      state.mode = "pick";
+      state.startElement = null;
+    }
     updateStatus();
+    renderSegmentHighlights();
   }
 
   function hideToolbar() {
@@ -270,6 +288,7 @@
     hidePreview();
     hideLibrary();
     hideHighlight();
+    clearSegmentHighlights();
   }
 
   function togglePreview() {
@@ -499,6 +518,7 @@
       const segment = buildSegment(state.startElement, target);
       if (segment) {
         state.segments.push(segment);
+        renderSegmentHighlights();
         if (event.shiftKey) {
           state.startElement = target;
           updateStatus("Segment added (continue)");
@@ -529,6 +549,21 @@
     }
   }
 
+  let viewportTicking = false;
+  function handleViewportChange() {
+    if (!state.visible || state.segments.length === 0) {
+      return;
+    }
+    if (viewportTicking) {
+      return;
+    }
+    viewportTicking = true;
+    window.requestAnimationFrame(() => {
+      renderSegmentHighlights();
+      viewportTicking = false;
+    });
+  }
+
   function buildSegment(startEl, endEl) {
     if (!startEl || !endEl) {
       return null;
@@ -537,6 +572,48 @@
       start: buildLocator(startEl),
       end: buildLocator(endEl),
     };
+  }
+
+  function getRangeForSegment(segment) {
+    const startEl = resolveByLocator(segment.start);
+    const endEl = resolveByLocator(segment.end);
+    if (!startEl || !endEl) {
+      return null;
+    }
+    const range = document.createRange();
+    range.setStartBefore(startEl);
+    range.setEndAfter(endEl);
+    return range;
+  }
+
+  function clearSegmentHighlights() {
+    segmentLayer.el.innerHTML = "";
+  }
+
+  function renderSegmentHighlights() {
+    clearSegmentHighlights();
+    if (!state.visible) {
+      return;
+    }
+    state.segments.forEach((segment) => {
+      const range = getRangeForSegment(segment);
+      if (!range) {
+        return;
+      }
+      const rects = Array.from(range.getClientRects());
+      rects.forEach((rect) => {
+        if (!rect.width || !rect.height) {
+          return;
+        }
+        const box = document.createElement("div");
+        box.className = "slicer-segment-highlight";
+        box.style.top = `${rect.top + window.scrollY}px`;
+        box.style.left = `${rect.left + window.scrollX}px`;
+        box.style.width = `${rect.width}px`;
+        box.style.height = `${rect.height}px`;
+        segmentLayer.el.appendChild(box);
+      });
+    });
   }
 
   function addExclude(element) {
