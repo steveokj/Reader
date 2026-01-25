@@ -13,6 +13,7 @@
     highlightTarget: null,
     libraryOpen: false,
     libraryFilter: "page",
+    lastPickedElement: null,
   };
 
   const overlay = mountOverlay();
@@ -43,6 +44,8 @@
 
   document.addEventListener("mousemove", handleHover, true);
   document.addEventListener("click", handleClick, true);
+  document.addEventListener("mousedown", handleMouseDown, true);
+  document.addEventListener("selectstart", handleSelectStart, true);
   document.addEventListener("keydown", handleKeyDown, true);
   window.addEventListener("scroll", handleViewportChange, { passive: true });
   window.addEventListener("resize", handleViewportChange);
@@ -232,9 +235,11 @@
     if (state.mode === "pick") {
       state.mode = "idle";
       state.startElement = null;
+      state.lastPickedElement = null;
     } else {
       state.mode = "pick";
       state.startElement = null;
+      state.lastPickedElement = null;
     }
     updateStatus();
   }
@@ -242,6 +247,7 @@
   function resetState() {
     state.mode = "idle";
     state.startElement = null;
+    state.lastPickedElement = null;
     state.segments = [];
     state.excludes = [];
     hidePreview();
@@ -274,6 +280,7 @@
     if (options.startPick) {
       state.mode = "pick";
       state.startElement = null;
+      state.lastPickedElement = null;
     }
     updateStatus();
     renderSegmentHighlights();
@@ -283,6 +290,7 @@
     state.visible = false;
     state.mode = "idle";
     state.startElement = null;
+    state.lastPickedElement = null;
     overlay.uiRoot.style.display = "none";
     toolbar.el.style.display = "none";
     hidePreview();
@@ -510,9 +518,12 @@
     event.stopPropagation();
 
     if (state.mode === "pick") {
-      const segment = buildSegment(target, target);
+      const segment = event.shiftKey && state.lastPickedElement
+        ? buildSegment(state.lastPickedElement, target)
+        : buildSegment(target, target);
       if (segment) {
         state.segments.push(segment);
+        state.lastPickedElement = target;
         renderSegmentHighlights();
         updateStatus("Segment added");
       } else {
@@ -535,6 +546,28 @@
     if (event.key === "Escape") {
       hideToolbar();
     }
+  }
+
+  function handleMouseDown(event) {
+    if (!state.visible) {
+      return;
+    }
+    if (isEventInOverlay(event)) {
+      return;
+    }
+    if (event.shiftKey) {
+      event.preventDefault();
+    }
+  }
+
+  function handleSelectStart(event) {
+    if (!state.visible) {
+      return;
+    }
+    if (isEventInOverlay(event)) {
+      return;
+    }
+    event.preventDefault();
   }
 
   let viewportTicking = false;
