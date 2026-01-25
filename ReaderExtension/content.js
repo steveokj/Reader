@@ -34,6 +34,7 @@
       additionById: new Map(),
     },
     highlightDetail: null,
+    lastInteraction: null,
   };
 
   async function sendBackgroundMessage(type, payload) {
@@ -1073,15 +1074,13 @@
   }
 
   function updateNavButtons() {
-    const hasSelection = Boolean(getSelectionTextTrimmed());
-    const disabledTitle = "Select text to use this action";
     if (mobileNav?.buttons?.note) {
-      mobileNav.buttons.note.disabled = !hasSelection;
-      mobileNav.buttons.note.title = hasSelection ? "Note" : disabledTitle;
+      mobileNav.buttons.note.disabled = false;
+      mobileNav.buttons.note.title = "Note";
     }
     if (mobileNav?.buttons?.audio) {
-      mobileNav.buttons.audio.disabled = !hasSelection;
-      mobileNav.buttons.audio.title = hasSelection ? "Audio" : disabledTitle;
+      mobileNav.buttons.audio.disabled = false;
+      mobileNav.buttons.audio.title = "Audio";
     }
   }
 
@@ -1253,6 +1252,7 @@
     if (isEventInOverlay(event)) {
       return;
     }
+    recordLastInteraction(event.clientX, event.clientY);
     if (noteModal.el.style.display !== "none") {
       hideNoteModal();
       return;
@@ -1285,6 +1285,7 @@
       return;
     }
     const touch = event.touches[0];
+    recordLastInteraction(touch.clientX, touch.clientY);
     const yFromBottom = window.innerHeight - touch.clientY;
     if (yFromBottom > NAV_SWIPE_ZONE_HEIGHT) {
       return;
@@ -1503,7 +1504,8 @@
   }
 
   function openNoteModal() {
-    if (!state.selection) {
+    if (!ensureSelectionForModal()) {
+      log("Note modal blocked: no selection target");
       return;
     }
     noteModal.textarea.value = "";
@@ -1519,7 +1521,8 @@
   }
 
   function openAudioModal() {
-    if (!state.selection) {
+    if (!ensureSelectionForModal()) {
+      log("Audio modal blocked: no selection target");
       return;
     }
     audioModal.resetModal();
@@ -2170,7 +2173,15 @@
   }
 
   function getSelectionSnippet(selection) {
-    return selection?.selector?.quote?.exact || selection?.selection_text || "Selection";
+    const quote = selection?.selector?.quote || {};
+    const exact = quote.exact || selection?.selection_text || "";
+    if (exact && exact.trim()) {
+      return exact;
+    }
+    const prefix = quote.prefix || "";
+    const suffix = quote.suffix || "";
+    const combined = `${prefix}${prefix && suffix ? " | " : ""}${suffix}`.trim();
+    return combined || "Selection";
   }
 
   function getAdditionLabel(addition) {
@@ -2352,6 +2363,31 @@
       default:
         return iconLike();
     }
+  }
+
+  function recordLastInteraction(x, y) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return;
+    }
+    state.lastInteraction = { x, y, time: Date.now() };
+  }
+
+  function ensureSelectionForModal() {
+    if (state.selection) {
+      return true;
+    }
+    const point = state.lastInteraction || {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    };
+    const range = getCaretRangeFromPoint(point.x, point.y);
+    if (!range) {
+      return false;
+    }
+    range.collapse(true);
+    setSelection(range, "");
+    log("Draft selection created from position", point);
+    return true;
   }
 
   function buildSelector(range, text) {
