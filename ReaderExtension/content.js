@@ -69,8 +69,10 @@
   async function uploadAudioBlob(blob, mime) {
     const arrayBuffer = await blob.arrayBuffer();
     const buffer = new Uint8Array(arrayBuffer);
+    const dataUrl = await blobToDataUrl(blob);
     return sendBackgroundMessage("reader:uploadAudio", {
       buffer,
+      dataUrl,
       mime,
       fileName: "recording.webm",
     });
@@ -2449,6 +2451,15 @@
       default:
         return iconLike();
     }
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result || "");
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(blob);
+    });
   }
 
   function recordLastInteraction(x, y) {

@@ -122,6 +122,7 @@ async function handleApiRequest(request) {
 async function handleAudioUpload(payload) {
   try {
     const buffer = payload?.buffer;
+    const dataUrl = payload?.dataUrl;
     const extractArrayBuffer = (value) => {
       if (!value) {
         return null;
@@ -145,7 +146,20 @@ async function handleAudioUpload(payload) {
       }
       return null;
     };
-    const arrayBuffer = extractArrayBuffer(buffer);
+    let arrayBuffer = extractArrayBuffer(buffer);
+    if (!arrayBuffer && typeof dataUrl === "string" && dataUrl.startsWith("data:")) {
+      try {
+        const base64 = dataUrl.split(",")[1] || "";
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        arrayBuffer = bytes.buffer;
+      } catch (error) {
+        arrayBuffer = null;
+      }
+    }
     const blob =
       payload?.blob instanceof Blob
         ? payload.blob
@@ -157,6 +171,7 @@ async function handleAudioUpload(payload) {
       mime: payload?.mime ?? null,
       hasBuffer: Boolean(buffer),
       bufferBytes: arrayBuffer?.byteLength ?? null,
+      hasDataUrl: Boolean(dataUrl),
     });
     if (!blob || !blob.size) {
       return { ok: false, status: 0, error: "Audio payload is empty" };
