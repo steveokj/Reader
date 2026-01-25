@@ -67,7 +67,8 @@
   }
 
   async function uploadAudioBlob(blob, mime) {
-    const buffer = await blob.arrayBuffer();
+    const arrayBuffer = await blob.arrayBuffer();
+    const buffer = new Uint8Array(arrayBuffer);
     return sendBackgroundMessage("reader:uploadAudio", {
       buffer,
       mime,

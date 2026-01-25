@@ -122,12 +122,30 @@ async function handleApiRequest(request) {
 async function handleAudioUpload(payload) {
   try {
     const buffer = payload?.buffer;
-    let arrayBuffer = null;
-    if (buffer instanceof ArrayBuffer) {
-      arrayBuffer = buffer;
-    } else if (buffer?.buffer instanceof ArrayBuffer) {
-      arrayBuffer = buffer.buffer;
-    }
+    const extractArrayBuffer = (value) => {
+      if (!value) {
+        return null;
+      }
+      if (value instanceof ArrayBuffer) {
+        return value;
+      }
+      if (ArrayBuffer.isView(value)) {
+        return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+      }
+      if (value.buffer instanceof ArrayBuffer) {
+        const byteOffset = value.byteOffset || 0;
+        const byteLength = value.byteLength || value.buffer.byteLength;
+        return value.buffer.slice(byteOffset, byteOffset + byteLength);
+      }
+      if (Array.isArray(value)) {
+        return Uint8Array.from(value).buffer;
+      }
+      if (Array.isArray(value.data)) {
+        return Uint8Array.from(value.data).buffer;
+      }
+      return null;
+    };
+    const arrayBuffer = extractArrayBuffer(buffer);
     const blob =
       payload?.blob instanceof Blob
         ? payload.blob
