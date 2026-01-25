@@ -1911,6 +1911,7 @@
         if (url) {
           const audio = document.createElement("audio");
           audio.controls = true;
+          audio.preload = "metadata";
           audio.addEventListener("error", () => {
             log("Audio element error", {
               code: audio.error?.code,
@@ -2129,8 +2130,10 @@
       if (url) {
         const audio = document.createElement("audio");
         audio.controls = true;
+        audio.preload = "metadata";
         resolveMediaUrl(url).then((src) => {
           audio.src = src;
+          audio.load();
         });
         highlightDetailModal.body.appendChild(audio);
       }
