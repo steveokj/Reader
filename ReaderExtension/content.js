@@ -22,15 +22,21 @@
   const overlay = mountOverlay();
   const actionMenu = buildActionMenu();
   const noteModal = buildNoteModal();
+  const grammarModal = buildGrammarModal();
+  const audioModal = buildAudioModal();
   const mobileNav = buildMobileNav();
 
   overlay.layer.appendChild(actionMenu.el);
   overlay.layer.appendChild(noteModal.el);
   overlay.layer.appendChild(mobileNav.el);
+  overlay.layer.appendChild(grammarModal.el);
+  overlay.layer.appendChild(audioModal.el);
 
   hideActionMenu();
   hideNoteModal();
   hideMobileNav();
+  hideGrammarModal();
+  hideAudioModal();
 
   document.addEventListener("mouseup", handleMouseUp, true);
   document.addEventListener("dblclick", handleDoubleClick, true);
@@ -159,10 +165,21 @@
       window.open(url.toString(), "_blank", "noopener,noreferrer");
     });
 
-    actionButtons.audio.disabled = true;
-    actionButtons.grammar.disabled = true;
-    actionButtons.map.disabled = true;
-    actionButtons.more.disabled = true;
+    actionButtons.audio.addEventListener("click", () => {
+      openAudioModal();
+    });
+
+    actionButtons.grammar.addEventListener("click", () => {
+      openGrammarModal();
+    });
+
+    actionButtons.map.addEventListener("click", () => {
+      handleMapAction();
+    });
+
+    actionButtons.more.addEventListener("click", () => {
+      openOptionsPage();
+    });
 
     return { el, commit, status, markers, actionButtons };
   }
@@ -233,6 +250,395 @@
     return { el, textarea, title };
   }
 
+  function buildGrammarModal() {
+    const el = document.createElement("div");
+    el.className = "modal-backdrop";
+
+    const card = document.createElement("div");
+    card.className = "modal-card";
+
+    const header = document.createElement("div");
+    header.className = "modal-header";
+
+    const title = document.createElement("h2");
+    title.textContent = "Grammar";
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.textContent = "Close";
+
+    header.appendChild(title);
+    header.appendChild(close);
+
+    const markers = document.createElement("div");
+    markers.className = "modal-markers";
+    markers.appendChild(buildMarkerToggle(true));
+
+    const grid = document.createElement("div");
+    grid.className = "modal-icon-grid";
+
+    const buttons = {
+      word: createModalIconButton(iconWord(), "Word"),
+      bars: createModalIconButton(iconBars(), "Bars"),
+      structure: createModalIconButton(iconStructure(), "Structure"),
+      lookup: createModalIconButton(iconLookup(), "Lookup"),
+    };
+
+    Object.values(buttons).forEach((button) => grid.appendChild(button));
+
+    card.appendChild(header);
+    card.appendChild(markers);
+    card.appendChild(grid);
+    el.appendChild(card);
+
+    el.addEventListener("mousedown", stopPropagation, true);
+    el.addEventListener("click", stopPropagation, true);
+
+    close.addEventListener("click", () => {
+      hideGrammarModal();
+    });
+
+    buttons.word.addEventListener("click", async () => {
+      const trimmed = getSelectionTextTrimmed();
+      if (!trimmed) {
+        return;
+      }
+      await saveGrammar({ kind: "word", text: trimmed });
+      const lookupUrl = buildLookupUrl(trimmed);
+      if (lookupUrl) {
+        window.open(lookupUrl, "_blank", "noopener,noreferrer");
+      }
+      hideGrammarModal();
+    });
+
+    buttons.bars.addEventListener("click", async () => {
+      const raw = getSelectionTextRaw();
+      if (!raw) {
+        return;
+      }
+      await saveGrammar({ kind: "bars", text: raw });
+      hideGrammarModal();
+    });
+
+    buttons.structure.addEventListener("click", async () => {
+      const raw = getSelectionTextRaw();
+      if (!raw) {
+        return;
+      }
+      await saveGrammar({ kind: "structure", text: raw });
+      hideGrammarModal();
+    });
+
+    buttons.lookup.addEventListener("click", async () => {
+      const trimmed = getSelectionTextTrimmed();
+      if (!trimmed) {
+        return;
+      }
+      const lookupUrl = buildLookupUrl(trimmed);
+      await saveGrammar({ kind: "lookup", text: trimmed, lookup_url: lookupUrl });
+      if (lookupUrl) {
+        window.open(lookupUrl, "_blank", "noopener,noreferrer");
+      }
+      hideGrammarModal();
+    });
+
+    const updateButtons = () => {
+      const disabled = !getSelectionTextTrimmed();
+      Object.values(buttons).forEach((button) => {
+        button.disabled = disabled;
+      });
+    };
+
+    return { el, updateButtons };
+  }
+
+  function buildAudioModal() {
+    const el = document.createElement("div");
+    el.className = "modal-backdrop";
+
+    const card = document.createElement("div");
+    card.className = "modal-card";
+
+    const header = document.createElement("div");
+    header.className = "modal-header";
+
+    const spacer = document.createElement("span");
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "modal-icon";
+    close.innerHTML = iconClose();
+
+    header.appendChild(spacer);
+    header.appendChild(close);
+
+    const markers = document.createElement("div");
+    markers.className = "modal-markers";
+    markers.appendChild(buildMarkerToggle(true));
+
+    const section = document.createElement("div");
+    section.className = "modal-section";
+
+    const status = document.createElement("div");
+    status.className = "audio-status";
+
+    const dot = document.createElement("span");
+    dot.className = "idle-dot";
+
+    const timer = document.createElement("span");
+    timer.className = "audio-timer";
+    timer.textContent = "0:00";
+
+    status.appendChild(dot);
+    status.appendChild(timer);
+
+    const controls = document.createElement("div");
+    controls.className = "audio-recorder";
+
+    const record = createAudioControl(iconRecord(), "Start", "Start recording");
+    const pause = createAudioControl(iconPause(), "Pause", "Pause recording");
+    const stop = createAudioControl(iconStop(), "Stop", "Stop recording");
+    const restart = createAudioControl(iconRestart(), "Restart", "Restart recording", "secondary");
+    const clear = createAudioControl(iconClear(), "Clear", "Clear recording", "secondary");
+    const save = createAudioControl(iconSave(), "Save", "Save recording");
+
+    controls.appendChild(record);
+    controls.appendChild(pause);
+    controls.appendChild(stop);
+    controls.appendChild(restart);
+    controls.appendChild(clear);
+    controls.appendChild(save);
+
+    const audio = document.createElement("audio");
+    audio.controls = true;
+    audio.style.display = "none";
+
+    const error = document.createElement("div");
+    error.className = "modal-hint";
+    error.style.display = "none";
+
+    section.appendChild(status);
+    section.appendChild(controls);
+    section.appendChild(audio);
+    section.appendChild(error);
+
+    card.appendChild(header);
+    card.appendChild(markers);
+    card.appendChild(section);
+    el.appendChild(card);
+
+    el.addEventListener("mousedown", stopPropagation, true);
+    el.addEventListener("click", stopPropagation, true);
+
+    let recorder = null;
+    let stream = null;
+    let chunks = [];
+    let audioBlob = null;
+    let audioUrl = null;
+    let elapsed = 0;
+    let timerId = null;
+    let mode = "idle";
+
+    const updateTimer = () => {
+      timer.textContent = formatTime(elapsed);
+    };
+
+    const setError = (message) => {
+      if (!message) {
+        error.style.display = "none";
+        error.textContent = "";
+        return;
+      }
+      error.textContent = message;
+      error.style.display = "block";
+    };
+
+    const stopTracks = () => {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      stream = null;
+    };
+
+    const resetAudio = () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+      audioUrl = null;
+      audioBlob = null;
+      audio.src = "";
+      audio.style.display = "none";
+      chunks = [];
+      elapsed = 0;
+      updateTimer();
+    };
+
+    const setMode = (nextMode) => {
+      mode = nextMode;
+      const showRecorded = mode === "recorded" || mode === "uploading";
+      record.style.display = mode === "idle" ? "" : "none";
+      pause.style.display = mode === "recording" || mode === "paused" ? "" : "none";
+      stop.style.display = mode === "recording" || mode === "paused" ? "" : "none";
+      restart.style.display = showRecorded ? "" : "none";
+      clear.style.display = showRecorded ? "" : "none";
+      save.style.display = showRecorded ? "" : "none";
+
+      if (mode === "recording") {
+        pause.innerHTML = iconPause();
+        pause.title = "Pause";
+        pause.setAttribute("aria-label", "Pause recording");
+      } else if (mode === "paused") {
+        pause.innerHTML = iconPlay();
+        pause.title = "Resume";
+        pause.setAttribute("aria-label", "Resume recording");
+      }
+
+      const isRecording = mode === "recording";
+      dot.className = isRecording ? "pulse-dot" : "idle-dot";
+
+      const isUploading = mode === "uploading";
+      [record, pause, stop, restart, clear, save].forEach((button) => {
+        button.disabled = isUploading;
+      });
+
+      if (mode === "recording") {
+        if (!timerId) {
+          timerId = window.setInterval(() => {
+            elapsed += 1;
+            updateTimer();
+          }, 1000);
+        }
+      } else if (timerId) {
+        window.clearInterval(timerId);
+        timerId = null;
+      }
+    };
+
+    const handleStart = async () => {
+      setError("");
+      resetAudio();
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            chunks.push(event.data);
+          }
+        };
+        recorder.onstop = () => {
+          audioBlob = new Blob(chunks, { type: recorder?.mimeType || "audio/webm" });
+          audioUrl = URL.createObjectURL(audioBlob);
+          audio.src = audioUrl;
+          audio.style.display = "block";
+          setMode("recorded");
+          stopTracks();
+        };
+        recorder.start();
+        setMode("recording");
+      } catch (err) {
+        setError("Microphone access denied or unavailable.");
+        stopTracks();
+        setMode("idle");
+      }
+    };
+
+    const handleStop = () => {
+      if (recorder && (mode === "recording" || mode === "paused")) {
+        recorder.stop();
+      }
+    };
+
+    const handleTogglePause = () => {
+      if (!recorder) {
+        return;
+      }
+      if (mode === "recording") {
+        recorder.pause();
+        setMode("paused");
+      } else if (mode === "paused") {
+        recorder.resume();
+        setMode("recording");
+      }
+    };
+
+    const handleRestart = () => {
+      if (mode === "recording" || mode === "paused") {
+        handleStop();
+      }
+      stopTracks();
+      resetAudio();
+      setMode("idle");
+    };
+
+    const handleClear = () => {
+      resetAudio();
+      clearSelection();
+      hideActionMenu();
+      setMode("idle");
+    };
+
+    const handleUpload = async () => {
+      if (!audioBlob) {
+        return;
+      }
+      setMode("uploading");
+      setError("");
+
+      const mime = audioBlob.type || "audio/webm";
+      const formData = new FormData();
+      formData.append("file", audioBlob, "recording.webm");
+      formData.append("mime", mime);
+
+      try {
+        const apiBase = await getApiBase();
+        const response = await fetch(`${apiBase}/media/audio`, {
+          method: "POST",
+          body: formData,
+        });
+        if (!response.ok) {
+          throw new Error("Upload failed");
+        }
+        const data = await response.json();
+        await saveAudio(data);
+        hideAudioModal();
+      } catch (err) {
+        setError("Upload failed. Please try again.");
+        setMode("recorded");
+      }
+    };
+
+    const handleClose = () => {
+      resetModal();
+      hideAudioModal();
+    };
+
+    record.addEventListener("click", handleStart);
+    pause.addEventListener("click", handleTogglePause);
+    stop.addEventListener("click", handleStop);
+    restart.addEventListener("click", handleRestart);
+    clear.addEventListener("click", handleClear);
+    save.addEventListener("click", handleUpload);
+    close.addEventListener("click", handleClose);
+
+    const resetModal = () => {
+      if (recorder && (mode === "recording" || mode === "paused")) {
+        recorder.onstop = null;
+        recorder.ondataavailable = null;
+        recorder.stop();
+      }
+      recorder = null;
+      stopTracks();
+      if (timerId) {
+        window.clearInterval(timerId);
+        timerId = null;
+      }
+      setError("");
+      resetAudio();
+      setMode("idle");
+    };
+
+    return { el, resetModal };
+  }
+
   function buildMobileNav() {
     const el = document.createElement("div");
     el.className = "mobile-nav";
@@ -258,8 +664,13 @@
       await commitSelection();
     });
 
-    buttons.audio.disabled = true;
-    buttons.grammar.disabled = true;
+    buttons.audio.addEventListener("click", () => {
+      openAudioModal();
+    });
+
+    buttons.grammar.addEventListener("click", () => {
+      openGrammarModal();
+    });
 
     buttons.explore.addEventListener("click", () => {
       if (!state.selection) {
@@ -314,6 +725,49 @@
     button.type = "button";
     button.innerHTML = `${iconHtml}<span>${label}</span>`;
     return button;
+  }
+
+  function createModalIconButton(iconHtml, title) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "modal-icon-button";
+    button.title = title;
+    button.setAttribute("aria-label", title);
+    button.innerHTML = iconHtml;
+    return button;
+  }
+
+  function createAudioControl(iconHtml, title, ariaLabel, variant) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = variant ? `audio-control ${variant}` : "audio-control";
+    button.title = title;
+    button.setAttribute("aria-label", ariaLabel || title);
+    button.innerHTML = iconHtml;
+    return button;
+  }
+
+  function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${String(secs).padStart(2, "0")}`;
+  }
+
+  function getSelectionTextRaw() {
+    return state.selection ? state.selection.text : "";
+  }
+
+  function getSelectionTextTrimmed() {
+    return (state.selection ? state.selection.text : "").trim();
+  }
+
+  function buildLookupUrl(text) {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const query = encodeURIComponent(trimmed);
+    return `https://www.google.com/search?q=define+${query}`;
   }
 
   function updateMarkerButtons() {
@@ -372,6 +826,22 @@
 
   function hideNoteModal() {
     noteModal.el.style.display = "none";
+  }
+
+  function showGrammarModal() {
+    grammarModal.el.style.display = "flex";
+  }
+
+  function hideGrammarModal() {
+    grammarModal.el.style.display = "none";
+  }
+
+  function showAudioModal() {
+    audioModal.el.style.display = "flex";
+  }
+
+  function hideAudioModal() {
+    audioModal.el.style.display = "none";
   }
 
   function showMobileNav() {
@@ -462,6 +932,8 @@
     if (event.key === "Escape") {
       hideActionMenu();
       hideNoteModal();
+      hideGrammarModal();
+      closeAudioModal();
       hideMobileNav();
     }
   }
@@ -472,6 +944,14 @@
     }
     if (noteModal.el.style.display !== "none") {
       hideNoteModal();
+      return;
+    }
+    if (grammarModal.el.style.display !== "none") {
+      hideGrammarModal();
+      return;
+    }
+    if (audioModal.el.style.display !== "none") {
+      closeAudioModal();
       return;
     }
     if (actionMenu.el.style.display !== "none") {
@@ -544,10 +1024,10 @@
 
   async function commitSelection() {
     if (!state.selection) {
-      return;
+      return null;
     }
     if (state.isCommitted) {
-      return;
+      return state.selectionId;
     }
     state.isSaving = true;
     updateActionMenuStatus();
@@ -572,11 +1052,55 @@
       const data = await response.json();
       state.selectionId = data.selection?.id ?? null;
       state.isCommitted = true;
+      return state.selectionId;
     } catch (error) {
       console.warn("Reader extension save failed", error);
     } finally {
       state.isSaving = false;
       updateActionMenuStatus();
+    }
+    return state.selectionId;
+  }
+
+  async function ensureSelectionId() {
+    if (!state.selection) {
+      return null;
+    }
+    if (state.selectionId && state.isCommitted) {
+      return state.selectionId;
+    }
+    await commitSelection();
+    return state.selectionId;
+  }
+
+  async function createWebAddition({ type, title = null, textContent = null, payload = {} }) {
+    const selectionId = await ensureSelectionId();
+    if (!selectionId) {
+      return null;
+    }
+    try {
+      const apiBase = await getApiBase();
+      const response = await fetch(`${apiBase}/web/additions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          selection_id: selectionId,
+          type,
+          title,
+          text_content: textContent,
+          payload,
+        }),
+      });
+      if (!response.ok) {
+        return null;
+      }
+      const data = await response.json();
+      return data.addition ?? null;
+    } catch (error) {
+      console.warn("Reader extension addition save failed", error);
+      return null;
     }
   }
 
@@ -588,36 +1112,36 @@
     if (!state.selection) {
       return;
     }
-    await commitSelection();
-    if (!state.selectionId) {
-      return;
-    }
-    try {
-      const apiBase = await getApiBase();
-      await fetch(`${apiBase}/web/additions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          selection_id: state.selectionId,
-          type: "note",
-          title: null,
-          text_content: trimmed,
-          payload: {},
-        }),
-      });
-    } catch (error) {
-      console.warn("Reader extension note save failed", error);
-    }
+    await createWebAddition({
+      type: "note",
+      textContent: trimmed,
+      payload: { text: trimmed },
+    });
+  }
+
+  async function saveGrammar(payload) {
+    const textContent =
+      payload.kind === "word" || payload.kind === "bars" ? payload.text ?? null : null;
+    await createWebAddition({
+      type: "grammar",
+      textContent,
+      payload,
+    });
+  }
+
+  async function saveAudio(audioPayload) {
+    await createWebAddition({
+      type: "audio",
+      payload: { audio: audioPayload },
+    });
   }
 
   async function toggleMarker(kind) {
     if (!state.selection) {
       return;
     }
-    await commitSelection();
-    if (!state.selectionId) {
+    const selectionId = await ensureSelectionId();
+    if (!selectionId) {
       return;
     }
     try {
@@ -634,7 +1158,7 @@
           },
           body: JSON.stringify({
             target_type: "selection",
-            target_id: state.selectionId,
+            target_id: selectionId,
             kind,
             value: null,
           }),
@@ -659,6 +1183,55 @@
     }
     noteModal.textarea.value = "";
     showNoteModal();
+  }
+
+  function openGrammarModal() {
+    if (!state.selection) {
+      return;
+    }
+    grammarModal.updateButtons();
+    showGrammarModal();
+  }
+
+  function openAudioModal() {
+    if (!state.selection) {
+      return;
+    }
+    audioModal.resetModal();
+    showAudioModal();
+  }
+
+  function closeAudioModal() {
+    audioModal.resetModal();
+    hideAudioModal();
+  }
+
+  async function handleMapAction() {
+    if (!state.selection) {
+      return;
+    }
+    const text = state.selection.text;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (error) {
+      console.warn("Reader extension map copy failed", error);
+    }
+    await createWebAddition({
+      type: "map",
+      payload: { text },
+    });
+    const url = new URL("https://192.168.2.34:3002/map");
+    url.searchParams.set("text", text);
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
+  }
+
+  function openOptionsPage() {
+    if (chrome.runtime?.openOptionsPage) {
+      chrome.runtime.openOptionsPage();
+      return;
+    }
+    const url = chrome.runtime.getURL("options.html");
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   function buildSelector(range, text) {
@@ -868,6 +1441,22 @@
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 10h10M4 14h16M4 18h8" /></svg>';
   }
 
+  function iconWord() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h6M4 12h10M4 17h14" /></svg>';
+  }
+
+  function iconBars() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M12 5v14M18 5v14" /></svg>';
+  }
+
+  function iconStructure() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 12h10M7 17h12" /></svg>';
+  }
+
+  function iconLookup() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6" /><path d="M20 20l-4.2-4.2" /></svg>';
+  }
+
   function iconExplore() {
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7l4 8-8-4 4-4z" /></svg>';
   }
@@ -882,6 +1471,34 @@
 
   function iconMore() {
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>';
+  }
+
+  function iconRecord() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" /></svg>';
+  }
+
+  function iconStop() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1" /></svg>';
+  }
+
+  function iconPause() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6v12M16 6v12" /></svg>';
+  }
+
+  function iconPlay() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7V5z" /></svg>';
+  }
+
+  function iconRestart() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 108-8" /><path d="M4 4v6h6" /></svg>';
+  }
+
+  function iconClear() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14" /><path d="M9 7l1 12h4l1-12" /><path d="M9 7l1-2h4l1 2" /></svg>';
+  }
+
+  function iconSave() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4 10-10" /></svg>';
   }
 
   function iconHighlights() {
