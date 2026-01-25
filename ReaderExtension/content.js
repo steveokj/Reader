@@ -921,6 +921,9 @@
   function showHighlightsPanel() {
     state.highlightsPanelOpen = true;
     highlightsPanel.el.style.display = "flex";
+    if (state.navOpen) {
+      hideMobileNav();
+    }
     updateHighlightsNavState();
     updateHighlightsToggle();
     refreshHighlightsData();
@@ -1268,6 +1271,9 @@
     if (highlightDetailModal.el.style.display !== "none") {
       hideHighlightDetailModal();
       return;
+    }
+    if (state.highlightsPanelOpen) {
+      hideHighlightsPanel();
     }
     if (actionMenu.el.style.display !== "none") {
       hideActionMenu();
