@@ -13,17 +13,17 @@
 .slicer-toolbar {
   pointer-events: auto;
   position: fixed;
-  top: 12px;
-  left: 12px;
-  right: 12px;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: 18px;
   background: rgba(18, 18, 18, 0.95);
   color: #f5f5f5;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(6px);
 }
 
