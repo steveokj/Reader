@@ -518,11 +518,16 @@
     event.stopPropagation();
 
     if (state.mode === "pick") {
-      const segment = event.shiftKey && state.lastPickedElement
+      const useRange = event.shiftKey && state.lastPickedElement;
+      const segment = useRange
         ? buildSegment(state.lastPickedElement, target)
         : buildSegment(target, target);
       if (segment) {
-        state.segments.push(segment);
+        if (useRange && shouldReplaceLastSegmentWithRange(segment)) {
+          state.segments[state.segments.length - 1] = segment;
+        } else {
+          state.segments.push(segment);
+        }
         state.lastPickedElement = target;
         renderSegmentHighlights();
         updateStatus("Segment added");
@@ -593,6 +598,48 @@
       start: buildLocator(startEl),
       end: buildLocator(endEl),
     };
+  }
+
+  function shouldReplaceLastSegmentWithRange(nextSegment) {
+    if (!nextSegment || state.segments.length === 0) {
+      return false;
+    }
+    const last = state.segments[state.segments.length - 1];
+    if (!last) {
+      return false;
+    }
+    if (!isSingleElementSegment(last)) {
+      return false;
+    }
+    return locatorsEqual(last.start, nextSegment.start);
+  }
+
+  function isSingleElementSegment(segment) {
+    if (!segment) {
+      return false;
+    }
+    return locatorsEqual(segment.start, segment.end);
+  }
+
+  function locatorsEqual(a, b) {
+    if (!a || !b) {
+      return false;
+    }
+    if (a.selector && b.selector && a.selector === b.selector) {
+      return true;
+    }
+    if (!Array.isArray(a.path) || !Array.isArray(b.path)) {
+      return false;
+    }
+    if (a.path.length !== b.path.length) {
+      return false;
+    }
+    for (let i = 0; i < a.path.length; i += 1) {
+      if (a.path[i] !== b.path[i]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   function getRangeForSegment(segment) {

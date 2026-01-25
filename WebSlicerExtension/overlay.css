@@ -16,6 +16,7 @@
   left: 16px;
   right: 16px;
   bottom: 16px;
+  z-index: 5;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -66,6 +67,7 @@
   position: fixed;
   top: 72px;
   right: 12px;
+  z-index: 5;
   width: 360px;
   max-width: 90vw;
   height: 55vh;
@@ -150,6 +152,7 @@
   position: fixed;
   top: 72px;
   left: 12px;
+  z-index: 5;
   width: 420px;
   max-width: 92vw;
   height: 60vh;
