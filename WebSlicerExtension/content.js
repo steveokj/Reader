@@ -26,6 +26,8 @@
   overlay.uiRoot.appendChild(libraryPanel.el);
   overlay.uiRoot.appendChild(highlight.el);
 
+  updateStatus();
+
   hideToolbar();
   hidePreview();
   hideLibrary();
@@ -107,8 +109,6 @@
     reset.addEventListener("click", () => resetState());
     close.addEventListener("click", () => hideToolbar());
     save.addEventListener("click", () => saveSlice());
-
-    updateStatus();
 
     return { el, status, pickStart, pickEnd, exclude, preview, library, save, reset, close };
   }
