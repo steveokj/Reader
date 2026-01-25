@@ -522,6 +522,7 @@
 
     const audio = document.createElement("audio");
     audio.controls = true;
+    audio.preload = "metadata";
     audio.style.display = "none";
 
     const error = document.createElement("div");
@@ -665,6 +666,8 @@
           audioUrl = URL.createObjectURL(audioBlob);
           audio.src = audioUrl;
           audio.style.display = "block";
+          audio.load();
+          ensureAudioDuration(audio);
           setMode("recorded");
           stopTracks();
         };
@@ -747,6 +750,7 @@
         }
         const data = result.data;
         await saveAudio(data);
+        hideActionMenu();
         hideAudioModal();
       } catch (err) {
         setError("Upload failed. Please try again.");
