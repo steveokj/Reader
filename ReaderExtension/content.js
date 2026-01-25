@@ -713,7 +713,7 @@
     });
 
     buttons.highlights.addEventListener("click", async () => {
-      await commitSelection();
+      await toggleMarker("highlight");
     });
 
     buttons.audio.addEventListener("click", () => {
@@ -835,6 +835,13 @@
         button.classList.remove("is-active");
       }
     });
+
+    if (mobileNav?.buttons?.highlights) {
+      mobileNav.buttons.highlights.classList.toggle(
+        "is-active",
+        state.markerIds.has("highlight")
+      );
+    }
   }
 
   function updateActionMenuStatus() {
