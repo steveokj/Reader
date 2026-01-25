@@ -202,6 +202,48 @@ async function handleAudioUpload(payload) {
   }
 }
 
+function arrayBufferToBase64(buffer) {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(null, chunk);
+  }
+  return btoa(binary);
+}
+
+async function handleMediaFetch(payload) {
+  try {
+    const path = payload?.path || "";
+    if (!path) {
+      return { ok: false, status: 0, error: "Missing media path" };
+    }
+    const result = await fetchApi({ path, responseType: "arrayBuffer" });
+    if (!result.ok || !result.data) {
+      return {
+        ok: false,
+        status: result.status || 0,
+        error: "Failed to fetch media",
+      };
+    }
+    const bytes = new Uint8Array(result.data);
+    if (!bytes.length) {
+      return { ok: false, status: result.status || 0, error: "Empty media response" };
+    }
+    const contentType = result.headers?.["content-type"] || "application/octet-stream";
+    const base64 = arrayBufferToBase64(bytes);
+    const dataUrl = `data:${contentType};base64,${base64}`;
+    return { ok: true, dataUrl, size: bytes.byteLength, contentType };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      error: error?.message || "Media fetch failed",
+    };
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || typeof message !== "object") {
     return;
@@ -221,6 +263,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "reader:uploadAudio") {
     handleAudioUpload(message).then(sendResponse);
+    return true;
+  }
+
+  if (message.type === "reader:fetchMedia") {
+    handleMediaFetch(message).then(sendResponse);
     return true;
   }
 

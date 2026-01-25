@@ -2239,20 +2239,17 @@
     if (mediaUrlCache.has(url)) {
       return mediaUrlCache.get(url);
     }
-    const result = await apiRequest({
-      path: url,
-      responseType: "arrayBuffer",
-    });
-    if (result.ok && result.data) {
-      const size = result.data.byteLength ?? 0;
-      log("Audio fetch ok", { url, size, type: result.headers?.["content-type"] });
-      const type = result.headers?.["content-type"] || "application/octet-stream";
-      const blob = new Blob([result.data], { type });
-      const blobUrl = URL.createObjectURL(blob);
-      mediaUrlCache.set(url, blobUrl);
-      return blobUrl;
+    const result = await sendBackgroundMessage("reader:fetchMedia", { path: url });
+    if (result?.ok && result?.dataUrl) {
+      log("Audio fetch ok", {
+        url,
+        size: result.size || 0,
+        type: result.contentType,
+      });
+      mediaUrlCache.set(url, result.dataUrl);
+      return result.dataUrl;
     }
-    log("Audio fetch failed", { url, ok: result.ok, status: result.status });
+    log("Audio fetch failed", { url, status: result?.status, error: result?.error });
     const apiBase = await getApiBaseFromBackground();
     if (!apiBase) {
       return url;
