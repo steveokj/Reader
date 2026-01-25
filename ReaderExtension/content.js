@@ -642,7 +642,7 @@
           setMode("recorded");
           stopTracks();
         };
-        recorder.start();
+        recorder.start(500);
         setMode("recording");
       } catch (err) {
         setError("Microphone access denied or unavailable.");
@@ -654,6 +654,11 @@
     const handleStop = () => {
       log("Audio stop");
       if (recorder && (mode === "recording" || mode === "paused")) {
+        try {
+          recorder.requestData();
+        } catch (error) {
+          log("Audio requestData failed", error);
+        }
         recorder.stop();
       }
     };
@@ -695,11 +700,18 @@
       if (!audioBlob) {
         return;
       }
+      if (audioBlob.size === 0) {
+        log("Audio upload blocked: empty blob");
+        setError("Recording is empty. Try again.");
+        setMode("recorded");
+        return;
+      }
       setMode("uploading");
       setError("");
 
       try {
         const mime = audioBlob.type || "audio/webm";
+        log("Audio upload blob", { size: audioBlob.size, mime });
         const result = await uploadAudioBlob(audioBlob, mime);
         if (!result.ok) {
           console.warn("[ReaderExt] Audio upload failed", result);
