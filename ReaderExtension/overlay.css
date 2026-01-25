@@ -20,6 +20,13 @@
   color: var(--reader-ink);
 }
 
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+}
+
 .reader-extension,
 .reader-extension * {
   box-sizing: border-box;
@@ -49,6 +56,10 @@
 }
 
 .reader-extension__ui {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
   display: contents;
 }
 

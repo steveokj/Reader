@@ -64,6 +64,8 @@
     });
     shadow.appendChild(link);
 
+    log("Overlay mounted");
+
     const container = document.createElement("div");
     container.className = "reader-extension";
 
@@ -838,6 +840,7 @@
       actionMenu.el.style.top = `${Math.round(top)}px`;
       actionMenu.el.style.left = `${Math.round(left)}px`;
       actionMenu.el.style.visibility = "visible";
+      log("Action menu shown", { top: Math.round(top), left: Math.round(left) });
     });
   }
 
