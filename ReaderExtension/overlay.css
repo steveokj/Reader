@@ -59,6 +59,7 @@
   color: rgba(31, 28, 22, 0.75);
   box-shadow: 0 12px 24px rgba(31, 28, 22, 0.18);
   mix-blend-mode: normal;
+  pointer-events: auto;
 }
 
 .action-menu__meta {
@@ -262,6 +263,7 @@
   justify-content: center;
   z-index: 80;
   padding: 20px;
+  pointer-events: auto;
 }
 
 .modal-card {
@@ -564,6 +566,7 @@
   padding: 8px;
   box-shadow: 0 18px 30px var(--reader-shadow);
   z-index: 60;
+  pointer-events: auto;
 }
 
 .mobile-nav button {

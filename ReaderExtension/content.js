@@ -1395,6 +1395,10 @@
   }
 
   function isEventInOverlay(event) {
+    const target = event.target;
+    if (target && overlay.host.contains(target)) {
+      return true;
+    }
     const path = event.composedPath ? event.composedPath() : [];
     if (
       path.includes(overlay.host) ||
@@ -1404,11 +1408,18 @@
     ) {
       return true;
     }
-    const target = event.target;
-    if (target === overlay.host) {
-      return true;
+    for (const node of path) {
+      if (node && node.classList) {
+        if (
+          node.classList.contains("action-menu") ||
+          node.classList.contains("modal-backdrop") ||
+          node.classList.contains("mobile-nav")
+        ) {
+          return true;
+        }
+      }
     }
-    if (overlay.shadow && overlay.shadow.contains(target)) {
+    if (overlay.shadow && target && overlay.shadow.contains(target)) {
       return true;
     }
     return false;
