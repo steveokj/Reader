@@ -122,17 +122,27 @@ async function handleApiRequest(request) {
 async function handleAudioUpload(payload) {
   try {
     const buffer = payload?.buffer;
+    let arrayBuffer = null;
+    if (buffer instanceof ArrayBuffer) {
+      arrayBuffer = buffer;
+    } else if (buffer?.buffer instanceof ArrayBuffer) {
+      arrayBuffer = buffer.buffer;
+    }
     const blob =
       payload?.blob instanceof Blob
         ? payload.blob
-        : buffer
-          ? new Blob([buffer], { type: payload?.mime || "audio/webm" })
+        : arrayBuffer
+          ? new Blob([arrayBuffer], { type: payload?.mime || "audio/webm" })
           : null;
     console.log("[ReaderExt] Audio upload start", {
       size: blob?.size ?? null,
       mime: payload?.mime ?? null,
       hasBuffer: Boolean(buffer),
+      bufferBytes: arrayBuffer?.byteLength ?? null,
     });
+    if (!blob || !blob.size) {
+      return { ok: false, status: 0, error: "Audio payload is empty" };
+    }
     const formData = new FormData();
     if (blob) {
       formData.append(

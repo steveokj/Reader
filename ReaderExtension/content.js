@@ -622,20 +622,43 @@
       }
     };
 
+    const pickMimeType = () => {
+      const candidates = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+      ];
+      if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) {
+        return "";
+      }
+      return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+    };
+
     const handleStart = async () => {
       log("Audio start");
       setError("");
       resetAudio();
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        recorder = new MediaRecorder(stream);
+        const mimeType = pickMimeType();
+        recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+        log("Audio recorder started", { mimeType: recorder.mimeType });
         recorder.ondataavailable = (event) => {
+          log("Audio chunk", { size: event.data.size });
           if (event.data.size > 0) {
             chunks.push(event.data);
           }
         };
         recorder.onstop = () => {
           audioBlob = new Blob(chunks, { type: recorder?.mimeType || "audio/webm" });
+          log("Audio blob built", { size: audioBlob.size, type: audioBlob.type });
+          if (!audioBlob.size) {
+            setError("Recording is empty. Try again.");
+            setMode("idle");
+            stopTracks();
+            return;
+          }
           audioUrl = URL.createObjectURL(audioBlob);
           audio.src = audioUrl;
           audio.style.display = "block";
