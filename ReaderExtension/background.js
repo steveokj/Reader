@@ -157,3 +157,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 });
+
+chrome.action.onClicked.addListener((tab) => {
+  console.log("[ReaderExt] action icon clicked", tab?.id);
+  if (!tab?.id) {
+    console.warn("[ReaderExt] No active tab for action click");
+    return;
+  }
+  chrome.tabs.sendMessage(tab.id, { type: "reader:toggleNav" }, (response) => {
+    const error = chrome.runtime.lastError;
+    if (error) {
+      console.warn("[ReaderExt] Toggle nav failed", error.message);
+      return;
+    }
+    console.log("[ReaderExt] Toggle nav response", response);
+  });
+});

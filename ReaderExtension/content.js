@@ -115,6 +115,24 @@
   document.addEventListener("touchstart", handleTouchStart, { passive: true, capture: true });
   document.addEventListener("touchend", handleTouchEnd, { passive: true, capture: true });
 
+  if (chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (!message || typeof message !== "object") {
+        return;
+      }
+      if (message.type === "reader:toggleNav") {
+        log("Toolbar toggle received");
+        if (state.navOpen) {
+          hideMobileNav();
+        } else {
+          showMobileNav();
+        }
+        sendResponse?.({ ok: true, navOpen: state.navOpen });
+        return true;
+      }
+    });
+  }
+
   if (state.showHighlightsOnPage) {
     refreshHighlightsData({ silent: true });
   }
@@ -1122,11 +1140,13 @@
   function showMobileNav() {
     mobileNav.el.style.display = "grid";
     state.navOpen = true;
+    log("Mobile nav shown");
   }
 
   function hideMobileNav() {
     mobileNav.el.style.display = "none";
     state.navOpen = false;
+    log("Mobile nav hidden");
   }
 
   function stopPropagation(event) {
