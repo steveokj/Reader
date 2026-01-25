@@ -14,19 +14,23 @@
     segments: [],
     excludes: [],
     highlightTarget: null,
+    libraryOpen: false,
   };
 
   const overlay = mountOverlay();
   const toolbar = buildToolbar();
   const previewPanel = buildPreviewPanel();
+  const libraryPanel = buildLibraryPanel();
   const highlight = buildHighlight();
 
   overlay.uiRoot.appendChild(toolbar.el);
   overlay.uiRoot.appendChild(previewPanel.el);
+  overlay.uiRoot.appendChild(libraryPanel.el);
   overlay.uiRoot.appendChild(highlight.el);
 
   hideToolbar();
   hidePreview();
+  hideLibrary();
   hideHighlight();
 
   chrome.runtime.onMessage.addListener((message) => {
@@ -74,6 +78,7 @@
     const pickEnd = createButton("Pick end");
     const exclude = createButton("Exclude");
     const preview = createButton("Preview");
+    const library = createButton("Library");
     const save = createButton("Save");
     const reset = createButton("Reset");
     const close = createButton("Close");
@@ -82,6 +87,7 @@
     left.appendChild(pickEnd);
     left.appendChild(exclude);
     left.appendChild(preview);
+    left.appendChild(library);
 
     right.appendChild(save);
     right.appendChild(reset);
@@ -99,13 +105,14 @@
     pickEnd.addEventListener("click", () => setMode("pick-end"));
     exclude.addEventListener("click", () => setMode("exclude"));
     preview.addEventListener("click", () => togglePreview());
+    library.addEventListener("click", () => toggleLibrary());
     reset.addEventListener("click", () => resetState());
     close.addEventListener("click", () => hideToolbar());
     save.addEventListener("click", () => saveSlice());
 
     updateStatus();
 
-    return { el, status, pickStart, pickEnd, exclude, preview, save, reset, close };
+    return { el, status, pickStart, pickEnd, exclude, preview, library, save, reset, close };
   }
 
   function buildPreviewPanel() {
@@ -127,6 +134,43 @@
     el.appendChild(body);
 
     return { el, text };
+  }
+
+  function buildLibraryPanel() {
+    const el = document.createElement("div");
+    el.className = "slicer-library";
+
+    const header = document.createElement("div");
+    header.className = "slicer-library__header";
+
+    const title = document.createElement("div");
+    title.textContent = "Saved slices";
+
+    const headerActions = document.createElement("div");
+    headerActions.className = "slicer-library__actions";
+
+    const refresh = createButton("Refresh");
+    const close = createButton("Close");
+    headerActions.appendChild(refresh);
+    headerActions.appendChild(close);
+
+    header.appendChild(title);
+    header.appendChild(headerActions);
+
+    const body = document.createElement("div");
+    body.className = "slicer-library__body";
+
+    const list = document.createElement("div");
+    list.className = "slicer-library__list";
+    body.appendChild(list);
+
+    el.appendChild(header);
+    el.appendChild(body);
+
+    refresh.addEventListener("click", () => loadLibrary());
+    close.addEventListener("click", () => hideLibrary());
+
+    return { el, list };
   }
 
   function buildHighlight() {
@@ -153,13 +197,14 @@
     state.segments = [];
     state.excludes = [];
     hidePreview();
+    hideLibrary();
     updateStatus();
   }
 
   function updateStatus(message = "") {
-    const base = `Segments: ${state.segments.length} • Excludes: ${state.excludes.length}`;
-    const mode = state.mode !== "idle" ? ` • ${state.mode}` : "";
-    toolbar.status.textContent = message ? `${message} — ${base}${mode}` : `${base}${mode}`;
+    const base = `Segments: ${state.segments.length} - Excludes: ${state.excludes.length}`;
+    const mode = state.mode !== "idle" ? ` - ${state.mode}` : "";
+    toolbar.status.textContent = message ? `${message} - ${base}${mode}` : `${base}${mode}`;
     toolbar.pickEnd.disabled = state.startElement === null;
   }
 
@@ -185,6 +230,7 @@
     overlay.uiRoot.style.display = "none";
     toolbar.el.style.display = "none";
     hidePreview();
+    hideLibrary();
     hideHighlight();
   }
 
@@ -208,6 +254,98 @@
 
   function hidePreview() {
     previewPanel.el.style.display = "none";
+  }
+
+  function toggleLibrary() {
+    if (libraryPanel.el.style.display === "block") {
+      hideLibrary();
+    } else {
+      showLibrary();
+    }
+  }
+
+  function showLibrary() {
+    libraryPanel.el.style.display = "block";
+    state.libraryOpen = true;
+    loadLibrary();
+  }
+
+  function hideLibrary() {
+    libraryPanel.el.style.display = "none";
+    state.libraryOpen = false;
+  }
+
+  async function loadLibrary() {
+    libraryPanel.list.innerHTML = "";
+    const loading = document.createElement("div");
+    loading.className = "slicer-library__empty";
+    loading.textContent = "Loading...";
+    libraryPanel.list.appendChild(loading);
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "slicer-list",
+      });
+      if (!response?.ok) {
+        throw new Error(response?.error || "Failed to load");
+      }
+      renderLibrary(response.slices || []);
+    } catch (error) {
+      libraryPanel.list.innerHTML = "";
+      const fallback = document.createElement("div");
+      fallback.className = "slicer-library__empty";
+      fallback.textContent = "Failed to load saved slices.";
+      libraryPanel.list.appendChild(fallback);
+    }
+  }
+
+  function renderLibrary(items) {
+    libraryPanel.list.innerHTML = "";
+    if (!items.length) {
+      const empty = document.createElement("div");
+      empty.className = "slicer-library__empty";
+      empty.textContent = "No saved slices yet.";
+      libraryPanel.list.appendChild(empty);
+      return;
+    }
+    items.forEach((item) => {
+      const row = document.createElement("div");
+      row.className = "slicer-library__item";
+
+      const title = document.createElement("div");
+      title.className = "slicer-library__title";
+      title.textContent = item.slice_title || item.page_title || item.url;
+
+      const meta = document.createElement("div");
+      meta.className = "slicer-library__meta";
+      meta.textContent = `${item.url} - ${formatDate(item.created_at)}`;
+
+      const actions = document.createElement("div");
+      actions.className = "slicer-library__item-actions";
+
+      const preview = createButton("Preview");
+      const copyHtml = createButton("Copy HTML");
+      const copyText = createButton("Copy text");
+
+      preview.addEventListener("click", () => {
+        previewPanel.text.textContent = item.text || "(no text)";
+        previewPanel.el.style.display = "block";
+      });
+      copyHtml.addEventListener("click", async () => {
+        await copyToClipboard(item.html || "");
+      });
+      copyText.addEventListener("click", async () => {
+        await copyToClipboard(item.text || "");
+      });
+
+      actions.appendChild(preview);
+      actions.appendChild(copyHtml);
+      actions.appendChild(copyText);
+
+      row.appendChild(title);
+      row.appendChild(meta);
+      row.appendChild(actions);
+      libraryPanel.list.appendChild(row);
+    });
   }
 
   function handleHover(event) {
@@ -503,6 +641,28 @@
       updateStatus("Save failed");
       console.warn("Web Slicer save error", error);
     }
+  }
+
+  async function copyToClipboard(text) {
+    if (!text) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (error) {
+      console.warn("Clipboard write failed", error);
+    }
+  }
+
+  function formatDate(value) {
+    if (!value) {
+      return "";
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date.toLocaleString();
   }
 
   function isEventInOverlay(event) {

@@ -26,26 +26,49 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message || message.type !== "slicer-save") {
+  if (!message) {
     return;
   }
-  (async () => {
-    try {
-      const apiBase = await getApiBase();
-      const response = await fetch(`${apiBase}/slicer/slices`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(message.payload),
-      });
-      if (!response.ok) {
-        throw new Error(`Save failed (${response.status})`);
+  if (message.type === "slicer-save") {
+    (async () => {
+      try {
+        const apiBase = await getApiBase();
+        const response = await fetch(`${apiBase}/slicer/slices`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(message.payload),
+        });
+        if (!response.ok) {
+          throw new Error(`Save failed (${response.status})`);
+        }
+        const data = await response.json();
+        sendResponse({ ok: true, slice: data.slice });
+      } catch (error) {
+        console.warn("Web Slicer save failed", error);
+        sendResponse({ ok: false, error: String(error) });
       }
-      const data = await response.json();
-      sendResponse({ ok: true, slice: data.slice });
-    } catch (error) {
-      console.warn("Web Slicer save failed", error);
-      sendResponse({ ok: false, error: String(error) });
-    }
-  })();
-  return true;
+    })();
+    return true;
+  }
+  if (message.type === "slicer-list") {
+    (async () => {
+      try {
+        const apiBase = await getApiBase();
+        const url = new URL(`${apiBase}/slicer/slices`);
+        if (message.url) {
+          url.searchParams.set("url", message.url);
+        }
+        const response = await fetch(url.toString());
+        if (!response.ok) {
+          throw new Error(`List failed (${response.status})`);
+        }
+        const data = await response.json();
+        sendResponse({ ok: true, slices: data.slices || [] });
+      } catch (error) {
+        console.warn("Web Slicer list failed", error);
+        sendResponse({ ok: false, error: String(error) });
+      }
+    })();
+    return true;
+  }
 });
