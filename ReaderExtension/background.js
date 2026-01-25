@@ -92,6 +92,14 @@ async function fetchApi(request = {}) {
     }
   }
 
+  if (!response.ok) {
+    console.warn("[ReaderExt] API request failed", {
+      url,
+      status: response.status,
+      data,
+    });
+  }
+
   return { ok: response.ok, status: response.status, data };
 }
 
@@ -109,6 +117,10 @@ async function handleApiRequest(request) {
 
 async function handleAudioUpload(payload) {
   try {
+    console.log("[ReaderExt] Audio upload start", {
+      size: payload?.blob?.size ?? null,
+      mime: payload?.mime ?? null,
+    });
     const formData = new FormData();
     if (payload?.blob) {
       formData.append(
