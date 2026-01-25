@@ -6,6 +6,13 @@
   const NAV_SWIPE_MAX_MS = 1200;
   const DOUBLE_CLICK_WINDOW_MS = 4000;
 
+  const DEBUG = true;
+  const log = (...args) => {
+    if (DEBUG) {
+      console.log("[ReaderExt]", ...args);
+    }
+  };
+
   const state = {
     selection: null,
     selectionId: null,
@@ -127,21 +134,28 @@
     el.addEventListener("mousedown", stopPropagation, true);
     el.addEventListener("mouseup", stopPropagation, true);
     el.addEventListener("click", stopPropagation, true);
+    el.addEventListener("click", (event) => {
+      log("Action menu click", event.target);
+    });
 
     commit.addEventListener("click", async () => {
+      log("Commit selection clicked");
       await commitSelection();
     });
 
     close.addEventListener("click", () => {
+      log("Close action menu clicked");
       clearSelection();
       hideActionMenu();
     });
 
     actionButtons.note.addEventListener("click", () => {
+      log("Note action clicked");
       openNoteModal();
     });
 
     actionButtons.copy.addEventListener("click", async () => {
+      log("Copy action clicked");
       if (state.selection) {
         try {
           await navigator.clipboard.writeText(state.selection.text);
@@ -152,6 +166,7 @@
     });
 
     actionButtons.explore.addEventListener("click", () => {
+      log("Explore action clicked");
       if (!state.selection) {
         return;
       }
@@ -161,18 +176,22 @@
     });
 
     actionButtons.audio.addEventListener("click", () => {
+      log("Audio action clicked");
       openAudioModal();
     });
 
     actionButtons.grammar.addEventListener("click", () => {
+      log("Grammar action clicked");
       openGrammarModal();
     });
 
     actionButtons.map.addEventListener("click", () => {
+      log("Map action clicked");
       handleMapAction();
     });
 
     actionButtons.more.addEventListener("click", () => {
+      log("More action clicked");
       openOptionsPage();
     });
 
@@ -509,6 +528,7 @@
     };
 
     const handleStart = async () => {
+      log("Audio start");
       setError("");
       resetAudio();
       try {
@@ -537,12 +557,14 @@
     };
 
     const handleStop = () => {
+      log("Audio stop");
       if (recorder && (mode === "recording" || mode === "paused")) {
         recorder.stop();
       }
     };
 
     const handleTogglePause = () => {
+      log("Audio toggle pause", mode);
       if (!recorder) {
         return;
       }
@@ -556,6 +578,7 @@
     };
 
     const handleRestart = () => {
+      log("Audio restart");
       if (mode === "recording" || mode === "paused") {
         handleStop();
       }
@@ -565,6 +588,7 @@
     };
 
     const handleClear = () => {
+      log("Audio clear");
       resetAudio();
       clearSelection();
       hideActionMenu();
@@ -572,6 +596,7 @@
     };
 
     const handleUpload = async () => {
+      log("Audio upload");
       if (!audioBlob) {
         return;
       }
@@ -602,6 +627,7 @@
     };
 
     const handleClose = () => {
+      log("Audio close");
       resetModal();
       hideAudioModal();
     };
@@ -701,6 +727,7 @@
     button.innerHTML = iconHtml;
 
     button.addEventListener("click", async () => {
+      log("Marker toggle clicked", kind);
       await toggleMarker(kind);
     });
 
@@ -874,6 +901,7 @@
     }
 
     const rect = range.getBoundingClientRect();
+    log("Selection captured", text.slice(0, 80));
     setSelection(range, text);
     showActionMenu(rect);
   }
@@ -893,6 +921,7 @@
       if (state.anchorTimer) {
         clearTimeout(state.anchorTimer);
       }
+      log("Anchor range set");
       state.anchorTimer = window.setTimeout(() => {
         state.anchorRange = null;
         state.anchorTimer = null;
@@ -919,12 +948,14 @@
     }
 
     const rect = spanRange.getBoundingClientRect();
+    log("Span range selection", text.slice(0, 80));
     setSelection(spanRange, text);
     showActionMenu(rect);
   }
 
   function handleKeyDown(event) {
     if (event.key === "Escape") {
+      log("Escape pressed");
       hideActionMenu();
       hideNoteModal();
       hideGrammarModal();
@@ -934,6 +965,7 @@
   }
 
   function handleDocumentMouseDown(event) {
+    log("Document mousedown", event.target);
     if (isEventInOverlay(event)) {
       return;
     }
@@ -1027,6 +1059,7 @@
     state.isSaving = true;
     updateActionMenuStatus();
     try {
+      log("Saving selection to API");
       const apiBase = await getApiBase();
       const response = await fetch(`${apiBase}/web/selections`, {
         method: "POST",
@@ -1047,6 +1080,7 @@
       const data = await response.json();
       state.selectionId = data.selection?.id ?? null;
       state.isCommitted = true;
+      log("Selection saved", state.selectionId);
       return state.selectionId;
     } catch (error) {
       console.warn("Reader extension save failed", error);
@@ -1107,6 +1141,7 @@
     if (!state.selection) {
       return;
     }
+    log("Saving note addition");
     await createWebAddition({
       type: "note",
       textContent: trimmed,
@@ -1117,6 +1152,7 @@
   async function saveGrammar(payload) {
     const textContent =
       payload.kind === "word" || payload.kind === "bars" ? payload.text ?? null : null;
+    log("Saving grammar addition", payload.kind);
     await createWebAddition({
       type: "grammar",
       textContent,
@@ -1125,6 +1161,7 @@
   }
 
   async function saveAudio(audioPayload) {
+    log("Saving audio addition");
     await createWebAddition({
       type: "audio",
       payload: { audio: audioPayload },
