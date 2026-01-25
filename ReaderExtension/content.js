@@ -738,6 +738,8 @@
         const result = await uploadAudioBlob(audioBlob, mime);
         if (!result.ok) {
           console.warn("[ReaderExt] Audio upload failed", result);
+          const debug = await sendBackgroundMessage("reader:debugApiBase", {});
+          log("Audio upload debug", debug);
           throw new Error(result.error || "Upload failed");
         }
         const data = result.data;

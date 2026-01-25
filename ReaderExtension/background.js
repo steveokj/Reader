@@ -190,6 +190,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleAudioUpload(message).then(sendResponse);
     return true;
   }
+
+  if (message.type === "reader:debugApiBase") {
+    getApiBase().then((apiBase) => {
+      sendResponse({ ok: true, apiBase });
+    });
+    return true;
+  }
 });
 
 chrome.action.onClicked.addListener((tab) => {
