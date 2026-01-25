@@ -955,6 +955,7 @@
       if (!response?.ok) {
         throw new Error(response?.error || "Save failed");
       }
+      hidePreview();
       updateStatus("Saved");
     } catch (error) {
       updateStatus("Save failed");
