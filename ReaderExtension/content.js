@@ -41,7 +41,7 @@
   document.addEventListener("mouseup", handleMouseUp, true);
   document.addEventListener("dblclick", handleDoubleClick, true);
   document.addEventListener("keydown", handleKeyDown, true);
-  document.addEventListener("mousedown", handleDocumentMouseDown, true);
+  document.addEventListener("mousedown", handleDocumentMouseDown);
   document.addEventListener("touchstart", handleTouchStart, { passive: true, capture: true });
   document.addEventListener("touchend", handleTouchEnd, { passive: true, capture: true });
 
@@ -1396,7 +1396,22 @@
 
   function isEventInOverlay(event) {
     const path = event.composedPath ? event.composedPath() : [];
-    return path.includes(overlay.host) || path.includes(overlay.container);
+    if (
+      path.includes(overlay.host) ||
+      path.includes(overlay.container) ||
+      path.includes(overlay.layer) ||
+      path.includes(overlay.shadow)
+    ) {
+      return true;
+    }
+    const target = event.target;
+    if (target === overlay.host) {
+      return true;
+    }
+    if (overlay.shadow && overlay.shadow.contains(target)) {
+      return true;
+    }
+    return false;
   }
 
   let apiBasePromise = null;
