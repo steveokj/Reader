@@ -277,7 +277,7 @@
     setPreviewContent({
       text: snapshot.text,
       html: snapshot.html,
-      mode: "text",
+      mode: "html",
     });
   }
 
@@ -396,7 +396,7 @@
         setPreviewContent({
           text: item.text,
           html: item.html,
-          mode: "text",
+          mode: "html",
         });
       });
       copyHtml.addEventListener("click", async () => {
