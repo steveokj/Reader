@@ -49,18 +49,13 @@
     const host = document.createElement("div");
     host.id = "reader-extension-root";
     const shadow = host.attachShadow({ mode: "open" });
-    const style = document.createElement("style");
-    style.textContent = "";
-    shadow.appendChild(style);
-
-    fetch(chrome.runtime.getURL("overlay.css"))
-      .then((response) => response.text())
-      .then((css) => {
-        style.textContent = css;
-      })
-      .catch((error) => {
-        console.warn("Reader extension failed to load CSS", error);
-      });
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = chrome.runtime.getURL("overlay.css");
+    link.addEventListener("error", (error) => {
+      console.warn("Reader extension failed to load CSS", error);
+    });
+    shadow.appendChild(link);
 
     const container = document.createElement("div");
     container.className = "reader-extension";
