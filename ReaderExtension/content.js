@@ -33,11 +33,11 @@
   const audioModal = buildAudioModal();
   const mobileNav = buildMobileNav();
 
-  overlay.uiRoot.appendChild(actionMenu.el);
-  overlay.uiRoot.appendChild(noteModal.el);
-  overlay.uiRoot.appendChild(mobileNav.el);
-  overlay.uiRoot.appendChild(grammarModal.el);
-  overlay.uiRoot.appendChild(audioModal.el);
+  overlay.layer.appendChild(actionMenu.el);
+  overlay.layer.appendChild(noteModal.el);
+  overlay.layer.appendChild(mobileNav.el);
+  overlay.layer.appendChild(grammarModal.el);
+  overlay.layer.appendChild(audioModal.el);
 
   hideActionMenu();
   hideNoteModal();
@@ -73,14 +73,10 @@
     layer.className = "reader-extension__layer";
     container.appendChild(layer);
 
-    const uiRoot = document.createElement("div");
-    uiRoot.className = "reader-extension__ui";
-
     shadow.appendChild(container);
-    shadow.appendChild(uiRoot);
     document.documentElement.appendChild(host);
 
-    return { host, shadow, container, layer, uiRoot };
+    return { host, shadow, container, layer };
   }
 
   function buildActionMenu() {
@@ -1445,8 +1441,7 @@
       path.includes(overlay.host) ||
       path.includes(overlay.container) ||
       path.includes(overlay.layer) ||
-      path.includes(overlay.shadow) ||
-      path.includes(overlay.uiRoot)
+      path.includes(overlay.shadow)
     ) {
       return true;
     }
