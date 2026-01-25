@@ -519,7 +519,7 @@
       if (segment) {
         state.segments.push(segment);
         renderSegmentHighlights();
-        if (event.shiftKey) {
+        if (event.ctrlKey) {
           state.startElement = target;
           updateStatus("Segment added (continue)");
           return;
