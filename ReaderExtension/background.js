@@ -145,6 +145,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "reader:getApiBase") {
+    getApiBase().then((apiBase) => {
+      sendResponse({ ok: true, apiBase });
+    });
+    return true;
+  }
+
   if (message.type === "reader:uploadAudio") {
     handleAudioUpload(message).then(sendResponse);
     return true;

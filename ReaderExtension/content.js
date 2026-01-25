@@ -22,6 +22,18 @@
     navOpen: false,
     noteModalOpen: false,
     navSwipeStart: null,
+    highlightsPanelOpen: false,
+    highlightsTab: "selections",
+    highlightsLoading: false,
+    showHighlightsOnPage: true,
+    highlightsData: {
+      bundles: [],
+      additions: [],
+      markers: [],
+      selectionById: new Map(),
+      additionById: new Map(),
+    },
+    highlightDetail: null,
   };
 
   async function sendBackgroundMessage(type, payload) {
@@ -61,24 +73,40 @@
     });
   }
 
+  let apiBaseCache = null;
+  async function getApiBaseFromBackground() {
+    if (apiBaseCache !== null) {
+      return apiBaseCache;
+    }
+    const result = await sendBackgroundMessage("reader:getApiBase", {});
+    apiBaseCache = result?.apiBase || "";
+    return apiBaseCache;
+  }
+
   const overlay = mountOverlay();
   const actionMenu = buildActionMenu();
   const noteModal = buildNoteModal();
   const grammarModal = buildGrammarModal();
   const audioModal = buildAudioModal();
   const mobileNav = buildMobileNav();
+  const highlightsPanel = buildHighlightsPanel();
+  const highlightDetailModal = buildHighlightDetailModal();
 
   overlay.root.appendChild(actionMenu.el);
   overlay.root.appendChild(noteModal.el);
   overlay.root.appendChild(mobileNav.el);
   overlay.root.appendChild(grammarModal.el);
   overlay.root.appendChild(audioModal.el);
+  overlay.root.appendChild(highlightsPanel.el);
+  overlay.root.appendChild(highlightDetailModal.el);
 
   hideActionMenu();
   hideNoteModal();
   hideMobileNav();
   hideGrammarModal();
   hideAudioModal();
+  hideHighlightsPanel();
+  hideHighlightDetailModal();
 
   document.addEventListener("mouseup", handleMouseUp, true);
   document.addEventListener("dblclick", handleDoubleClick, true);
@@ -86,6 +114,10 @@
   document.addEventListener("mousedown", handleDocumentMouseDown);
   document.addEventListener("touchstart", handleTouchStart, { passive: true, capture: true });
   document.addEventListener("touchend", handleTouchEnd, { passive: true, capture: true });
+
+  if (state.showHighlightsOnPage) {
+    refreshHighlightsData({ silent: true });
+  }
 
   function mountOverlay() {
     const host = document.createElement("div");
@@ -163,6 +195,9 @@
       more: createActionButton(iconMore(), "More"),
       map: createActionButton(iconMap(), "Map"),
     };
+
+    actionButtons.explore.disabled = true;
+    actionButtons.explore.title = "Explore coming soon";
 
     Object.values(actionButtons).forEach((button) => actions.appendChild(button));
 
@@ -713,7 +748,7 @@
     });
 
     buttons.highlights.addEventListener("click", async () => {
-      await toggleMarker("highlight");
+      toggleHighlightsPanel();
     });
 
     buttons.audio.addEventListener("click", () => {
@@ -724,16 +759,193 @@
       openGrammarModal();
     });
 
-    buttons.explore.addEventListener("click", () => {
-      if (!state.selection) {
-        return;
-      }
-      const url = new URL("https://192.168.2.34:3002/explore");
-      url.searchParams.set("text", state.selection.text);
-      window.open(url.toString(), "_blank", "noopener,noreferrer");
-    });
+    buttons.explore.disabled = true;
+    buttons.explore.title = "Explore coming soon";
 
     return { el, buttons };
+  }
+
+  function buildHighlightsPanel() {
+    const el = document.createElement("div");
+    el.className = "highlights-panel";
+
+    const header = document.createElement("div");
+    header.className = "highlights-panel__header";
+
+    const title = document.createElement("div");
+    title.className = "highlights-panel__title";
+    title.textContent = "Highlights";
+
+    const headerActions = document.createElement("div");
+    headerActions.className = "highlights-panel__header-actions";
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "highlights-panel__toggle";
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "highlights-panel__close";
+    close.title = "Close";
+    close.innerHTML = iconClose();
+
+    headerActions.appendChild(toggle);
+    headerActions.appendChild(close);
+    header.appendChild(title);
+    header.appendChild(headerActions);
+
+    const tabs = document.createElement("div");
+    tabs.className = "highlights-panel__tabs";
+
+    const tabButtons = {
+      selections: buildTabButton("Selections"),
+      additions: buildTabButton("Additions"),
+      markers: buildTabButton("Markers"),
+    };
+
+    Object.entries(tabButtons).forEach(([key, entry]) => {
+      entry.button.addEventListener("click", () => {
+        setHighlightsTab(key);
+      });
+      tabs.appendChild(entry.button);
+    });
+
+    const content = document.createElement("div");
+    content.className = "highlights-panel__content";
+
+    el.appendChild(header);
+    el.appendChild(tabs);
+    el.appendChild(content);
+
+    el.addEventListener("mousedown", stopPropagation);
+    el.addEventListener("click", stopPropagation);
+
+    toggle.addEventListener("click", () => {
+      state.showHighlightsOnPage = !state.showHighlightsOnPage;
+      updateHighlightsToggle();
+      if (state.showHighlightsOnPage && state.highlightsData.bundles.length === 0) {
+        refreshHighlightsData({ silent: true });
+      } else {
+        refreshHighlightsOverlay();
+      }
+    });
+
+    close.addEventListener("click", () => {
+      hideHighlightsPanel();
+    });
+
+    const updateToggle = () => {
+      toggle.textContent = state.showHighlightsOnPage
+        ? "Hide on page"
+        : "Show on page";
+      toggle.classList.toggle("is-active", state.showHighlightsOnPage);
+    };
+
+    const updateTabs = (counts) => {
+      Object.entries(tabButtons).forEach(([key, entry]) => {
+        entry.count.textContent = String(counts[key] ?? 0);
+        entry.button.classList.toggle("is-active", state.highlightsTab === key);
+      });
+    };
+
+    return { el, content, updateToggle, updateTabs };
+  }
+
+  function buildHighlightDetailModal() {
+    const el = document.createElement("div");
+    el.className = "modal-backdrop highlight-detail";
+
+    const card = document.createElement("div");
+    card.className = "modal-card highlight-detail__card";
+
+    const header = document.createElement("div");
+    header.className = "modal-header highlight-detail__header";
+
+    const title = document.createElement("h2");
+    title.textContent = "Highlight";
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.textContent = "Close";
+
+    header.appendChild(title);
+    header.appendChild(close);
+
+    const body = document.createElement("div");
+    body.className = "highlight-detail__body";
+
+    card.appendChild(header);
+    card.appendChild(body);
+    el.appendChild(card);
+
+    el.addEventListener("mousedown", stopPropagation);
+    el.addEventListener("click", stopPropagation);
+
+    close.addEventListener("click", () => {
+      hideHighlightDetailModal();
+    });
+
+    return { el, body, title };
+  }
+
+  function buildTabButton(label) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "highlights-panel__tab";
+    const text = document.createElement("span");
+    text.className = "highlights-panel__tab-label";
+    text.textContent = label;
+    const count = document.createElement("span");
+    count.className = "highlights-panel__tab-count";
+    count.textContent = "0";
+    button.appendChild(text);
+    button.appendChild(count);
+    return { button, count };
+  }
+
+  function showHighlightsPanel() {
+    state.highlightsPanelOpen = true;
+    highlightsPanel.el.style.display = "flex";
+    updateHighlightsNavState();
+    updateHighlightsToggle();
+    refreshHighlightsData();
+  }
+
+  function hideHighlightsPanel() {
+    state.highlightsPanelOpen = false;
+    highlightsPanel.el.style.display = "none";
+    updateHighlightsNavState();
+  }
+
+  function toggleHighlightsPanel() {
+    if (state.highlightsPanelOpen) {
+      hideHighlightsPanel();
+    } else {
+      showHighlightsPanel();
+    }
+  }
+
+  function updateHighlightsToggle() {
+    if (highlightsPanel?.updateToggle) {
+      highlightsPanel.updateToggle();
+    }
+  }
+
+  function hideHighlightDetailModal() {
+    highlightDetailModal.el.style.display = "none";
+    state.highlightDetail = null;
+  }
+
+  function showHighlightDetailModal() {
+    highlightDetailModal.el.style.display = "flex";
+  }
+
+  function setHighlightsTab(tabKey) {
+    if (state.highlightsTab === tabKey) {
+      return;
+    }
+    state.highlightsTab = tabKey;
+    renderHighlightsPanel();
   }
 
   function buildMarkerToggle(compact) {
@@ -835,11 +1047,13 @@
         button.classList.remove("is-active");
       }
     });
+  }
 
+  function updateHighlightsNavState() {
     if (mobileNav?.buttons?.highlights) {
       mobileNav.buttons.highlights.classList.toggle(
         "is-active",
-        state.markerIds.has("highlight")
+        state.highlightsPanelOpen
       );
     }
   }
@@ -1000,6 +1214,8 @@
       hideGrammarModal();
       closeAudioModal();
       hideMobileNav();
+      hideHighlightsPanel();
+      hideHighlightDetailModal();
     }
   }
 
@@ -1020,6 +1236,10 @@
       closeAudioModal();
       return;
     }
+    if (highlightDetailModal.el.style.display !== "none") {
+      hideHighlightDetailModal();
+      return;
+    }
     if (actionMenu.el.style.display !== "none") {
       hideActionMenu();
     }
@@ -1029,6 +1249,9 @@
   }
 
   function handleTouchStart(event) {
+    if (isEventInOverlay(event)) {
+      return;
+    }
     if (!event.touches || event.touches.length !== 1) {
       return;
     }
@@ -1044,6 +1267,9 @@
   }
 
   function handleTouchEnd(event) {
+    if (isEventInOverlay(event)) {
+      return;
+    }
     if (!state.navSwipeStart) {
       return;
     }
@@ -1103,7 +1329,7 @@
         path: "/web/selections",
         method: "POST",
         json: {
-          url: window.location.href,
+          url: getNormalizedPageUrl(),
           title: document.title,
           selection_text: state.selection.text,
           selector: state.selection.selector,
@@ -1117,6 +1343,7 @@
       state.selectionId = data.selection?.id ?? null;
       state.isCommitted = true;
       log("Selection saved", state.selectionId);
+      scheduleHighlightsRefresh();
       return state.selectionId;
     } catch (error) {
       console.warn("Reader extension save failed", error);
@@ -1159,6 +1386,7 @@
         return null;
       }
       const data = result.data;
+      scheduleHighlightsRefresh();
       return data.addition ?? null;
     } catch (error) {
       console.warn("Reader extension addition save failed", error);
@@ -1212,10 +1440,13 @@
     try {
       if (state.markerIds.has(kind)) {
         const markerId = state.markerIds.get(kind);
-        await apiRequest({
+        const result = await apiRequest({
           path: `/web/markers/${markerId}`,
           method: "DELETE",
         });
+        if (result.ok) {
+          scheduleHighlightsRefresh();
+        }
         state.markerIds.delete(kind);
       } else {
         const result = await apiRequest({
@@ -1230,6 +1461,7 @@
         });
         if (result.ok && result.data?.marker?.id) {
           state.markerIds.set(kind, result.data.marker.id);
+          scheduleHighlightsRefresh();
         }
       }
     } catch (error) {
@@ -1294,6 +1526,801 @@
     }
     const url = chrome.runtime.getURL("options.html");
     window.open(url, "_blank", "noopener,noreferrer");
+  }
+
+  const TRACKING_PARAMS = new Set([
+    "gclid",
+    "fbclid",
+    "ref",
+    "igshid",
+    "mc_cid",
+    "mc_eid",
+    "mkt_tok",
+    "vero_conv",
+    "vero_id",
+  ]);
+  let highlightsRefreshTimer = null;
+  let highlightStyleEl = null;
+  let activeHighlightTimer = null;
+
+  function normalizeUrl(rawUrl) {
+    try {
+      const url = new URL(rawUrl);
+      url.hash = "";
+      const params = [];
+      url.searchParams.forEach((value, key) => {
+        const normalizedKey = key.toLowerCase();
+        if (normalizedKey.startsWith("utm_")) {
+          return;
+        }
+        if (TRACKING_PARAMS.has(normalizedKey)) {
+          return;
+        }
+        params.push([key, value]);
+      });
+      params.sort((a, b) => a[0].localeCompare(b[0]));
+      url.search = params.length ? new URLSearchParams(params).toString() : "";
+      return url.toString();
+    } catch (error) {
+      return rawUrl;
+    }
+  }
+
+  function getNormalizedPageUrl() {
+    return normalizeUrl(window.location.href);
+  }
+
+  function scheduleHighlightsRefresh(delay = 250) {
+    if (highlightsRefreshTimer) {
+      window.clearTimeout(highlightsRefreshTimer);
+    }
+    highlightsRefreshTimer = window.setTimeout(() => {
+      refreshHighlightsData({ silent: !state.highlightsPanelOpen });
+    }, delay);
+  }
+
+  async function refreshHighlightsData({ silent = false } = {}) {
+    if (state.highlightsLoading) {
+      return;
+    }
+    state.highlightsLoading = true;
+    if (!silent) {
+      renderHighlightsPanel();
+    }
+    try {
+      const url = getNormalizedPageUrl();
+      if (!url) {
+        return;
+      }
+      const selectionsResult = await apiRequest({
+        path: `/web/selections?url=${encodeURIComponent(url)}`,
+      });
+      const selections = selectionsResult.ok ? selectionsResult.data?.selections ?? [] : [];
+
+      const bundles = await Promise.all(
+        selections.map(async (selection) => {
+          const [additionsResult, markersResult] = await Promise.all([
+            apiRequest({
+              path: `/web/additions?selection_id=${selection.id}`,
+            }),
+            apiRequest({
+              path: `/web/markers?target_type=selection&target_id=${selection.id}`,
+            }),
+          ]);
+          const additions = additionsResult.ok ? additionsResult.data?.additions ?? [] : [];
+          const markers = markersResult.ok ? markersResult.data?.markers ?? [] : [];
+
+          const additionMarkers = {};
+          await Promise.all(
+            additions.map(async (addition) => {
+              const additionMarkersResult = await apiRequest({
+                path: `/web/markers?target_type=addition&target_id=${addition.id}`,
+              });
+              additionMarkers[addition.id] = additionMarkersResult.ok
+                ? additionMarkersResult.data?.markers ?? []
+                : [];
+            })
+          );
+
+          return { selection, additions, markers, additionMarkers };
+        })
+      );
+
+      const nextData = buildHighlightsData(bundles);
+      state.highlightsData = nextData;
+      renderHighlightsPanel();
+      refreshHighlightsOverlay();
+    } catch (error) {
+      console.warn("Reader extension highlights load failed", error);
+    } finally {
+      state.highlightsLoading = false;
+      renderHighlightsPanel();
+    }
+  }
+
+  function buildHighlightsData(bundles) {
+    const selectionById = new Map();
+    const additionById = new Map();
+    const additions = [];
+    const markers = [];
+
+    bundles.forEach((bundle) => {
+      selectionById.set(bundle.selection.id, bundle.selection);
+      bundle.additions.forEach((addition) => {
+        additions.push({ ...addition, selectionId: bundle.selection.id });
+        additionById.set(addition.id, addition);
+      });
+
+      bundle.markers.forEach((marker) => {
+        markers.push({ marker, selectionId: bundle.selection.id });
+      });
+
+      bundle.additions.forEach((addition) => {
+        const additionMarkers = bundle.additionMarkers[addition.id] ?? [];
+        additionMarkers.forEach((marker) => {
+          markers.push({ marker, selectionId: bundle.selection.id, additionId: addition.id });
+        });
+      });
+    });
+
+    additions.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    markers.sort(
+      (a, b) => new Date(b.marker.created_at).getTime() - new Date(a.marker.created_at).getTime()
+    );
+    const sortedBundles = [...bundles].sort(
+      (a, b) =>
+        new Date(b.selection.created_at).getTime() -
+        new Date(a.selection.created_at).getTime()
+    );
+
+    return {
+      bundles: sortedBundles,
+      additions,
+      markers,
+      selectionById,
+      additionById,
+    };
+  }
+
+  function renderHighlightsPanel() {
+    const { bundles, additions, markers } = state.highlightsData;
+    const counts = {
+      selections: bundles.length,
+      additions: additions.length,
+      markers: markers.length,
+    };
+    highlightsPanel.updateTabs(counts);
+
+    if (!state.highlightsPanelOpen) {
+      return;
+    }
+
+    highlightsPanel.content.innerHTML = "";
+
+    if (state.highlightsLoading && bundles.length === 0) {
+      const loading = document.createElement("div");
+      loading.className = "highlights-panel__empty";
+      loading.textContent = "Loading...";
+      highlightsPanel.content.appendChild(loading);
+      return;
+    }
+
+    if (state.highlightsTab === "selections") {
+      renderSelectionsTab();
+      return;
+    }
+    if (state.highlightsTab === "additions") {
+      renderAdditionsTab();
+      return;
+    }
+    renderMarkersTab();
+  }
+
+  function renderSelectionsTab() {
+    const { bundles } = state.highlightsData;
+    if (bundles.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "highlights-panel__empty";
+      empty.textContent = "No selections yet.";
+      highlightsPanel.content.appendChild(empty);
+      return;
+    }
+
+    const stack = document.createElement("div");
+    stack.className = "highlights-panel__stack";
+
+    bundles.forEach((bundle) => {
+      const selection = bundle.selection;
+      const card = document.createElement("article");
+      card.className = "highlight-card";
+
+      const meta = document.createElement("div");
+      meta.className = "highlight-card__meta";
+      const metaLeft = document.createElement("span");
+      metaLeft.textContent = formatRelativeTime(selection.created_at);
+      const jump = document.createElement("button");
+      jump.type = "button";
+      jump.className = "highlight-card__jump";
+      jump.title = "Jump to selection";
+      jump.innerHTML = iconJump();
+      jump.addEventListener("click", (event) => {
+        event.stopPropagation();
+        jumpToSelection(selection);
+      });
+      meta.appendChild(metaLeft);
+      meta.appendChild(jump);
+
+      const title = document.createElement("div");
+      title.className = "highlight-card__title";
+      title.textContent = formatSnippet(getSelectionSnippet(selection));
+
+      const stats = document.createElement("div");
+      stats.className = "highlight-card__stats";
+      stats.textContent = `${bundle.additions.length} additions · ${bundle.markers.length} markers`;
+
+      card.appendChild(meta);
+      card.appendChild(title);
+      card.appendChild(stats);
+
+      card.addEventListener("click", () => {
+        openHighlightDetail({
+          type: "selection",
+          selectionId: selection.id,
+        });
+      });
+
+      stack.appendChild(card);
+    });
+
+    highlightsPanel.content.appendChild(stack);
+  }
+
+  function renderAdditionsTab() {
+    const { additions, selectionById } = state.highlightsData;
+    if (additions.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "highlights-panel__empty";
+      empty.textContent = "No additions yet.";
+      highlightsPanel.content.appendChild(empty);
+      return;
+    }
+
+    const stack = document.createElement("div");
+    stack.className = "highlights-panel__stack";
+
+    additions.forEach((addition) => {
+      const card = document.createElement("article");
+      card.className = "highlight-card";
+
+      const meta = document.createElement("div");
+      meta.className = "highlight-card__meta";
+      const type = document.createElement("span");
+      type.textContent = addition.type;
+      const time = document.createElement("span");
+      time.textContent = formatRelativeTime(addition.created_at);
+      meta.appendChild(type);
+      meta.appendChild(time);
+
+      const title = document.createElement("div");
+      title.className = "highlight-card__title";
+      title.textContent = formatSnippet(getAdditionLabel(addition));
+
+      card.appendChild(meta);
+      card.appendChild(title);
+
+      if (addition.type === "audio") {
+        const audioPayload = addition.payload || {};
+        const url = audioPayload?.audio?.url;
+        if (url) {
+          const audio = document.createElement("audio");
+          audio.controls = true;
+          resolveMediaUrl(url).then((src) => {
+            audio.src = src;
+          });
+          card.appendChild(audio);
+        }
+      }
+
+      const selection = selectionById.get(addition.selection_id);
+      if (selection) {
+        const hint = document.createElement("div");
+        hint.className = "highlight-card__hint";
+        hint.textContent = `From: ${formatSnippet(getSelectionSnippet(selection), 80)}`;
+        card.appendChild(hint);
+      }
+
+      card.addEventListener("click", () => {
+        openHighlightDetail({
+          type: "addition",
+          selectionId: addition.selection_id,
+          additionId: addition.id,
+        });
+      });
+
+      stack.appendChild(card);
+    });
+
+    highlightsPanel.content.appendChild(stack);
+  }
+
+  function renderMarkersTab() {
+    const { markers, selectionById, additionById } = state.highlightsData;
+    if (markers.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "highlights-panel__empty";
+      empty.textContent = "No markers yet.";
+      highlightsPanel.content.appendChild(empty);
+      return;
+    }
+
+    const stack = document.createElement("div");
+    stack.className = "highlights-panel__stack";
+
+    markers.forEach((item) => {
+      const card = document.createElement("article");
+      card.className = "highlight-card";
+
+      const meta = document.createElement("div");
+      meta.className = "highlight-card__meta";
+      const kind = document.createElement("span");
+      kind.className = "highlight-card__pill";
+      kind.textContent = item.marker.kind;
+      const time = document.createElement("span");
+      time.textContent = formatRelativeTime(item.marker.created_at);
+      meta.appendChild(kind);
+      meta.appendChild(time);
+
+      const title = document.createElement("div");
+      title.className = "highlight-card__title";
+
+      if (item.additionId) {
+        const addition = additionById.get(item.additionId);
+        title.textContent = addition
+          ? `Artifact: ${formatSnippet(getAdditionLabel(addition), 90)}`
+          : "Artifact marker";
+      } else {
+        const selection = selectionById.get(item.selectionId);
+        title.textContent = selection
+          ? `Selection: ${formatSnippet(getSelectionSnippet(selection), 90)}`
+          : "Selection marker";
+      }
+
+      card.appendChild(meta);
+      card.appendChild(title);
+
+      card.addEventListener("click", () => {
+        if (item.additionId) {
+          openHighlightDetail({
+            type: "addition",
+            selectionId: item.selectionId,
+            additionId: item.additionId,
+          });
+        } else {
+          openHighlightDetail({
+            type: "selection",
+            selectionId: item.selectionId,
+          });
+        }
+      });
+
+      stack.appendChild(card);
+    });
+
+    highlightsPanel.content.appendChild(stack);
+  }
+
+  function openHighlightDetail(detail) {
+    state.highlightDetail = detail;
+    renderHighlightDetailModal();
+    showHighlightDetailModal();
+  }
+
+  function renderHighlightDetailModal() {
+    const detail = state.highlightDetail;
+    if (!detail) {
+      return;
+    }
+    highlightDetailModal.body.innerHTML = "";
+    const { bundles } = state.highlightsData;
+    const bundle = bundles.find((item) => item.selection.id === detail.selectionId);
+    if (!bundle) {
+      highlightDetailModal.title.textContent = "Highlight";
+      const empty = document.createElement("div");
+      empty.textContent = "Selection not found.";
+      highlightDetailModal.body.appendChild(empty);
+      return;
+    }
+
+    if (detail.type === "selection") {
+      highlightDetailModal.title.textContent = "Selection";
+      const snippet = document.createElement("div");
+      snippet.className = "highlight-detail__snippet";
+      snippet.textContent = getSelectionSnippet(bundle.selection);
+      highlightDetailModal.body.appendChild(snippet);
+
+      const meta = document.createElement("div");
+      meta.className = "highlight-detail__meta";
+      meta.textContent = formatRelativeTime(bundle.selection.created_at);
+      highlightDetailModal.body.appendChild(meta);
+
+      const markers = document.createElement("div");
+      markers.className = "highlight-detail__markers";
+      const activeKinds = bundle.markers.map((marker) => marker.kind);
+      renderMarkerToggle(markers, activeKinds, async (kind) => {
+        await toggleSelectionMarkerForHighlights(bundle.selection.id, kind);
+        renderHighlightDetailModal();
+      });
+      highlightDetailModal.body.appendChild(markers);
+
+      const actions = document.createElement("div");
+      actions.className = "highlight-detail__actions";
+      const jump = document.createElement("button");
+      jump.type = "button";
+      jump.textContent = "Jump to selection";
+      jump.addEventListener("click", () => {
+        jumpToSelection(bundle.selection);
+      });
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "highlight-detail__danger";
+      remove.textContent = "Delete selection";
+      remove.addEventListener("click", async () => {
+        await deleteHighlightSelection(bundle.selection.id);
+      });
+      actions.appendChild(jump);
+      actions.appendChild(remove);
+      highlightDetailModal.body.appendChild(actions);
+
+      if (bundle.additions.length) {
+        const list = document.createElement("div");
+        list.className = "highlight-detail__list";
+        bundle.additions.forEach((addition) => {
+          const item = document.createElement("button");
+          item.type = "button";
+          item.className = "highlight-detail__list-item";
+          item.textContent = `${addition.type}: ${formatSnippet(
+            getAdditionLabel(addition),
+            100
+          )}`;
+          item.addEventListener("click", () => {
+            openHighlightDetail({
+              type: "addition",
+              selectionId: bundle.selection.id,
+              additionId: addition.id,
+            });
+          });
+          list.appendChild(item);
+        });
+        highlightDetailModal.body.appendChild(list);
+      }
+      return;
+    }
+
+    const addition = bundle.additions.find((item) => item.id === detail.additionId);
+    if (!addition) {
+      highlightDetailModal.title.textContent = "Addition";
+      const empty = document.createElement("div");
+      empty.textContent = "Addition not found.";
+      highlightDetailModal.body.appendChild(empty);
+      return;
+    }
+
+    highlightDetailModal.title.textContent = "Addition";
+    const type = document.createElement("div");
+    type.className = "highlight-detail__meta";
+    type.textContent = `${addition.type} · ${formatRelativeTime(addition.created_at)}`;
+    highlightDetailModal.body.appendChild(type);
+
+    const body = document.createElement("div");
+    body.className = "highlight-detail__snippet";
+    body.textContent = getAdditionLabel(addition);
+    highlightDetailModal.body.appendChild(body);
+
+    if (addition.type === "audio") {
+      const audioPayload = addition.payload || {};
+      const url = audioPayload?.audio?.url;
+      if (url) {
+        const audio = document.createElement("audio");
+        audio.controls = true;
+        resolveMediaUrl(url).then((src) => {
+          audio.src = src;
+        });
+        highlightDetailModal.body.appendChild(audio);
+      }
+    }
+
+    const additionMarkers = bundle.additionMarkers[addition.id] ?? [];
+    const markerKinds = additionMarkers.map((marker) => marker.kind);
+    const markers = document.createElement("div");
+    markers.className = "highlight-detail__markers";
+    renderMarkerToggle(markers, markerKinds, async (kind) => {
+      await toggleAdditionMarkerForHighlights(addition.id, bundle.selection.id, kind);
+      renderHighlightDetailModal();
+    });
+    highlightDetailModal.body.appendChild(markers);
+  }
+
+  function renderMarkerToggle(container, activeKinds, onToggle) {
+    container.innerHTML = "";
+    const kinds = ["highlight", "like", "todo", "laugh", "pending"];
+    kinds.forEach((kind) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "marker-button";
+      button.setAttribute("data-kind", kind);
+      button.innerHTML = markerIconForKind(kind);
+      if (activeKinds.includes(kind)) {
+        button.classList.add("is-active");
+      }
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        onToggle(kind);
+      });
+      container.appendChild(button);
+    });
+  }
+
+  async function toggleSelectionMarkerForHighlights(selectionId, kind) {
+    const bundle = state.highlightsData.bundles.find((item) => item.selection.id === selectionId);
+    if (!bundle) {
+      return;
+    }
+    const existing = bundle.markers.find((marker) => marker.kind === kind);
+    if (existing) {
+      await apiRequest({
+        path: `/web/markers/${existing.id}`,
+        method: "DELETE",
+      });
+    } else {
+      await apiRequest({
+        path: "/web/markers",
+        method: "POST",
+        json: {
+          target_type: "selection",
+          target_id: selectionId,
+          kind,
+        },
+      });
+    }
+    await refreshHighlightsData({ silent: true });
+  }
+
+  async function toggleAdditionMarkerForHighlights(additionId, selectionId, kind) {
+    const bundle = state.highlightsData.bundles.find((item) => item.selection.id === selectionId);
+    if (!bundle) {
+      return;
+    }
+    const additionMarkers = bundle.additionMarkers[additionId] ?? [];
+    const existing = additionMarkers.find((marker) => marker.kind === kind);
+    if (existing) {
+      await apiRequest({
+        path: `/web/markers/${existing.id}`,
+        method: "DELETE",
+      });
+    } else {
+      await apiRequest({
+        path: "/web/markers",
+        method: "POST",
+        json: {
+          target_type: "addition",
+          target_id: additionId,
+          kind,
+        },
+      });
+    }
+    await refreshHighlightsData({ silent: true });
+  }
+
+  async function deleteHighlightSelection(selectionId) {
+    const result = await apiRequest({
+      path: `/web/selections/${selectionId}`,
+      method: "DELETE",
+    });
+    if (result.ok) {
+      hideHighlightDetailModal();
+      await refreshHighlightsData({ silent: true });
+    }
+  }
+
+  async function resolveMediaUrl(url) {
+    if (!url) {
+      return "";
+    }
+    if (url.startsWith("http") || url.startsWith("blob:")) {
+      return url;
+    }
+    const apiBase = await getApiBaseFromBackground();
+    if (!apiBase) {
+      return url;
+    }
+    return `${apiBase}${url.startsWith("/") ? "" : "/"}${url}`;
+  }
+
+  function getSelectionSnippet(selection) {
+    return selection?.selector?.quote?.exact || selection?.selection_text || "Selection";
+  }
+
+  function getAdditionLabel(addition) {
+    if (addition.type === "audio") {
+      return "Audio recording";
+    }
+    return addition.text_content || addition.title || addition.type || "Addition";
+  }
+
+  function formatSnippet(value, limit = 160) {
+    const normalized = String(value || "").replace(/\s+/g, " ").trim();
+    if (!normalized) {
+      return "Untitled";
+    }
+    if (normalized.length <= limit) {
+      return normalized;
+    }
+    return `${normalized.slice(0, limit).trimEnd()}...`;
+  }
+
+  function formatRelativeTime(value) {
+    const timestamp = new Date(value).getTime();
+    if (!Number.isFinite(timestamp)) {
+      return "";
+    }
+    const diff = Date.now() - timestamp;
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    if (diff < minute) {
+      return "Just now";
+    }
+    if (diff < hour) {
+      return `${Math.round(diff / minute)}m ago`;
+    }
+    if (diff < day) {
+      return `${Math.round(diff / hour)}h ago`;
+    }
+    return new Date(value).toLocaleDateString();
+  }
+
+  function jumpToSelection(selection) {
+    const range = buildRangeFromSelector(selection.selector);
+    if (!range) {
+      return;
+    }
+    const rect = range.getBoundingClientRect();
+    const scrollTop = rect.top + window.scrollY - window.innerHeight * 0.35;
+    window.scrollTo({ top: Math.max(0, scrollTop), behavior: "smooth" });
+    flashHighlightRange(range);
+  }
+
+  function refreshHighlightsOverlay() {
+    if (!state.showHighlightsOnPage) {
+      clearHighlightsOverlay();
+      return;
+    }
+    const selections = state.highlightsData.bundles.map((bundle) => bundle.selection);
+    applyHighlightsOverlay(selections);
+  }
+
+  function applyHighlightsOverlay(selections) {
+    if (!supportsCssHighlights()) {
+      return;
+    }
+    ensureHighlightStyles();
+    const ranges = [];
+    selections.forEach((selection) => {
+      const range = buildRangeFromSelector(selection.selector);
+      if (range) {
+        ranges.push(range);
+      }
+    });
+    if (ranges.length) {
+      const highlight = new Highlight(...ranges);
+      CSS.highlights.set("reader-ext", highlight);
+    } else {
+      CSS.highlights.delete("reader-ext");
+    }
+  }
+
+  function clearHighlightsOverlay() {
+    if (!supportsCssHighlights()) {
+      return;
+    }
+    CSS.highlights.delete("reader-ext");
+    CSS.highlights.delete("reader-ext-active");
+  }
+
+  function flashHighlightRange(range) {
+    if (!supportsCssHighlights()) {
+      return;
+    }
+    if (activeHighlightTimer) {
+      window.clearTimeout(activeHighlightTimer);
+    }
+    const highlight = new Highlight(range);
+    CSS.highlights.set("reader-ext-active", highlight);
+    activeHighlightTimer = window.setTimeout(() => {
+      CSS.highlights.delete("reader-ext-active");
+      activeHighlightTimer = null;
+    }, 1200);
+  }
+
+  function ensureHighlightStyles() {
+    if (highlightStyleEl) {
+      return;
+    }
+    highlightStyleEl = document.createElement("style");
+    highlightStyleEl.id = "reader-ext-highlight-styles";
+    highlightStyleEl.textContent = `
+      ::highlight(reader-ext) {
+        background: rgba(217, 102, 63, 0.2);
+      }
+      ::highlight(reader-ext-active) {
+        background: rgba(217, 102, 63, 0.4);
+      }
+    `;
+    document.head.appendChild(highlightStyleEl);
+  }
+
+  function supportsCssHighlights() {
+    return typeof CSS !== "undefined" && CSS.highlights && typeof Highlight !== "undefined";
+  }
+
+  function buildRangeFromSelector(selector) {
+    if (!selector?.range) {
+      return null;
+    }
+    const startNode = getNodeFromPath(selector.range.start?.path);
+    const endNode = getNodeFromPath(selector.range.end?.path);
+    if (!startNode || !endNode) {
+      return null;
+    }
+    const startInfo = resolveTextNode(startNode, selector.range.start?.offset || 0);
+    const endInfo = resolveTextNode(endNode, selector.range.end?.offset || 0);
+    if (!startInfo || !endInfo) {
+      return null;
+    }
+    const range = document.createRange();
+    range.setStart(startInfo.node, clampOffset(startInfo.node, startInfo.offset));
+    range.setEnd(endInfo.node, clampOffset(endInfo.node, endInfo.offset));
+    return range;
+  }
+
+  function clampOffset(node, offset) {
+    if (!node || node.nodeType !== Node.TEXT_NODE) {
+      return 0;
+    }
+    const length = node.data?.length ?? 0;
+    return Math.min(Math.max(offset, 0), length);
+  }
+
+  function getNodeFromPath(path) {
+    if (!Array.isArray(path)) {
+      return null;
+    }
+    let current = document.body;
+    for (const index of path) {
+      if (!current || !current.childNodes || !current.childNodes[index]) {
+        return null;
+      }
+      current = current.childNodes[index];
+    }
+    return current;
+  }
+
+  function markerIconForKind(kind) {
+    switch (kind) {
+      case "highlight":
+        return iconHighlight();
+      case "todo":
+        return iconTodo();
+      case "laugh":
+        return iconLaugh();
+      case "pending":
+        return iconPending();
+      case "like":
+      default:
+        return iconLike();
+    }
   }
 
   function buildSelector(range, text) {
@@ -1478,7 +2505,9 @@
         if (
           node.classList.contains("action-menu") ||
           node.classList.contains("modal-backdrop") ||
-          node.classList.contains("mobile-nav")
+          node.classList.contains("mobile-nav") ||
+          node.classList.contains("highlights-panel") ||
+          node.classList.contains("highlight-detail")
         ) {
           return true;
         }
@@ -1525,6 +2554,10 @@
 
   function iconExplore() {
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7l4 8-8-4 4-4z" /></svg>';
+  }
+
+  function iconJump() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h10" /><path d="M11 7l5 5-5 5" /><path d="M14 4h5v16h-5" /></svg>';
   }
 
   function iconMap() {
