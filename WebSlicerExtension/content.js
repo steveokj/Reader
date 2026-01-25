@@ -16,6 +16,7 @@
     lastPickedElement: null,
     undoStack: [],
     redoStack: [],
+    sliceStartY: null,
   };
 
   const overlay = mountOverlay();
@@ -23,12 +24,16 @@
   const previewPanel = buildPreviewPanel();
   const libraryPanel = buildLibraryPanel();
   const segmentLayer = buildSegmentLayer();
+  const sliceLine = buildSliceLine("slicer-slice-line");
+  const sliceStartLine = buildSliceLine("slicer-slice-start");
   const highlight = buildHighlight();
 
   overlay.uiRoot.appendChild(toolbar.el);
   overlay.uiRoot.appendChild(previewPanel.el);
   overlay.uiRoot.appendChild(libraryPanel.el);
   overlay.uiRoot.appendChild(segmentLayer.el);
+  overlay.uiRoot.appendChild(sliceLine.el);
+  overlay.uiRoot.appendChild(sliceStartLine.el);
   overlay.uiRoot.appendChild(highlight.el);
 
   updateStatus();
@@ -84,6 +89,7 @@
     status.className = "slicer-status";
 
     const pick = createButton("Pick");
+    const slice = createButton("Slice");
     const exclude = createButton("Exclude");
     const preview = createButton("Preview");
     const library = createButton("Library");
@@ -94,6 +100,7 @@
     
 
     left.appendChild(pick);
+    left.appendChild(slice);
     left.appendChild(exclude);
     left.appendChild(preview);
     left.appendChild(library);
@@ -111,6 +118,7 @@
     });
 
     pick.addEventListener("click", () => togglePickMode());
+    slice.addEventListener("click", () => toggleSliceMode());
     exclude.addEventListener("click", () => setMode("exclude"));
     preview.addEventListener("click", () => togglePreview());
     library.addEventListener("click", () => toggleLibrary());
@@ -118,7 +126,7 @@
     close.addEventListener("click", () => hideToolbar());
     save.addEventListener("click", () => saveSlice());
 
-    return { el, status, pick, exclude, preview, library, save, reset, close };
+    return { el, status, pick, slice, exclude, preview, library, save, reset, close };
   }
 
   function buildPreviewPanel() {
@@ -210,6 +218,13 @@
     return { el, list, filter };
   }
 
+  function buildSliceLine(className) {
+    const el = document.createElement("div");
+    el.className = className;
+    el.style.display = "none";
+    return { el };
+  }
+
   function buildSegmentLayer() {
     const el = document.createElement("div");
     el.className = "slicer-segments";
@@ -243,6 +258,23 @@
       state.mode = "pick";
       state.startElement = null;
       state.lastPickedElement = null;
+      state.sliceStartY = null;
+      hideSliceLines();
+    }
+    updateStatus();
+  }
+
+  function toggleSliceMode() {
+    if (state.mode === "slice") {
+      state.mode = "idle";
+      state.sliceStartY = null;
+      hideSliceLines();
+    } else {
+      state.mode = "slice";
+      state.startElement = null;
+      state.lastPickedElement = null;
+      state.sliceStartY = null;
+      hideHighlight();
     }
     updateStatus();
   }
@@ -251,6 +283,7 @@
     state.mode = "idle";
     state.startElement = null;
     state.lastPickedElement = null;
+    state.sliceStartY = null;
     state.segments = [];
     state.excludes = [];
     state.undoStack = [];
@@ -258,6 +291,7 @@
     hidePreview();
     hideLibrary();
     clearSegmentHighlights();
+    hideSliceLines();
     updateStatus();
   }
 
@@ -267,6 +301,9 @@
     toolbar.status.textContent = message ? `${message} - ${base}${mode}` : `${base}${mode}`;
     if (toolbar.pick) {
       toolbar.pick.classList.toggle("active", state.mode === "pick");
+    }
+    if (toolbar.slice) {
+      toolbar.slice.classList.toggle("active", state.mode === "slice");
     }
   }
 
@@ -286,6 +323,8 @@
       state.mode = "pick";
       state.startElement = null;
       state.lastPickedElement = null;
+      state.sliceStartY = null;
+      hideSliceLines();
     }
     updateStatus();
     renderSegmentHighlights();
@@ -296,6 +335,7 @@
     state.mode = "idle";
     state.startElement = null;
     state.lastPickedElement = null;
+    state.sliceStartY = null;
     state.undoStack = [];
     state.redoStack = [];
     overlay.uiRoot.style.display = "none";
@@ -304,6 +344,7 @@
     hideLibrary();
     hideHighlight();
     clearSegmentHighlights();
+    hideSliceLines();
   }
 
   function togglePreview() {
@@ -495,15 +536,22 @@
     }
     if (state.mode === "idle") {
       hideHighlight();
+      hideSliceLine();
       return;
     }
     if (isEventInOverlay(event)) {
       hideHighlight();
+      hideSliceLine();
       return;
     }
     const target = event.target;
     if (!(target instanceof Element)) {
       hideHighlight();
+      hideSliceLine();
+      return;
+    }
+    if (state.mode === "slice") {
+      showSliceLine(event.clientY + window.scrollY);
       return;
     }
     state.highlightTarget = target;
@@ -542,6 +590,30 @@
       } else {
         updateStatus("Could not create segment");
       }
+      return;
+    }
+
+    if (state.mode === "slice") {
+      const y = event.clientY + window.scrollY;
+      if (state.sliceStartY === null) {
+        state.sliceStartY = y;
+        showSliceStartLine(y);
+        updateStatus("Slice start set");
+        return;
+      }
+      const start = Math.min(state.sliceStartY, y);
+      const end = Math.max(state.sliceStartY, y);
+      const segment = buildSliceSegment(start, end);
+      if (segment) {
+        pushUndo();
+        state.segments.push(segment);
+        renderSegmentHighlights();
+        updateStatus("Slice added");
+      } else {
+        updateStatus("Could not create slice");
+      }
+      state.sliceStartY = null;
+      hideSliceStartLine();
       return;
     }
 
@@ -614,8 +686,20 @@
       return null;
     }
     return {
+      type: "element",
       start: buildLocator(startEl),
       end: buildLocator(endEl),
+    };
+  }
+
+  function buildSliceSegment(yStart, yEnd) {
+    if (yStart === null || yEnd === null) {
+      return null;
+    }
+    return {
+      type: "slice",
+      yStart,
+      yEnd,
     };
   }
 
@@ -634,7 +718,7 @@
   }
 
   function isSingleElementSegment(segment) {
-    if (!segment) {
+    if (!segment || segment.type === "slice") {
       return false;
     }
     return locatorsEqual(segment.start, segment.end);
@@ -683,6 +767,21 @@
       return;
     }
     state.segments.forEach((segment) => {
+      if (segment.type === "slice") {
+        const top = Math.min(segment.yStart, segment.yEnd);
+        const height = Math.max(0, Math.abs(segment.yEnd - segment.yStart));
+        if (height <= 0) {
+          return;
+        }
+        const box = document.createElement("div");
+        box.className = "slicer-segment-highlight";
+        box.style.top = `${top}px`;
+        box.style.left = "0px";
+        box.style.width = `${Math.max(document.documentElement.scrollWidth, window.innerWidth)}px`;
+        box.style.height = `${height}px`;
+        segmentLayer.el.appendChild(box);
+        return;
+      }
       const range = getRangeForSegment(segment);
       if (!range) {
         return;
@@ -877,6 +976,26 @@
     const segmentRecipes = [];
 
     for (const segment of state.segments) {
+      if (segment.type === "slice") {
+        const slice = buildSliceSnapshot(segment);
+        if (!slice) {
+          continue;
+        }
+        if (slice.html) {
+          htmlParts.push(slice.html);
+        }
+        if (slice.text) {
+          textParts.push(slice.text);
+        }
+        segmentRecipes.push({
+          type: "slice",
+          yStart: segment.yStart,
+          yEnd: segment.yEnd,
+          excludes: slice.excludesApplied || [],
+        });
+        continue;
+      }
+
       const startEl = resolveByLocator(segment.start);
       const endEl = resolveByLocator(segment.end);
       if (!startEl || !endEl) {
@@ -917,6 +1036,7 @@
         textParts.push(text);
       }
       segmentRecipes.push({
+        type: "element",
         start: segment.start,
         end: segment.end,
         excludes: excludesApplied,
@@ -930,6 +1050,144 @@
         segments: segmentRecipes,
       },
     };
+  }
+
+  function buildSliceSnapshot(segment) {
+    const yStart = Math.min(segment.yStart, segment.yEnd);
+    const yEnd = Math.max(segment.yStart, segment.yEnd);
+    if (yEnd <= yStart) {
+      return null;
+    }
+
+    const candidates = collectSliceElements(yStart, yEnd);
+    if (!candidates.length) {
+      const spacer = document.createElement("div");
+      spacer.style.height = `${yEnd - yStart}px`;
+      spacer.style.width = "100%";
+      spacer.style.background = "transparent";
+      return {
+        html: spacer.outerHTML,
+        text: "",
+        excludesApplied: [],
+      };
+    }
+
+    const container = document.createElement("div");
+    const sorted = candidates.sort((a, b) => a.top - b.top);
+
+    const firstTop = sorted[0].top;
+    const lastBottom = sorted[sorted.length - 1].bottom;
+    if (firstTop > yStart) {
+      const spacer = document.createElement("div");
+      spacer.style.height = `${firstTop - yStart}px`;
+      spacer.style.width = "100%";
+      spacer.style.background = "transparent";
+      container.appendChild(spacer);
+    }
+
+    sorted.forEach((item) => {
+      const clone = item.el.cloneNode(true);
+      container.appendChild(clone);
+    });
+
+    if (yEnd > lastBottom) {
+      const spacer = document.createElement("div");
+      spacer.style.height = `${yEnd - lastBottom}px`;
+      spacer.style.width = "100%";
+      spacer.style.background = "transparent";
+      container.appendChild(spacer);
+    }
+
+    const excludesApplied = [];
+    for (const exclude of state.excludes) {
+      if (!exclude.element) {
+        continue;
+      }
+      const rect = exclude.element.getBoundingClientRect();
+      const top = rect.top + window.scrollY;
+      const bottom = rect.bottom + window.scrollY;
+      if (bottom < yStart || top > yEnd) {
+        continue;
+      }
+      const selector = pickSelectorForContainer(exclude.element, container);
+      if (!selector) {
+        continue;
+      }
+      container.querySelectorAll(selector).forEach((node) => node.remove());
+      excludesApplied.push({
+        selector,
+        path: exclude.path,
+        tag: exclude.tag,
+      });
+    }
+
+    container.querySelectorAll("script").forEach((node) => node.remove());
+    const html = container.innerHTML.trim();
+    const text = container.innerText.trim();
+    return { html, text, excludesApplied };
+  }
+
+  function collectSliceElements(yStart, yEnd) {
+    const selector = [
+      "article",
+      "section",
+      "div",
+      "p",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "blockquote",
+      "pre",
+      "ul",
+      "ol",
+      "li",
+      "table",
+      "thead",
+      "tbody",
+      "tr",
+      "td",
+      "th",
+      "figure",
+      "figcaption",
+      "header",
+      "footer",
+      "main",
+      "aside",
+    ].join(",");
+
+    const elements = Array.from(document.body.querySelectorAll(selector));
+    const intersecting = [];
+    elements.forEach((el) => {
+      const rect = el.getBoundingClientRect();
+      const top = rect.top + window.scrollY;
+      const bottom = rect.bottom + window.scrollY;
+      if (bottom < yStart || top > yEnd) {
+        return;
+      }
+      if (rect.width === 0 || rect.height === 0) {
+        return;
+      }
+      intersecting.push({ el, top, bottom });
+    });
+
+    if (!intersecting.length) {
+      return [];
+    }
+
+    const intersectingSet = new Set(intersecting.map((item) => item.el));
+    return intersecting.filter((item) => {
+      let parent = item.el.parentElement;
+      while (parent) {
+        if (intersectingSet.has(parent)) {
+          return false;
+        }
+        parent = parent.parentElement;
+      }
+      return true;
+    });
   }
 
   async function saveSlice() {
@@ -1017,5 +1275,28 @@
 
   function hideHighlight() {
     highlight.el.style.display = "none";
+  }
+
+  function showSliceLine(y) {
+    sliceLine.el.style.display = "block";
+    sliceLine.el.style.top = `${y}px`;
+  }
+
+  function hideSliceLine() {
+    sliceLine.el.style.display = "none";
+  }
+
+  function showSliceStartLine(y) {
+    sliceStartLine.el.style.display = "block";
+    sliceStartLine.el.style.top = `${y}px`;
+  }
+
+  function hideSliceStartLine() {
+    sliceStartLine.el.style.display = "none";
+  }
+
+  function hideSliceLines() {
+    hideSliceLine();
+    hideSliceStartLine();
   }
 })();
