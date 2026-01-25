@@ -96,6 +96,22 @@
   padding: 4px 8px;
 }
 
+.slicer-preview__close {
+  font-size: 16px;
+  line-height: 1;
+  width: 28px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slicer-toolbar button.active {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
 .slicer-preview__body {
   padding: 12px;
   height: calc(100% - 42px);

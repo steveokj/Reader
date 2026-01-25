@@ -74,17 +74,17 @@
     const status = document.createElement("div");
     status.className = "slicer-status";
 
-    const pickStart = createButton("Pick start");
-    const pickEnd = createButton("Pick end");
+    const pick = createButton("Pick");
     const exclude = createButton("Exclude");
     const preview = createButton("Preview");
     const library = createButton("Library");
     const save = createButton("Save");
     const reset = createButton("Reset");
-    const close = createButton("Close");
+    const close = createButton("×");
+    close.classList.add("slicer-preview__close");
+    close.setAttribute("aria-label", "Close preview");
 
-    left.appendChild(pickStart);
-    left.appendChild(pickEnd);
+    left.appendChild(pick);
     left.appendChild(exclude);
     left.appendChild(preview);
     left.appendChild(library);
@@ -101,8 +101,7 @@
       event.stopPropagation();
     });
 
-    pickStart.addEventListener("click", () => setMode("pick-start"));
-    pickEnd.addEventListener("click", () => setMode("pick-end"));
+    pick.addEventListener("click", () => togglePickMode());
     exclude.addEventListener("click", () => setMode("exclude"));
     preview.addEventListener("click", () => togglePreview());
     library.addEventListener("click", () => toggleLibrary());
@@ -110,7 +109,7 @@
     close.addEventListener("click", () => hideToolbar());
     save.addEventListener("click", () => saveSlice());
 
-    return { el, status, pickStart, pickEnd, exclude, preview, library, save, reset, close };
+    return { el, status, pick, exclude, preview, library, save, reset, close };
   }
 
   function buildPreviewPanel() {
@@ -126,8 +125,10 @@
     actions.className = "slicer-preview__actions";
     const showText = createButton("Text");
     const showHtml = createButton("HTML");
+    const close = createButton("Close");
     actions.appendChild(showText);
     actions.appendChild(showHtml);
+    actions.appendChild(close);
     header.appendChild(title);
     header.appendChild(actions);
 
@@ -148,6 +149,7 @@
 
     showText.addEventListener("click", () => setPreviewMode("text"));
     showHtml.addEventListener("click", () => setPreviewMode("html"));
+    close.addEventListener("click", () => hidePreview());
 
     return { el, text, html, showText, showHtml, mode: "text" };
   }
@@ -214,6 +216,17 @@
     updateStatus();
   }
 
+  function togglePickMode() {
+    if (state.mode === "pick") {
+      state.mode = "idle";
+      state.startElement = null;
+    } else {
+      state.mode = "pick";
+      state.startElement = null;
+    }
+    updateStatus();
+  }
+
   function resetState() {
     state.mode = "idle";
     state.startElement = null;
@@ -228,7 +241,9 @@
     const base = `Segments: ${state.segments.length} - Excludes: ${state.excludes.length}`;
     const mode = state.mode !== "idle" ? ` - ${state.mode}` : "";
     toolbar.status.textContent = message ? `${message} - ${base}${mode}` : `${base}${mode}`;
-    toolbar.pickEnd.disabled = state.startElement === null;
+    if (toolbar.pick) {
+      toolbar.pick.classList.toggle("active", state.mode === "pick");
+    }
   }
 
   function toggleToolbar() {
@@ -475,21 +490,20 @@
     event.preventDefault();
     event.stopPropagation();
 
-    if (state.mode === "pick-start") {
-      state.startElement = target;
-      setMode("pick-end");
-      updateStatus("Start set");
-      return;
-    }
-
-    if (state.mode === "pick-end") {
+    if (state.mode === "pick") {
       if (!state.startElement) {
-        updateStatus("Pick start first");
+        state.startElement = target;
+        updateStatus("Start set");
         return;
       }
       const segment = buildSegment(state.startElement, target);
       if (segment) {
         state.segments.push(segment);
+        if (event.shiftKey) {
+          state.startElement = target;
+          updateStatus("Segment added (continue)");
+          return;
+        }
         updateStatus("Segment added");
       } else {
         updateStatus("Could not create segment");
