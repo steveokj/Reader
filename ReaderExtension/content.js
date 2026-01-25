@@ -1,6 +1,4 @@
 (() => {
-  const DEFAULT_API_BASE = "https://192.168.2.34:8002";
-  const STORAGE_KEY = "reader_api_base";
   const NAV_SWIPE_ZONE_HEIGHT = 120;
   const NAV_SWIPE_MIN_PX = 60;
   const NAV_SWIPE_MAX_MS = 1200;
@@ -25,6 +23,43 @@
     noteModalOpen: false,
     navSwipeStart: null,
   };
+
+  async function sendBackgroundMessage(type, payload) {
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage({ type, ...payload }, (response) => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            resolve({ ok: false, status: 0, error: lastError.message });
+            return;
+          }
+          if (!response) {
+            resolve({ ok: false, status: 0, error: "No response from background" });
+            return;
+          }
+          resolve(response);
+        });
+      } catch (error) {
+        resolve({
+          ok: false,
+          status: 0,
+          error: error?.message || "Failed to send message",
+        });
+      }
+    });
+  }
+
+  async function apiRequest(request) {
+    return sendBackgroundMessage("reader:api", { request });
+  }
+
+  async function uploadAudioBlob(blob, mime) {
+    return sendBackgroundMessage("reader:uploadAudio", {
+      blob,
+      mime,
+      fileName: "recording.webm",
+    });
+  }
 
   const overlay = mountOverlay();
   const actionMenu = buildActionMenu();
@@ -607,21 +642,13 @@
       setMode("uploading");
       setError("");
 
-      const mime = audioBlob.type || "audio/webm";
-      const formData = new FormData();
-      formData.append("file", audioBlob, "recording.webm");
-      formData.append("mime", mime);
-
       try {
-        const apiBase = await getApiBase();
-        const response = await fetch(`${apiBase}/media/audio`, {
-          method: "POST",
-          body: formData,
-        });
-        if (!response.ok) {
-          throw new Error("Upload failed");
+        const mime = audioBlob.type || "audio/webm";
+        const result = await uploadAudioBlob(audioBlob, mime);
+        if (!result.ok) {
+          throw new Error(result.error || "Upload failed");
         }
-        const data = await response.json();
+        const data = result.data;
         await saveAudio(data);
         hideAudioModal();
       } catch (err) {
@@ -1065,24 +1092,21 @@
     updateActionMenuStatus();
     try {
       log("Saving selection to API");
-      const apiBase = await getApiBase();
-      const response = await fetch(`${apiBase}/web/selections`, {
+      const result = await apiRequest({
+        path: "/web/selections",
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        json: {
           url: window.location.href,
           title: document.title,
           selection_text: state.selection.text,
           selector: state.selection.selector,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to save selection");
+      if (!result.ok) {
+        throw new Error(result.error || "Failed to save selection");
       }
-      const data = await response.json();
+      const data = result.data;
       state.selectionId = data.selection?.id ?? null;
       state.isCommitted = true;
       log("Selection saved", state.selectionId);
@@ -1113,24 +1137,21 @@
       return null;
     }
     try {
-      const apiBase = await getApiBase();
-      const response = await fetch(`${apiBase}/web/additions`, {
+      const result = await apiRequest({
+        path: "/web/additions",
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        json: {
           selection_id: selectionId,
           type,
           title,
           text_content: textContent,
           payload,
-        }),
+        },
       });
-      if (!response.ok) {
+      if (!result.ok) {
         return null;
       }
-      const data = await response.json();
+      const data = result.data;
       return data.addition ?? null;
     } catch (error) {
       console.warn("Reader extension addition save failed", error);
@@ -1182,29 +1203,26 @@
       return;
     }
     try {
-      const apiBase = await getApiBase();
       if (state.markerIds.has(kind)) {
         const markerId = state.markerIds.get(kind);
-        await fetch(`${apiBase}/web/markers/${markerId}`, { method: "DELETE" });
+        await apiRequest({
+          path: `/web/markers/${markerId}`,
+          method: "DELETE",
+        });
         state.markerIds.delete(kind);
       } else {
-        const response = await fetch(`${apiBase}/web/markers`, {
+        const result = await apiRequest({
+          path: "/web/markers",
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+          json: {
             target_type: "selection",
             target_id: selectionId,
             kind,
             value: null,
-          }),
+          },
         });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.marker?.id) {
-            state.markerIds.set(kind, data.marker.id);
-          }
+        if (result.ok && result.data?.marker?.id) {
+          state.markerIds.set(kind, result.data.marker.id);
         }
       }
     } catch (error) {
@@ -1460,23 +1478,6 @@
       }
     }
     return false;
-  }
-
-  let apiBasePromise = null;
-  function getApiBase() {
-    if (apiBasePromise) {
-      return apiBasePromise;
-    }
-    apiBasePromise = new Promise((resolve) => {
-      try {
-        chrome.storage.sync.get([STORAGE_KEY], (data) => {
-          resolve(data[STORAGE_KEY] || DEFAULT_API_BASE);
-        });
-      } catch (error) {
-        resolve(DEFAULT_API_BASE);
-      }
-    });
-    return apiBasePromise;
   }
 
   function iconCheck() {
