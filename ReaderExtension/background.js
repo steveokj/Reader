@@ -92,7 +92,7 @@ async function fetchApi(request = {}) {
     }
   }
 
-  const headers = {
+  const responseHeaders = {
     "content-type": response.headers.get("content-type") || "",
   };
 
@@ -104,7 +104,7 @@ async function fetchApi(request = {}) {
     });
   }
 
-  return { ok: response.ok, status: response.status, data, headers };
+  return { ok: response.ok, status: response.status, data, headers: responseHeaders };
 }
 
 async function handleApiRequest(request) {
