@@ -117,15 +117,23 @@ async function handleApiRequest(request) {
 
 async function handleAudioUpload(payload) {
   try {
+    const buffer = payload?.buffer;
+    const blob =
+      payload?.blob instanceof Blob
+        ? payload.blob
+        : buffer
+          ? new Blob([buffer], { type: payload?.mime || "audio/webm" })
+          : null;
     console.log("[ReaderExt] Audio upload start", {
-      size: payload?.blob?.size ?? null,
+      size: blob?.size ?? null,
       mime: payload?.mime ?? null,
+      hasBuffer: Boolean(buffer),
     });
     const formData = new FormData();
-    if (payload?.blob) {
+    if (blob) {
       formData.append(
         "file",
-        payload.blob,
+        blob,
         payload.fileName || "recording.webm"
       );
     }

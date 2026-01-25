@@ -67,8 +67,9 @@
   }
 
   async function uploadAudioBlob(blob, mime) {
+    const buffer = await blob.arrayBuffer();
     return sendBackgroundMessage("reader:uploadAudio", {
-      blob,
+      buffer,
       mime,
       fileName: "recording.webm",
     });
