@@ -1,5 +1,4 @@
-:host,
-.reader-extension {
+#reader-extension-root {
   --ink: #1f1c16;
   --paper: #f6f1e9;
   --paper-soft: #fbf8f2;
@@ -18,41 +17,23 @@
   --reader-highlight-active: rgba(217, 102, 63, 0.35);
   font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
   color: var(--reader-ink);
-}
-
-:host {
   position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
   z-index: 2147483647;
-  inset: 0;
   pointer-events: none;
 }
 
-.reader-extension,
-.reader-extension * {
+#reader-extension-root * {
   box-sizing: border-box;
 }
 
-.reader-extension {
-  position: fixed;
-  inset: 0;
-  z-index: 2147483647;
-  pointer-events: none;
-}
-
-.reader-extension button,
-.reader-extension input,
-.reader-extension textarea {
+#reader-extension-root button,
+#reader-extension-root input,
+#reader-extension-root textarea {
   font-family: inherit;
-}
-
-.reader-extension__layer {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-}
-
-.reader-extension__layer > * {
-  pointer-events: auto;
 }
 
 

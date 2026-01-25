@@ -33,11 +33,11 @@
   const audioModal = buildAudioModal();
   const mobileNav = buildMobileNav();
 
-  overlay.layer.appendChild(actionMenu.el);
-  overlay.layer.appendChild(noteModal.el);
-  overlay.layer.appendChild(mobileNav.el);
-  overlay.layer.appendChild(grammarModal.el);
-  overlay.layer.appendChild(audioModal.el);
+  overlay.root.appendChild(actionMenu.el);
+  overlay.root.appendChild(noteModal.el);
+  overlay.root.appendChild(mobileNav.el);
+  overlay.root.appendChild(grammarModal.el);
+  overlay.root.appendChild(audioModal.el);
 
   hideActionMenu();
   hideNoteModal();
@@ -53,30 +53,25 @@
   document.addEventListener("touchend", handleTouchEnd, { passive: true, capture: true });
 
   function mountOverlay() {
-    const host = document.createElement("div");
-    host.id = "reader-extension-root";
-    const shadow = host.attachShadow({ mode: "open" });
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = chrome.runtime.getURL("overlay.css");
-    link.addEventListener("error", (error) => {
-      console.warn("Reader extension failed to load CSS", error);
-    });
-    shadow.appendChild(link);
+    const root = document.createElement("div");
+    root.id = "reader-extension-root";
+    (document.body || document.documentElement).appendChild(root);
+
+    const existing = document.getElementById("reader-extension-style");
+    if (!existing) {
+      const link = document.createElement("link");
+      link.id = "reader-extension-style";
+      link.rel = "stylesheet";
+      link.href = chrome.runtime.getURL("overlay.css");
+      link.addEventListener("error", (error) => {
+        console.warn("Reader extension failed to load CSS", error);
+      });
+      document.head.appendChild(link);
+    }
 
     log("Overlay mounted");
 
-    const container = document.createElement("div");
-    container.className = "reader-extension";
-
-    const layer = document.createElement("div");
-    layer.className = "reader-extension__layer";
-    container.appendChild(layer);
-
-    shadow.appendChild(container);
-    document.documentElement.appendChild(host);
-
-    return { host, shadow, container, layer };
+    return { root };
   }
 
   function buildActionMenu() {
@@ -795,7 +790,7 @@
   }
 
   function updateMarkerButtons() {
-    overlay.shadow.querySelectorAll(".marker-button").forEach((button) => {
+    overlay.root.querySelectorAll(".marker-button").forEach((button) => {
       const kind = button.getAttribute("data-kind");
       if (!kind) {
         return;
@@ -1436,12 +1431,12 @@
 
   function isEventInOverlay(event) {
     const target = event.target;
+    if (overlay.root.contains(target)) {
+      return true;
+    }
     const path = event.composedPath ? event.composedPath() : [];
     if (
-      path.includes(overlay.host) ||
-      path.includes(overlay.container) ||
-      path.includes(overlay.layer) ||
-      path.includes(overlay.shadow)
+      path.includes(overlay.root)
     ) {
       return true;
     }
@@ -1455,9 +1450,6 @@
           return true;
         }
       }
-    }
-    if (overlay.shadow && target && overlay.shadow.contains(target)) {
-      return true;
     }
     return false;
   }
