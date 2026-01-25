@@ -1,4 +1,4 @@
-#reader-extension-root {
+:host {
   --ink: #1f1c16;
   --paper: #f6f1e9;
   --paper-soft: #fbf8f2;
@@ -23,16 +23,17 @@
   width: 0;
   height: 0;
   z-index: 2147483647;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
-#reader-extension-root * {
+.reader-extension-ui,
+.reader-extension-ui * {
   box-sizing: border-box;
 }
 
-#reader-extension-root button,
-#reader-extension-root input,
-#reader-extension-root textarea {
+.reader-extension-ui button,
+.reader-extension-ui input,
+.reader-extension-ui textarea {
   font-family: inherit;
 }
 

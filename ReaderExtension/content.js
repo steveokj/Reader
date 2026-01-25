@@ -53,25 +53,32 @@
   document.addEventListener("touchend", handleTouchEnd, { passive: true, capture: true });
 
   function mountOverlay() {
-    const root = document.createElement("div");
-    root.id = "reader-extension-root";
-    (document.body || document.documentElement).appendChild(root);
+    const host = document.createElement("div");
+    host.id = "reader-extension-host";
+    const shadow = host.attachShadow({ mode: "open" });
 
-    const existing = document.getElementById("reader-extension-style");
-    if (!existing) {
-      const link = document.createElement("link");
-      link.id = "reader-extension-style";
-      link.rel = "stylesheet";
-      link.href = chrome.runtime.getURL("overlay.css");
-      link.addEventListener("error", (error) => {
-        console.warn("Reader extension failed to load CSS", error);
-      });
-      document.head.appendChild(link);
+    const legacy = document.getElementById("reader-extension-style");
+    if (legacy) {
+      legacy.remove();
     }
+
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = chrome.runtime.getURL("overlay.css");
+    link.addEventListener("error", (error) => {
+      console.warn("Reader extension failed to load CSS", error);
+    });
+    shadow.appendChild(link);
+
+    const root = document.createElement("div");
+    root.className = "reader-extension-ui";
+    shadow.appendChild(root);
+
+    (document.body || document.documentElement).appendChild(host);
 
     log("Overlay mounted");
 
-    return { root };
+    return { host, shadow, root };
   }
 
   function buildActionMenu() {
@@ -1436,7 +1443,8 @@
     }
     const path = event.composedPath ? event.composedPath() : [];
     if (
-      path.includes(overlay.root)
+      path.includes(overlay.root) ||
+      (overlay.host && path.includes(overlay.host))
     ) {
       return true;
     }
