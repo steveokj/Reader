@@ -107,6 +107,7 @@
   hideAudioModal();
   hideHighlightsPanel();
   hideHighlightDetailModal();
+  updateNavButtons();
 
   document.addEventListener("mouseup", handleMouseUp, true);
   document.addEventListener("dblclick", handleDoubleClick, true);
@@ -752,7 +753,6 @@
       note: createNavButton(iconNote(), "Note"),
       audio: createNavButton(iconAudio(), "Audio"),
       explore: createNavButton(iconExplore(), "Explore"),
-      grammar: createNavButton(iconGrammar(), "Grammar"),
       highlights: createNavButton(iconHighlights(), "Highlights"),
     };
 
@@ -771,10 +771,6 @@
 
     buttons.audio.addEventListener("click", () => {
       openAudioModal();
-    });
-
-    buttons.grammar.addEventListener("click", () => {
-      openGrammarModal();
     });
 
     buttons.explore.disabled = true;
@@ -1076,6 +1072,19 @@
     }
   }
 
+  function updateNavButtons() {
+    const hasSelection = Boolean(getSelectionTextTrimmed());
+    const disabledTitle = "Select text to use this action";
+    if (mobileNav?.buttons?.note) {
+      mobileNav.buttons.note.disabled = !hasSelection;
+      mobileNav.buttons.note.title = hasSelection ? "Note" : disabledTitle;
+    }
+    if (mobileNav?.buttons?.audio) {
+      mobileNav.buttons.audio.disabled = !hasSelection;
+      mobileNav.buttons.audio.title = hasSelection ? "Audio" : disabledTitle;
+    }
+  }
+
   function updateActionMenuStatus() {
     const status = state.isSaving ? "Saving..." : state.isCommitted ? "Saved" : "Not saved";
     actionMenu.status.textContent = status;
@@ -1322,6 +1331,7 @@
     state.markerIds.clear();
     updateActionMenuStatus();
     updateMarkerButtons();
+    updateNavButtons();
   }
 
   function clearSelection() {
@@ -1332,6 +1342,7 @@
     state.markerIds.clear();
     updateActionMenuStatus();
     updateMarkerButtons();
+    updateNavButtons();
   }
 
   async function commitSelection() {
