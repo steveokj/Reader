@@ -316,6 +316,35 @@ class WebMarkersResponse(BaseModel):
     markers: List[WebMarker]
 
 
+class SlicerSliceCreate(BaseModel):
+    url: str
+    page_title: Optional[str] = None
+    slice_title: Optional[str] = None
+    recipe: Dict[str, Any]
+    html: str
+    text: str
+
+
+class SlicerSlice(BaseModel):
+    id: int
+    page_id: int
+    url: str
+    page_title: Optional[str] = None
+    slice_title: Optional[str] = None
+    recipe: Dict[str, Any]
+    html: str
+    text: str
+    created_at: str
+
+
+class SlicerSliceResponse(BaseModel):
+    slice: SlicerSlice
+
+
+class SlicerSlicesResponse(BaseModel):
+    slices: List[SlicerSlice]
+
+
 class ArticleIngest(BaseModel):
     title: Optional[str] = None
     url: Optional[str] = None

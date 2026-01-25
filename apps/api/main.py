@@ -32,6 +32,7 @@ from .routes.map_views import router as map_views_router
 from .routes.media import router as media_router
 from .routes.selections import router as selections_router
 from .routes.settings import router as settings_router
+from .routes.slicer import router as slicer_router
 from .routes.web_additions import router as web_additions_router
 from .routes.web_markers import router as web_markers_router
 from .routes.web_selections import router as web_selections_router
@@ -68,6 +69,7 @@ app.include_router(explore_router)
 app.include_router(explore_chat_router)
 app.include_router(lookup_router)
 app.include_router(settings_router)
+app.include_router(slicer_router)
 app.include_router(web_selections_router)
 app.include_router(web_additions_router)
 app.include_router(web_markers_router)

@@ -1,0 +1,106 @@
+:host {
+  all: initial;
+}
+
+.slicer-ui {
+  position: absolute;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.slicer-toolbar {
+  pointer-events: auto;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(18, 18, 18, 0.95);
+  color: #f5f5f5;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(6px);
+}
+
+.slicer-toolbar__left,
+.slicer-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slicer-toolbar button {
+  pointer-events: auto;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.slicer-toolbar button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.slicer-toolbar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.slicer-status {
+  font-size: 12px;
+  opacity: 0.8;
+  flex: 1;
+  text-align: center;
+}
+
+.slicer-preview {
+  pointer-events: auto;
+  position: fixed;
+  top: 72px;
+  right: 12px;
+  width: 360px;
+  max-width: 90vw;
+  height: 55vh;
+  background: #ffffff;
+  color: #121212;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  display: none;
+  overflow: hidden;
+}
+
+.slicer-preview__header {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e5e5;
+  font-weight: 600;
+}
+
+.slicer-preview__body {
+  padding: 12px;
+  height: calc(100% - 42px);
+  overflow: auto;
+}
+
+.slicer-preview__text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.slicer-highlight {
+  position: absolute;
+  border: 2px solid #ffb347;
+  background: rgba(255, 179, 71, 0.12);
+  pointer-events: none;
+  border-radius: 6px;
+  display: none;
+}

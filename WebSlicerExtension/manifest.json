@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Web Slicer",
+  "version": "0.1.0",
+  "description": "Slice and save parts of web pages.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "Web Slicer"
+  },
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "options_page": "options.html"
+}
