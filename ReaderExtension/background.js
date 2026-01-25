@@ -1,16 +1,45 @@
-const DEFAULT_API_BASE = "https://192.168.2.34:8002";
 const STORAGE_KEY = "reader_api_base";
+let configApiBasePromise = null;
 
-function getApiBase() {
-  return new Promise((resolve) => {
+function loadConfigApiBase() {
+  if (configApiBasePromise) {
+    return configApiBasePromise;
+  }
+  configApiBasePromise = (async () => {
+    try {
+      const response = await fetch(chrome.runtime.getURL("config.json"));
+      if (!response.ok) {
+        return null;
+      }
+      const data = await response.json();
+      if (data && typeof data.apiBase === "string" && data.apiBase.trim()) {
+        return data.apiBase.trim();
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
+  })();
+  return configApiBasePromise;
+}
+
+async function getApiBase() {
+  const stored = await new Promise((resolve) => {
     try {
       chrome.storage.sync.get([STORAGE_KEY], (data) => {
-        resolve(data[STORAGE_KEY] || DEFAULT_API_BASE);
+        resolve(typeof data[STORAGE_KEY] === "string" ? data[STORAGE_KEY] : "");
       });
     } catch (error) {
-      resolve(DEFAULT_API_BASE);
+      resolve("");
     }
   });
+
+  if (stored && stored.trim()) {
+    return stored.trim();
+  }
+
+  const configValue = await loadConfigApiBase();
+  return configValue;
 }
 
 async function fetchApi(request = {}) {
@@ -23,8 +52,12 @@ async function fetchApi(request = {}) {
     responseType = "json",
   } = request;
 
+  const isAbsolute = /^https?:/i.test(path);
   const apiBase = await getApiBase();
-  const url = /^https?:/i.test(path)
+  if (!isAbsolute && (!apiBase || !apiBase.trim())) {
+    return { ok: false, status: 0, error: "API base not configured" };
+  }
+  const url = isAbsolute
     ? path
     : `${apiBase}${path.startsWith("/") ? "" : "/"}${path}`;
 

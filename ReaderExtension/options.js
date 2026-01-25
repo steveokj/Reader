@@ -1,4 +1,3 @@
-const DEFAULT_API_BASE = "https://192.168.2.34:8002";
 const STORAGE_KEY = "reader_api_base";
 
 const input = document.getElementById("api-base");
@@ -16,14 +15,40 @@ function setStatus(message) {
   }, 1600);
 }
 
-function loadSettings() {
-  chrome.storage.sync.get([STORAGE_KEY], (data) => {
-    input.value = data[STORAGE_KEY] || DEFAULT_API_BASE;
+async function loadConfigApiBase() {
+  try {
+    const response = await fetch(chrome.runtime.getURL("config.json"));
+    if (!response.ok) {
+      return "";
+    }
+    const data = await response.json();
+    if (data && typeof data.apiBase === "string") {
+      return data.apiBase.trim();
+    }
+  } catch (error) {
+    return "";
+  }
+  return "";
+}
+
+async function loadSettings() {
+  const stored = await new Promise((resolve) => {
+    chrome.storage.sync.get([STORAGE_KEY], (data) => {
+      resolve(typeof data[STORAGE_KEY] === "string" ? data[STORAGE_KEY] : "");
+    });
   });
+
+  if (stored && stored.trim()) {
+    input.value = stored.trim();
+    return;
+  }
+
+  const fallback = await loadConfigApiBase();
+  input.value = fallback || "";
 }
 
 saveButton.addEventListener("click", () => {
-  const value = input.value.trim() || DEFAULT_API_BASE;
+  const value = input.value.trim();
   chrome.storage.sync.set({ [STORAGE_KEY]: value }, () => {
     setStatus("Saved");
   });
