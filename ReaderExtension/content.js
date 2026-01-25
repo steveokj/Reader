@@ -1924,6 +1924,7 @@
           resolveMediaUrl(url).then((src) => {
             audio.src = src;
             audio.load();
+            ensureAudioDuration(audio);
           });
           card.appendChild(audio);
         }
@@ -2134,6 +2135,7 @@
         resolveMediaUrl(url).then((src) => {
           audio.src = src;
           audio.load();
+          ensureAudioDuration(audio);
         });
         highlightDetailModal.body.appendChild(audio);
       }
@@ -2258,6 +2260,40 @@
       return url;
     }
     return `${apiBase}${url.startsWith("/") ? "" : "/"}${url}`;
+  }
+
+  function ensureAudioDuration(audio) {
+    let probed = false;
+    const probe = () => {
+      if (probed) {
+        return;
+      }
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        return;
+      }
+      probed = true;
+      const handleSeeked = () => {
+        if (Number.isFinite(audio.duration) && audio.duration > 0) {
+          try {
+            audio.currentTime = 0;
+          } catch (error) {
+            log("Audio duration reset failed", error);
+          }
+        }
+      };
+      audio.addEventListener("seeked", handleSeeked, { once: true });
+      try {
+        audio.currentTime = 1e101;
+      } catch (error) {
+        log("Audio duration probe failed", error);
+      }
+    };
+    audio.addEventListener("loadedmetadata", probe);
+    audio.addEventListener("durationchange", () => {
+      if (!Number.isFinite(audio.duration) || audio.duration === 0) {
+        probe();
+      }
+    });
   }
 
   function getSelectionSnippet(selection) {
