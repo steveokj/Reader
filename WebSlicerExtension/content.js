@@ -4,9 +4,6 @@
   }
   window.__webSlicerInitialized = true;
 
-  const DEFAULT_API_BASE = "http://127.0.0.1:8000";
-  const STORAGE_KEY = "slicer_api_base";
-
   const state = {
     visible: false,
     mode: "idle",

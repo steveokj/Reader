@@ -1,9 +1,24 @@
-const DEFAULT_API_BASE = "http://127.0.0.1:8000";
 const STORAGE_KEY = "slicer_api_base";
+
+let configPromise = null;
+
+async function getConfig() {
+  if (configPromise) {
+    return configPromise;
+  }
+  configPromise = fetch(chrome.runtime.getURL("config.json"))
+    .then((response) => (response.ok ? response.json() : {}))
+    .catch(() => ({}));
+  return configPromise;
+}
 
 async function getApiBase() {
   const data = await chrome.storage.sync.get(STORAGE_KEY);
-  return data[STORAGE_KEY] || DEFAULT_API_BASE;
+  if (data[STORAGE_KEY]) {
+    return data[STORAGE_KEY];
+  }
+  const config = await getConfig();
+  return config.api_base || "";
 }
 
 async function ensureContentScript(tabId) {
