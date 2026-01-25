@@ -14,6 +14,7 @@
     libraryOpen: false,
     libraryFilter: "page",
     lastPickedElement: null,
+    undoStack: [],
   };
 
   const overlay = mountOverlay();
@@ -159,6 +160,7 @@
     showText.addEventListener("click", () => setPreviewMode("text"));
     showHtml.addEventListener("click", () => setPreviewMode("html"));
     close.addEventListener("click", () => hidePreview());
+    el.addEventListener("wheel", handlePreviewWheel, { passive: false });
 
     return { el, text, html, showText, showHtml, mode: "text" };
   }
@@ -250,6 +252,7 @@
     state.lastPickedElement = null;
     state.segments = [];
     state.excludes = [];
+    state.undoStack = [];
     hidePreview();
     hideLibrary();
     clearSegmentHighlights();
@@ -291,6 +294,7 @@
     state.mode = "idle";
     state.startElement = null;
     state.lastPickedElement = null;
+    state.undoStack = [];
     overlay.uiRoot.style.display = "none";
     toolbar.el.style.display = "none";
     hidePreview();
@@ -523,6 +527,7 @@
         ? buildSegment(state.lastPickedElement, target)
         : buildSegment(target, target);
       if (segment) {
+        pushUndo();
         if (useRange && shouldReplaceLastSegmentWithRange(segment)) {
           state.segments[state.segments.length - 1] = segment;
         } else {
@@ -546,6 +551,11 @@
 
   function handleKeyDown(event) {
     if (!state.visible) {
+      return;
+    }
+    if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "z") {
+      event.preventDefault();
+      undoLastSegment();
       return;
     }
     if (event.key === "Escape") {
@@ -682,6 +692,28 @@
         segmentLayer.el.appendChild(box);
       });
     });
+  }
+
+  function pushUndo() {
+    state.undoStack.push(
+      state.segments.map((segment) => ({
+        start: segment.start,
+        end: segment.end,
+      }))
+    );
+  }
+
+  function undoLastSegment() {
+    if (!state.undoStack.length) {
+      updateStatus("Nothing to undo");
+      return;
+    }
+    const previous = state.undoStack.pop();
+    state.segments = previous;
+    const last = state.segments[state.segments.length - 1];
+    state.lastPickedElement = last ? resolveByLocator(last.end) : null;
+    renderSegmentHighlights();
+    updateStatus("Undo");
   }
 
   function addExclude(element) {
@@ -920,6 +952,18 @@
   function isEventInOverlay(event) {
     const path = event.composedPath ? event.composedPath() : [];
     return path.includes(overlay.host) || path.includes(overlay.uiRoot);
+  }
+
+  function handlePreviewWheel(event) {
+    if (!state.visible) {
+      return;
+    }
+    window.scrollBy({
+      top: event.deltaY,
+      left: event.deltaX,
+      behavior: "auto",
+    });
+    event.preventDefault();
   }
 
   function showHighlight(target) {
