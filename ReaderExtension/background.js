@@ -92,6 +92,10 @@ async function fetchApi(request = {}) {
     }
   }
 
+  const headers = {
+    "content-type": response.headers.get("content-type") || "",
+  };
+
   if (!response.ok) {
     console.warn("[ReaderExt] API request failed", {
       url,
@@ -100,7 +104,7 @@ async function fetchApi(request = {}) {
     });
   }
 
-  return { ok: response.ok, status: response.status, data };
+  return { ok: response.ok, status: response.status, data, headers };
 }
 
 async function handleApiRequest(request) {

@@ -1596,6 +1596,7 @@
   let highlightsRefreshTimer = null;
   let highlightStyleEl = null;
   let activeHighlightTimer = null;
+  const mediaUrlCache = new Map();
 
   function normalizeUrl(rawUrl) {
     try {
@@ -2184,6 +2185,20 @@
     }
     if (url.startsWith("http") || url.startsWith("blob:")) {
       return url;
+    }
+    if (mediaUrlCache.has(url)) {
+      return mediaUrlCache.get(url);
+    }
+    const result = await apiRequest({
+      path: url,
+      responseType: "arrayBuffer",
+    });
+    if (result.ok && result.data) {
+      const type = result.headers?.["content-type"] || "application/octet-stream";
+      const blob = new Blob([result.data], { type });
+      const blobUrl = URL.createObjectURL(blob);
+      mediaUrlCache.set(url, blobUrl);
+      return blobUrl;
     }
     const apiBase = await getApiBaseFromBackground();
     if (!apiBase) {
