@@ -78,9 +78,22 @@
 }
 
 .slicer-preview__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 10px 12px;
   border-bottom: 1px solid #e5e5e5;
   font-weight: 600;
+}
+
+.slicer-preview__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.slicer-preview__actions button {
+  font-size: 11px;
+  padding: 4px 8px;
 }
 
 .slicer-preview__body {
@@ -94,6 +107,12 @@
   white-space: pre-wrap;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.slicer-preview__html {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #121212;
 }
 
 .slicer-library {
@@ -129,6 +148,12 @@
 .slicer-library__actions button {
   font-size: 11px;
   padding: 4px 8px;
+}
+
+.slicer-library__actions button.active {
+  background: #111;
+  color: #fff;
+  border-color: #111;
 }
 
 .slicer-library__body {

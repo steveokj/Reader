@@ -71,4 +71,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })();
     return true;
   }
+  if (message.type === "slicer-delete") {
+    (async () => {
+      try {
+        const apiBase = await getApiBase();
+        const response = await fetch(`${apiBase}/slicer/slices/${message.id}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          throw new Error(`Delete failed (${response.status})`);
+        }
+        sendResponse({ ok: true });
+      } catch (error) {
+        console.warn("Web Slicer delete failed", error);
+        sendResponse({ ok: false, error: String(error) });
+      }
+    })();
+    return true;
+  }
 });

@@ -15,6 +15,7 @@
     excludes: [],
     highlightTarget: null,
     libraryOpen: false,
+    libraryFilter: "page",
   };
 
   const overlay = mountOverlay();
@@ -121,7 +122,17 @@
 
     const header = document.createElement("div");
     header.className = "slicer-preview__header";
-    header.textContent = "Preview";
+    const title = document.createElement("div");
+    title.textContent = "Preview";
+
+    const actions = document.createElement("div");
+    actions.className = "slicer-preview__actions";
+    const showText = createButton("Text");
+    const showHtml = createButton("HTML");
+    actions.appendChild(showText);
+    actions.appendChild(showHtml);
+    header.appendChild(title);
+    header.appendChild(actions);
 
     const body = document.createElement("div");
     body.className = "slicer-preview__body";
@@ -129,11 +140,19 @@
     const text = document.createElement("pre");
     text.className = "slicer-preview__text";
 
+    const html = document.createElement("div");
+    html.className = "slicer-preview__html";
+    html.style.display = "none";
+
     body.appendChild(text);
+    body.appendChild(html);
     el.appendChild(header);
     el.appendChild(body);
 
-    return { el, text };
+    showText.addEventListener("click", () => setPreviewMode("text"));
+    showHtml.addEventListener("click", () => setPreviewMode("html"));
+
+    return { el, text, html, showText, showHtml, mode: "text" };
   }
 
   function buildLibraryPanel() {
@@ -149,8 +168,10 @@
     const headerActions = document.createElement("div");
     headerActions.className = "slicer-library__actions";
 
+    const filter = createButton("This page");
     const refresh = createButton("Refresh");
     const close = createButton("Close");
+    headerActions.appendChild(filter);
     headerActions.appendChild(refresh);
     headerActions.appendChild(close);
 
@@ -167,10 +188,15 @@
     el.appendChild(header);
     el.appendChild(body);
 
+    el.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+
+    filter.addEventListener("click", () => toggleLibraryFilter());
     refresh.addEventListener("click", () => loadLibrary());
     close.addEventListener("click", () => hideLibrary());
 
-    return { el, list };
+    return { el, list, filter };
   }
 
   function buildHighlight() {
@@ -248,12 +274,30 @@
       updateStatus("Nothing to preview");
       return;
     }
-    previewPanel.text.textContent = snapshot.text || "(no text)";
-    previewPanel.el.style.display = "block";
+    setPreviewContent({
+      text: snapshot.text,
+      html: snapshot.html,
+      mode: "text",
+    });
   }
 
   function hidePreview() {
     previewPanel.el.style.display = "none";
+  }
+
+  function setPreviewMode(mode) {
+    previewPanel.mode = mode;
+    previewPanel.text.style.display = mode === "text" ? "block" : "none";
+    previewPanel.html.style.display = mode === "html" ? "block" : "none";
+    previewPanel.showText.disabled = mode === "text";
+    previewPanel.showHtml.disabled = mode === "html";
+  }
+
+  function setPreviewContent({ text, html, mode }) {
+    previewPanel.text.textContent = text || "(no text)";
+    previewPanel.html.innerHTML = html || "";
+    setPreviewMode(mode || "text");
+    previewPanel.el.style.display = "block";
   }
 
   function toggleLibrary() {
@@ -267,12 +311,32 @@
   function showLibrary() {
     libraryPanel.el.style.display = "block";
     state.libraryOpen = true;
+    updateLibraryFilterButton();
     loadLibrary();
   }
 
   function hideLibrary() {
     libraryPanel.el.style.display = "none";
     state.libraryOpen = false;
+  }
+
+  function toggleLibraryFilter() {
+    state.libraryFilter = state.libraryFilter === "page" ? "all" : "page";
+    updateLibraryFilterButton();
+    loadLibrary();
+  }
+
+  function updateLibraryFilterButton() {
+    if (!libraryPanel.filter) {
+      return;
+    }
+    if (state.libraryFilter === "page") {
+      libraryPanel.filter.textContent = "This page";
+      libraryPanel.filter.classList.add("active");
+    } else {
+      libraryPanel.filter.textContent = "All pages";
+      libraryPanel.filter.classList.remove("active");
+    }
   }
 
   async function loadLibrary() {
@@ -284,6 +348,7 @@
     try {
       const response = await chrome.runtime.sendMessage({
         type: "slicer-list",
+        url: state.libraryFilter === "page" ? window.location.href : null,
       });
       if (!response?.ok) {
         throw new Error(response?.error || "Failed to load");
@@ -325,10 +390,14 @@
       const preview = createButton("Preview");
       const copyHtml = createButton("Copy HTML");
       const copyText = createButton("Copy text");
+      const remove = createButton("Delete");
 
       preview.addEventListener("click", () => {
-        previewPanel.text.textContent = item.text || "(no text)";
-        previewPanel.el.style.display = "block";
+        setPreviewContent({
+          text: item.text,
+          html: item.html,
+          mode: "text",
+        });
       });
       copyHtml.addEventListener("click", async () => {
         await copyToClipboard(item.html || "");
@@ -336,16 +405,42 @@
       copyText.addEventListener("click", async () => {
         await copyToClipboard(item.text || "");
       });
+      remove.addEventListener("click", async () => {
+        await deleteSlice(item.id);
+      });
 
       actions.appendChild(preview);
       actions.appendChild(copyHtml);
       actions.appendChild(copyText);
+      actions.appendChild(remove);
 
       row.appendChild(title);
       row.appendChild(meta);
       row.appendChild(actions);
       libraryPanel.list.appendChild(row);
     });
+  }
+
+  async function deleteSlice(sliceId) {
+    if (!sliceId) {
+      return;
+    }
+    if (!window.confirm("Delete this slice?")) {
+      return;
+    }
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "slicer-delete",
+        id: sliceId,
+      });
+      if (!response?.ok) {
+        throw new Error(response?.error || "Delete failed");
+      }
+      loadLibrary();
+    } catch (error) {
+      console.warn("Delete slice failed", error);
+      updateStatus("Delete failed");
+    }
   }
 
   function handleHover(event) {
@@ -571,6 +666,7 @@
       const fragment = range.cloneContents();
       const container = document.createElement("div");
       container.appendChild(fragment);
+      container.querySelectorAll("script").forEach((node) => node.remove());
 
       const excludesApplied = [];
       for (const exclude of state.excludes) {
