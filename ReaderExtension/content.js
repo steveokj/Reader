@@ -1130,6 +1130,9 @@
 
   function hideNoteModal() {
     noteModal.el.style.display = "none";
+    if (state.navOpen) {
+      hideMobileNav();
+    }
   }
 
   function showGrammarModal() {
@@ -1146,6 +1149,9 @@
 
   function hideAudioModal() {
     audioModal.el.style.display = "none";
+    if (state.navOpen) {
+      hideMobileNav();
+    }
   }
 
   function showMobileNav() {
@@ -1514,6 +1520,9 @@
       log("Note modal blocked: no selection target");
       return;
     }
+    if (state.navOpen) {
+      hideMobileNav();
+    }
     noteModal.textarea.value = "";
     showNoteModal();
   }
@@ -1530,6 +1539,9 @@
     if (!ensureSelectionForModal()) {
       log("Audio modal blocked: no selection target");
       return;
+    }
+    if (state.navOpen) {
+      hideMobileNav();
     }
     audioModal.resetModal();
     showAudioModal();
