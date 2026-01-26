@@ -11,6 +11,10 @@
     }
   };
 
+  const EXPLORE_IMAGE_URL_REGEX =
+    /https?:\/\/[^\s)]+?\.(?:png|jpe?g|gif|webp|svg)(?:\?[^\s)]+)?/gi;
+  const EXPLORE_MARKDOWN_IMAGE_REGEX = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/gi;
+
   const state = {
     selection: null,
     selectionId: null,
@@ -21,6 +25,9 @@
     anchorTimer: null,
     navOpen: false,
     noteModalOpen: false,
+    modalSelectionOverride: null,
+    modalSource: null,
+    modalHideMarkers: false,
     navSwipeStart: null,
     highlightsPanelOpen: false,
     highlightsTab: "selections",
@@ -36,6 +43,32 @@
     highlightDetail: null,
     lastInteraction: null,
   };
+
+  const exploreState = {
+    open: false,
+    messages: [],
+    draft: "",
+    threadId: null,
+    contextText: "",
+    error: "",
+    isSubmitting: false,
+    storageKey: "",
+    anchorSelectionId: null,
+    anchorSelector: null,
+    anchorText: "",
+    anchorUrl: "",
+    anchorTitle: "",
+  };
+
+  const artifactState = {
+    additionId: null,
+    selectionId: null,
+    contextText: "",
+    kind: "explore",
+    markers: [],
+  };
+
+  let exploreMessageCounter = 0;
 
   async function sendBackgroundMessage(type, payload) {
     return new Promise((resolve) => {
@@ -93,25 +126,31 @@
   const noteModal = buildNoteModal();
   const grammarModal = buildGrammarModal();
   const audioModal = buildAudioModal();
+  const exploreModal = buildExploreModal();
   const mobileNav = buildMobileNav();
   const highlightsPanel = buildHighlightsPanel();
   const highlightDetailModal = buildHighlightDetailModal();
+  const artifactMenu = buildArtifactMenu();
 
   overlay.root.appendChild(actionMenu.el);
   overlay.root.appendChild(noteModal.el);
   overlay.root.appendChild(mobileNav.el);
   overlay.root.appendChild(grammarModal.el);
   overlay.root.appendChild(audioModal.el);
+  overlay.root.appendChild(exploreModal.el);
   overlay.root.appendChild(highlightsPanel.el);
   overlay.root.appendChild(highlightDetailModal.el);
+  overlay.root.appendChild(artifactMenu.el);
 
   hideActionMenu();
   hideNoteModal();
   hideMobileNav();
   hideGrammarModal();
   hideAudioModal();
+  hideExploreModal();
   hideHighlightsPanel();
   hideHighlightDetailModal();
+  hideArtifactMenu();
   updateNavButtons();
 
   document.addEventListener("mouseup", handleMouseUp, true);
@@ -220,9 +259,6 @@
       map: createActionButton(iconMap(), "Map"),
     };
 
-    actionButtons.explore.disabled = true;
-    actionButtons.explore.title = "Explore coming soon";
-
     Object.values(actionButtons).forEach((button) => actions.appendChild(button));
 
     el.appendChild(meta);
@@ -265,12 +301,7 @@
 
     actionButtons.explore.addEventListener("click", () => {
       log("Explore action clicked");
-      if (!state.selection) {
-        return;
-      }
-      const url = new URL("https://192.168.2.34:3002/explore");
-      url.searchParams.set("text", state.selection.text);
-      window.open(url.toString(), "_blank", "noopener,noreferrer");
+      openExploreModal();
     });
 
     actionButtons.audio.addEventListener("click", () => {
@@ -294,6 +325,74 @@
     });
 
     return { el, commit, status, markers, actionButtons };
+  }
+
+  function buildArtifactMenu() {
+    const el = document.createElement("div");
+    el.className = "action-menu action-menu--artifact";
+
+    const meta = document.createElement("div");
+    meta.className = "action-menu__meta";
+
+    const metaLeft = document.createElement("div");
+    metaLeft.className = "action-menu__meta-left";
+    const label = document.createElement("span");
+    label.textContent = "Explore response";
+    metaLeft.appendChild(label);
+
+    const close = document.createElement("button");
+    close.className = "action-menu__icon";
+    close.type = "button";
+    close.title = "Close";
+    close.innerHTML = iconClose();
+
+    meta.appendChild(metaLeft);
+    meta.appendChild(close);
+
+    const markers = document.createElement("div");
+    markers.className = "action-menu__markers";
+
+    const text = document.createElement("div");
+    text.className = "action-menu__text";
+
+    const actions = document.createElement("div");
+    actions.className = "action-menu__actions";
+
+    const buttons = {
+      note: createActionButton(iconNote(), "Note"),
+      audio: createActionButton(iconAudio(), "Audio"),
+      explore: createActionButton(iconExplore(), "Explore"),
+      more: createActionButton(iconMore(), "More"),
+    };
+
+    buttons.more.disabled = true;
+
+    Object.values(buttons).forEach((button) => actions.appendChild(button));
+
+    el.appendChild(meta);
+    el.appendChild(markers);
+    el.appendChild(text);
+    el.appendChild(actions);
+
+    el.addEventListener("mousedown", stopPropagation);
+    el.addEventListener("mouseup", stopPropagation);
+    el.addEventListener("click", stopPropagation);
+
+    close.addEventListener("click", () => {
+      hideArtifactMenu();
+    });
+
+    buttons.note.addEventListener("click", () => {
+      handleArtifactAction("note");
+    });
+    buttons.audio.addEventListener("click", () => {
+      handleArtifactAction("audio");
+    });
+    buttons.explore.addEventListener("click", () => {
+      handleArtifactAction("explore");
+    });
+
+    return { el, label, markers, text, buttons };
   }
 
   function buildNoteModal() {
@@ -359,7 +458,7 @@
       hideNoteModal();
     });
 
-    return { el, textarea, title };
+    return { el, textarea, title, markers };
   }
 
   function buildGrammarModal() {
@@ -789,7 +888,144 @@
       setMode("idle");
     };
 
-    return { el, resetModal };
+    return { el, resetModal, markers };
+  }
+
+  function buildExploreModal() {
+    const el = document.createElement("div");
+    el.className = "explore-chat-modal";
+
+    const panel = document.createElement("div");
+    panel.className = "explore-chat-modal__panel";
+
+    const header = document.createElement("div");
+    header.className = "explore-chat-modal__header";
+
+    const title = document.createElement("div");
+    title.className = "explore-chat-modal__title";
+    title.textContent = "Explore";
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "explore-chat-modal__close";
+    close.innerHTML = iconClose();
+
+    header.appendChild(title);
+    header.appendChild(close);
+
+    const context = document.createElement("div");
+    context.className = "explore-chat-modal__context";
+
+    const contextLabel = document.createElement("div");
+    contextLabel.className = "explore-chat-modal__context-label";
+    contextLabel.textContent = "Context";
+
+    const contextText = document.createElement("div");
+    contextText.className = "explore-chat-modal__context-text";
+
+    const contextClear = document.createElement("button");
+    contextClear.type = "button";
+    contextClear.className = "explore-chat-modal__context-clear";
+    contextClear.textContent = "Clear";
+
+    context.appendChild(contextLabel);
+    context.appendChild(contextText);
+    context.appendChild(contextClear);
+
+    const messages = document.createElement("div");
+    messages.className = "chat-messages";
+
+    const error = document.createElement("div");
+    error.className = "explore-chat-modal__error";
+    error.style.display = "none";
+
+    const form = document.createElement("form");
+    form.className = "chat-input";
+
+    const textarea = document.createElement("textarea");
+    textarea.className = "chat-textarea";
+    textarea.placeholder = "Ask a question";
+
+    const submit = document.createElement("button");
+    submit.type = "submit";
+    submit.className = "explore-chat-modal__submit";
+    submit.textContent = "Send";
+
+    form.appendChild(textarea);
+    form.appendChild(submit);
+
+    panel.appendChild(header);
+    panel.appendChild(context);
+    panel.appendChild(messages);
+    panel.appendChild(error);
+    panel.appendChild(form);
+
+    el.appendChild(panel);
+
+    const zoom = document.createElement("div");
+    zoom.className = "explore-chat-modal__zoom";
+    zoom.style.display = "none";
+
+    const zoomImg = document.createElement("img");
+    zoomImg.alt = "Explore image";
+
+    const zoomClose = document.createElement("button");
+    zoomClose.type = "button";
+    zoomClose.className = "explore-chat-modal__zoom-close";
+    zoomClose.innerHTML = iconClose();
+
+    zoom.appendChild(zoomImg);
+    zoom.appendChild(zoomClose);
+    el.appendChild(zoom);
+
+    el.addEventListener("click", () => {
+      closeExploreModal();
+    });
+    panel.addEventListener("click", stopPropagation);
+
+    close.addEventListener("click", () => {
+      closeExploreModal();
+    });
+
+    contextClear.addEventListener("click", () => {
+      exploreState.contextText = "";
+      renderExploreContext();
+    });
+
+    textarea.addEventListener("input", (event) => {
+      exploreState.draft = event.target.value;
+      updateExploreSubmit();
+      persistExploreSession();
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void handleExploreSubmit();
+    });
+
+    zoomClose.addEventListener("click", () => {
+      hideExploreZoom();
+    });
+    zoom.addEventListener("click", (event) => {
+      if (event.target === zoom) {
+        hideExploreZoom();
+      }
+    });
+
+    return {
+      el,
+      panel,
+      context,
+      contextText,
+      contextClear,
+      messages,
+      error,
+      textarea,
+      submit,
+      zoom,
+      zoomImg,
+      zoomClose,
+    };
   }
 
   function buildMobileNav() {
@@ -820,8 +1056,9 @@
       openAudioModal();
     });
 
-    buttons.explore.disabled = true;
-    buttons.explore.title = "Explore coming soon";
+    buttons.explore.addEventListener("click", () => {
+      openExploreModal();
+    });
 
     return { el, buttons };
   }
@@ -1176,6 +1413,7 @@
 
   function hideNoteModal() {
     noteModal.el.style.display = "none";
+    clearModalOverrides();
     if (state.navOpen) {
       hideMobileNav();
     }
@@ -1195,9 +1433,490 @@
 
   function hideAudioModal() {
     audioModal.el.style.display = "none";
+    clearModalOverrides();
     if (state.navOpen) {
       hideMobileNav();
     }
+  }
+
+  function showExploreModal() {
+    exploreModal.el.style.display = "flex";
+    exploreModal.el.classList.add("is-open");
+    exploreState.open = true;
+  }
+
+  function hideExploreModal() {
+    exploreModal.el.classList.remove("is-open");
+    exploreModal.el.style.display = "none";
+    exploreState.open = false;
+  }
+
+  function openExploreModal(options = {}) {
+    const { contextText = "", anchorSelectionId = null } = options;
+    const anchor = resolveExploreAnchor();
+    exploreState.anchorSelectionId =
+      typeof anchorSelectionId === "number"
+        ? anchorSelectionId
+        : anchor?.selectionId ?? null;
+    exploreState.anchorSelector = anchor?.selector ?? null;
+    exploreState.anchorText = anchor?.text ?? "";
+    exploreState.anchorUrl = getNormalizedPageUrl();
+    exploreState.anchorTitle = document.title || "";
+    const resolvedContext = contextText?.trim()
+      ? contextText.trim()
+      : anchor?.text ?? "";
+    exploreState.contextText = resolvedContext;
+    exploreState.error = "";
+    exploreState.isSubmitting = false;
+    exploreState.storageKey = getExploreStorageKey();
+    loadExploreSession();
+    exploreModal.textarea.value = exploreState.draft;
+    renderExploreModal();
+    showExploreModal();
+    exploreModal.textarea.focus();
+    hideActionMenu();
+    hideArtifactMenu();
+    if (state.navOpen) {
+      hideMobileNav();
+    }
+    clearSelection();
+  }
+
+  function closeExploreModal() {
+    hideExploreZoom();
+    hideArtifactMenu();
+    hideExploreModal();
+  }
+
+  function resolveExploreAnchor() {
+    if (state.selection) {
+      return {
+        selectionId: state.isCommitted ? state.selectionId : null,
+        selector: state.selection.selector,
+        text: state.selection.text,
+      };
+    }
+    const point = state.lastInteraction || {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    };
+    const range = getCaretRangeFromPoint(point.x, point.y);
+    if (!range) {
+      return null;
+    }
+    range.collapse(true);
+    return {
+      selectionId: null,
+      selector: buildSelector(range, ""),
+      text: "",
+    };
+  }
+
+  function getExploreStorageKey() {
+    const url = getNormalizedPageUrl() || window.location.href;
+    return `reader-ext-explore:${url}`;
+  }
+
+  function loadExploreSession() {
+    const key = exploreState.storageKey;
+    if (!key) {
+      exploreState.messages = [];
+      exploreState.threadId = null;
+      exploreState.draft = "";
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) {
+        exploreState.messages = [];
+        exploreState.threadId = null;
+        exploreState.draft = "";
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      exploreState.messages = Array.isArray(parsed.messages) ? parsed.messages : [];
+      exploreState.threadId = typeof parsed.threadId === "number" ? parsed.threadId : null;
+      exploreState.draft = typeof parsed.draftMessage === "string" ? parsed.draftMessage : "";
+    } catch (error) {
+      exploreState.messages = [];
+      exploreState.threadId = null;
+      exploreState.draft = "";
+    }
+  }
+
+  function persistExploreSession() {
+    const key = exploreState.storageKey;
+    if (!key) {
+      return;
+    }
+    try {
+      const payload = {
+        threadId: exploreState.threadId,
+        messages: exploreState.messages,
+        draftMessage: exploreState.draft,
+      };
+      window.localStorage.setItem(key, JSON.stringify(payload));
+    } catch (error) {
+      // ignore storage errors
+    }
+  }
+
+  function renderExploreModal() {
+    renderExploreContext();
+    renderExploreMessages();
+    renderExploreError();
+    updateExploreSubmit();
+  }
+
+  function renderExploreContext() {
+    const text = exploreState.contextText || "";
+    if (text.trim()) {
+      exploreModal.context.style.display = "flex";
+      exploreModal.contextText.textContent = truncateContext(text);
+      exploreModal.contextText.title = text;
+    } else {
+      exploreModal.context.style.display = "none";
+      exploreModal.contextText.textContent = "";
+      exploreModal.contextText.title = "";
+    }
+  }
+
+  function renderExploreMessages() {
+    const container = exploreModal.messages;
+    container.innerHTML = "";
+    if (!exploreState.messages.length) {
+      const empty = document.createElement("div");
+      empty.className = "explore-chat-modal__empty";
+      empty.textContent = "Ask something about this passage.";
+      container.appendChild(empty);
+    } else {
+      exploreState.messages.forEach((message) => {
+        const card = document.createElement("div");
+        card.className = `chat-message chat-message--${message.role}`;
+        if (message.role === "assistant" && message.additionId && message.selectionId) {
+          card.addEventListener("dblclick", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const rect = card.getBoundingClientRect();
+            const menuWidth = 320;
+            const padding = 16;
+            const aboveTop = rect.top - 56;
+            const menuTop = aboveTop > padding ? aboveTop : rect.bottom + 12;
+            const menuLeft = Math.min(
+              Math.max(padding, rect.left),
+              window.innerWidth - menuWidth - padding
+            );
+            openArtifactMenu({
+              top: menuTop,
+              left: menuLeft,
+              additionId: message.additionId,
+              selectionId: message.selectionId,
+              contextText: message.content,
+              kind: "explore",
+            });
+          });
+        }
+        appendExploreMessageParts(card, message.content);
+        container.appendChild(card);
+      });
+    }
+    if (exploreState.isSubmitting) {
+      const loading = document.createElement("div");
+      loading.className = "chat-message chat-message--assistant chat-message--loading";
+      const spinner = document.createElement("span");
+      spinner.className = "explore-spinner";
+      spinner.setAttribute("aria-hidden", "true");
+      const text = document.createElement("span");
+      text.textContent = "Thinking...";
+      loading.appendChild(spinner);
+      loading.appendChild(text);
+      container.appendChild(loading);
+    }
+    requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+  }
+
+  function renderExploreError() {
+    if (exploreState.error) {
+      exploreModal.error.style.display = "block";
+      exploreModal.error.textContent = exploreState.error;
+    } else {
+      exploreModal.error.style.display = "none";
+      exploreModal.error.textContent = "";
+    }
+  }
+
+  function updateExploreSubmit() {
+    const trimmed = exploreState.draft.trim();
+    exploreModal.submit.disabled = !trimmed || exploreState.isSubmitting;
+    exploreModal.submit.textContent = exploreState.isSubmitting ? "Sending..." : "Send";
+  }
+
+  async function handleExploreSubmit() {
+    if (exploreState.isSubmitting) {
+      return;
+    }
+    const trimmed = exploreState.draft.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const userMessage = {
+      id: Date.now() + exploreMessageCounter++,
+      role: "user",
+      content: trimmed,
+    };
+    exploreState.messages = [...exploreState.messages, userMessage];
+    exploreState.draft = "";
+    exploreState.isSubmitting = true;
+    exploreState.error = "";
+    exploreModal.textarea.value = "";
+    renderExploreModal();
+    persistExploreSession();
+
+    const contextPrefix = exploreState.contextText ? `Context:\n${exploreState.contextText}\n\n` : "";
+    const payloadMessage = `${contextPrefix}${trimmed}`;
+
+    try {
+      const result = await apiRequest({
+        path: "/explore/chat",
+        method: "POST",
+        json: {
+          thread_id: exploreState.threadId,
+          message: payloadMessage,
+          action: exploreState.threadId ? "resume" : "new",
+          mode: "codex-cli",
+          book_title: document.title || "the current page",
+          document_id: null,
+        },
+      });
+
+      if (!result.ok) {
+        const detail = result.data?.detail || result.error || "Explore request failed.";
+        throw new Error(detail);
+      }
+      const data = result.data || {};
+      const assistantText = data.messages?.[0]?.content ?? "";
+      if (data.thread?.id && !exploreState.threadId) {
+        exploreState.threadId = data.thread.id;
+      }
+      if (assistantText) {
+        const assistantMessage = {
+          id: Date.now() + exploreMessageCounter++,
+          role: "assistant",
+          content: assistantText,
+        };
+        exploreState.messages = [...exploreState.messages, assistantMessage];
+        renderExploreMessages();
+        await saveExploreAddition(assistantMessage, trimmed);
+      }
+      persistExploreSession();
+    } catch (error) {
+      exploreState.error = normalizeError(error);
+    } finally {
+      exploreState.isSubmitting = false;
+      updateExploreSubmit();
+      renderExploreError();
+      persistExploreSession();
+    }
+  }
+
+  async function ensureExploreSelectionId() {
+    if (typeof exploreState.anchorSelectionId === "number") {
+      return exploreState.anchorSelectionId;
+    }
+    if (!exploreState.anchorSelector) {
+      return null;
+    }
+    try {
+      const result = await apiRequest({
+        path: "/web/selections",
+        method: "POST",
+        json: {
+          url: exploreState.anchorUrl || getNormalizedPageUrl(),
+          title: exploreState.anchorTitle || document.title,
+          selection_text: exploreState.anchorText || "",
+          selector: exploreState.anchorSelector,
+        },
+      });
+      if (!result.ok) {
+        return null;
+      }
+      const id = result.data?.selection?.id ?? null;
+      if (id) {
+        exploreState.anchorSelectionId = id;
+      }
+      return id;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async function saveExploreAddition(message, promptText) {
+    if (!message || message.role !== "assistant") {
+      return;
+    }
+    const selectionId = await ensureExploreSelectionId();
+    if (!selectionId) {
+      return;
+    }
+    const addition = await createWebAdditionForSelectionId(selectionId, {
+      type: "explore",
+      textContent: message.content,
+      payload: {
+        thread_id: exploreState.threadId,
+        message_id: message.id,
+        role: message.role,
+        prompt: promptText,
+        content: message.content,
+        context_text: exploreState.contextText,
+      },
+    });
+    if (addition?.id && addition?.selection_id) {
+      attachExploreAddition(message.id, addition.id, addition.selection_id);
+    }
+  }
+
+  function attachExploreAddition(messageId, additionId, selectionId) {
+    exploreState.messages = exploreState.messages.map((message) =>
+      message.id === messageId
+        ? { ...message, additionId, selectionId }
+        : message
+    );
+    persistExploreSession();
+    renderExploreMessages();
+  }
+
+  function openExploreZoom(url, altText) {
+    if (!url) {
+      return;
+    }
+    exploreModal.zoomImg.src = url;
+    exploreModal.zoomImg.alt = altText || "Explore image";
+    exploreModal.zoom.style.display = "flex";
+  }
+
+  function hideExploreZoom() {
+    exploreModal.zoom.style.display = "none";
+    exploreModal.zoomImg.src = "";
+  }
+
+  function openArtifactMenu({ top, left, additionId, selectionId, contextText, kind }) {
+    if (!additionId || !selectionId) {
+      return;
+    }
+    artifactState.additionId = additionId;
+    artifactState.selectionId = selectionId;
+    artifactState.contextText = contextText || "";
+    artifactState.kind = kind || "explore";
+    artifactState.markers = [];
+    artifactMenu.el.style.top = `${Math.round(top)}px`;
+    artifactMenu.el.style.left = `${Math.round(left)}px`;
+    renderArtifactMenu();
+    artifactMenu.el.style.display = "block";
+    void loadArtifactMarkers(additionId);
+  }
+
+  function hideArtifactMenu() {
+    artifactMenu.el.style.display = "none";
+    artifactState.additionId = null;
+    artifactState.selectionId = null;
+    artifactState.contextText = "";
+    artifactState.kind = "explore";
+    artifactState.markers = [];
+  }
+
+  function renderArtifactMenu() {
+    const preview = truncateContext(artifactState.contextText || "");
+    artifactMenu.label.textContent = "Explore response";
+    if (preview) {
+      artifactMenu.text.style.display = "block";
+      artifactMenu.text.textContent = preview;
+      artifactMenu.text.title = artifactState.contextText || "";
+    } else {
+      artifactMenu.text.style.display = "none";
+      artifactMenu.text.textContent = "";
+      artifactMenu.text.title = "";
+    }
+    renderMarkerToggle(
+      artifactMenu.markers,
+      artifactState.markers.map((marker) => marker.kind),
+      async (kind) => {
+        await toggleArtifactMarker(kind);
+      }
+    );
+  }
+
+  async function loadArtifactMarkers(additionId) {
+    try {
+      const result = await apiRequest({
+        path: `/web/markers?target_type=addition&target_id=${additionId}`,
+      });
+      if (!result.ok) {
+        return;
+      }
+      artifactState.markers = result.data?.markers ?? [];
+      renderArtifactMenu();
+    } catch (error) {
+      // ignore marker errors
+    }
+  }
+
+  async function toggleArtifactMarker(kind) {
+    if (!artifactState.additionId) {
+      return;
+    }
+    const existing = artifactState.markers.find((marker) => marker.kind === kind);
+    if (existing) {
+      await apiRequest({
+        path: `/web/markers/${existing.id}`,
+        method: "DELETE",
+      });
+    } else {
+      await apiRequest({
+        path: "/web/markers",
+        method: "POST",
+        json: {
+          target_type: "addition",
+          target_id: artifactState.additionId,
+          kind,
+          value: null,
+        },
+      });
+    }
+    await loadArtifactMarkers(artifactState.additionId);
+    scheduleHighlightsRefresh();
+  }
+
+  function handleArtifactAction(action) {
+    if (!artifactState.additionId || !artifactState.selectionId) {
+      return;
+    }
+    const source = {
+      additionId: artifactState.additionId,
+      kind: artifactState.kind,
+      previewText: artifactState.contextText,
+    };
+    if (action === "note") {
+      openNoteModal({
+        selectionIdOverride: artifactState.selectionId,
+        source,
+        hideMarkers: true,
+      });
+    } else if (action === "audio") {
+      openAudioModal({
+        selectionIdOverride: artifactState.selectionId,
+        source,
+        hideMarkers: true,
+      });
+    } else {
+      openExploreModal({
+        contextText: artifactState.contextText,
+        anchorSelectionId: artifactState.selectionId,
+      });
+    }
+    hideArtifactMenu();
   }
 
   function showMobileNav() {
@@ -1296,14 +2015,24 @@
       hideNoteModal();
       hideGrammarModal();
       closeAudioModal();
+      closeExploreModal();
       hideMobileNav();
       hideHighlightsPanel();
       hideHighlightDetailModal();
+      hideArtifactMenu();
     }
   }
 
   function handleDocumentMouseDown(event) {
     log("Document mousedown", event.target);
+    if (artifactMenu.el.style.display !== "none") {
+      const path = event.composedPath ? event.composedPath() : [];
+      const inArtifact =
+        artifactMenu.el.contains(event.target) || path.includes(artifactMenu.el);
+      if (!inArtifact) {
+        hideArtifactMenu();
+      }
+    }
     if (isEventInOverlay(event)) {
       return;
     }
@@ -1455,11 +2184,26 @@
     return state.selectionId;
   }
 
-  async function createWebAddition({ type, title = null, textContent = null, payload = {} }) {
-    const selectionId = await ensureSelectionId();
+  async function createWebAddition({
+    type,
+    title = null,
+    textContent = null,
+    payload = {},
+    selectionIdOverride = null,
+  }) {
+    const selectionId = selectionIdOverride ?? (await ensureSelectionId());
     if (!selectionId) {
       return null;
     }
+    return await createWebAdditionForSelectionId(selectionId, {
+      type,
+      title,
+      textContent,
+      payload,
+    });
+  }
+
+  async function createWebAdditionForSelectionId(selectionId, { type, title, textContent, payload }) {
     try {
       const result = await apiRequest({
         path: "/web/additions",
@@ -1484,19 +2228,69 @@
     }
   }
 
+  function applyModalOverrides({ selectionIdOverride = null, source = null, hideMarkers = false }) {
+    state.modalSelectionOverride = selectionIdOverride;
+    state.modalSource = source;
+    state.modalHideMarkers = hideMarkers;
+    if (noteModal?.markers) {
+      noteModal.markers.style.display = hideMarkers ? "none" : "";
+    }
+    if (audioModal?.markers) {
+      audioModal.markers.style.display = hideMarkers ? "none" : "";
+    }
+  }
+
+  function clearModalOverrides() {
+    applyModalOverrides({});
+  }
+
+  function getModalSelectionIdOverride() {
+    return typeof state.modalSelectionOverride === "number" ? state.modalSelectionOverride : null;
+  }
+
+  function buildModalSourcePayload() {
+    if (!state.modalSource) {
+      return null;
+    }
+    return {
+      type: "addition",
+      id: state.modalSource.additionId,
+      kind: state.modalSource.kind,
+      preview_text: state.modalSource.previewText ?? null,
+    };
+  }
+
+  async function ensureModalSelectionId() {
+    const override = getModalSelectionIdOverride();
+    if (override) {
+      return override;
+    }
+    if (!state.selection) {
+      return null;
+    }
+    return await ensureSelectionId();
+  }
+
   async function saveNote(text) {
     const trimmed = text.trim();
     if (!trimmed) {
       return;
     }
-    if (!state.selection) {
+    const selectionId = await ensureModalSelectionId();
+    if (!selectionId) {
       return;
+    }
+    const payload = { text: trimmed };
+    const source = buildModalSourcePayload();
+    if (source) {
+      payload.source = source;
     }
     log("Saving note addition");
     await createWebAddition({
+      selectionIdOverride: selectionId,
       type: "note",
       textContent: trimmed,
-      payload: { text: trimmed },
+      payload,
     });
   }
 
@@ -1512,10 +2306,20 @@
   }
 
   async function saveAudio(audioPayload) {
+    const selectionId = await ensureModalSelectionId();
+    if (!selectionId) {
+      return;
+    }
+    const payload = { audio: audioPayload };
+    const source = buildModalSourcePayload();
+    if (source) {
+      payload.source = source;
+    }
     log("Saving audio addition");
     await createWebAddition({
+      selectionIdOverride: selectionId,
       type: "audio",
-      payload: { audio: audioPayload },
+      payload,
     });
   }
 
@@ -1561,11 +2365,14 @@
     }
   }
 
-  function openNoteModal() {
-    if (!ensureSelectionForModal()) {
+  function openNoteModal(options = {}) {
+    const { selectionIdOverride = null, source = null, hideMarkers = false } = options;
+    const hasOverride = typeof selectionIdOverride === "number";
+    if (!hasOverride && !ensureSelectionForModal()) {
       log("Note modal blocked: no selection target");
       return;
     }
+    applyModalOverrides({ selectionIdOverride, source, hideMarkers });
     if (state.navOpen) {
       hideMobileNav();
     }
@@ -1581,11 +2388,14 @@
     showGrammarModal();
   }
 
-  function openAudioModal() {
-    if (!ensureSelectionForModal()) {
+  function openAudioModal(options = {}) {
+    const { selectionIdOverride = null, source = null, hideMarkers = false } = options;
+    const hasOverride = typeof selectionIdOverride === "number";
+    if (!hasOverride && !ensureSelectionForModal()) {
       log("Audio modal blocked: no selection target");
       return;
     }
+    applyModalOverrides({ selectionIdOverride, source, hideMarkers });
     if (state.navOpen) {
       hideMobileNav();
     }
@@ -2145,6 +2955,25 @@
       }
     }
 
+    if (addition.type === "explore") {
+      const payload = addition.payload || {};
+      const prompt = payload?.prompt ?? "";
+      const response = payload?.content ?? addition.text_content ?? "";
+      const chat = document.createElement("div");
+      chat.className = "highlight-detail__chat chat-messages";
+      const messages = [
+        { role: "user", content: prompt || "Prompt unavailable." },
+        { role: "assistant", content: response || "Response unavailable." },
+      ];
+      messages.forEach((message) => {
+        const card = document.createElement("div");
+        card.className = `chat-message chat-message--${message.role}`;
+        appendExploreMessageParts(card, message.content, { enableZoom: false });
+        chat.appendChild(card);
+      });
+      highlightDetailModal.body.appendChild(chat);
+    }
+
     const additionMarkers = bundle.additionMarkers[addition.id] ?? [];
     const markerKinds = additionMarkers.map((marker) => marker.kind);
     const markers = document.createElement("div");
@@ -2316,6 +3145,9 @@
     if (addition.type === "audio") {
       return "Audio recording";
     }
+    if (addition.type === "explore") {
+      return addition.text_content || "Explore response";
+    }
     return addition.text_content || addition.title || addition.type || "Addition";
   }
 
@@ -2328,6 +3160,121 @@
       return normalized;
     }
     return `${normalized.slice(0, limit).trimEnd()}...`;
+  }
+
+  function truncateContext(text, limit = 160) {
+    const normalized = String(text || "").replace(/\s+/g, " ").trim();
+    if (!normalized) {
+      return "";
+    }
+    if (normalized.length <= limit) {
+      return normalized;
+    }
+    return `${normalized.slice(0, limit).trimEnd()}...`;
+  }
+
+  function splitMarkdownImages(text) {
+    const parts = [];
+    let lastIndex = 0;
+    for (const match of text.matchAll(EXPLORE_MARKDOWN_IMAGE_REGEX)) {
+      const matchIndex = match.index ?? 0;
+      if (matchIndex > lastIndex) {
+        parts.push({ type: "text", value: text.slice(lastIndex, matchIndex) });
+      }
+      const alt = (match[1] || "Image").trim() || "Image";
+      parts.push({ type: "image", url: match[2], alt });
+      lastIndex = matchIndex + match[0].length;
+    }
+    if (lastIndex < text.length) {
+      parts.push({ type: "text", value: text.slice(lastIndex) });
+    }
+    return parts;
+  }
+
+  function splitImageUrls(text) {
+    const parts = [];
+    let lastIndex = 0;
+    for (const match of text.matchAll(EXPLORE_IMAGE_URL_REGEX)) {
+      const matchIndex = match.index ?? 0;
+      if (matchIndex > lastIndex) {
+        parts.push({ type: "text", value: text.slice(lastIndex, matchIndex) });
+      }
+      parts.push({ type: "image", url: match[0], alt: "Image" });
+      lastIndex = matchIndex + match[0].length;
+    }
+    if (lastIndex < text.length) {
+      parts.push({ type: "text", value: text.slice(lastIndex) });
+    }
+    return parts;
+  }
+
+  function parseExploreMessageParts(text) {
+    const withMarkdown = splitMarkdownImages(text);
+    const merged = [];
+    withMarkdown.forEach((part) => {
+      if (part.type === "text") {
+        merged.push(...splitImageUrls(part.value));
+      } else {
+        merged.push(part);
+      }
+    });
+    return merged;
+  }
+
+  function appendExploreMessageParts(container, text, options = {}) {
+    const enableZoom = options.enableZoom !== false;
+    const parts = parseExploreMessageParts(text || "");
+    if (!parts.length) {
+      const span = document.createElement("span");
+      span.className = "chat-message__text";
+      span.textContent = text || "";
+      container.appendChild(span);
+      return;
+    }
+    parts.forEach((part, index) => {
+      if (part.type === "image") {
+        const wrapper = document.createElement("div");
+        wrapper.className = "chat-message__image";
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "chat-message__image-button";
+        const img = document.createElement("img");
+        img.src = part.url;
+        img.alt = part.alt || "Image";
+        img.loading = "lazy";
+        button.appendChild(img);
+        if (enableZoom) {
+          button.addEventListener("click", () => {
+            openExploreZoom(part.url, part.alt);
+          });
+        } else {
+          button.addEventListener("click", () => {
+            window.open(part.url, "_blank", "noopener,noreferrer");
+          });
+        }
+        wrapper.appendChild(button);
+        container.appendChild(wrapper);
+      } else {
+        const span = document.createElement("span");
+        span.className = "chat-message__text";
+        span.textContent = part.value;
+        span.dataset.index = `${index}`;
+        container.appendChild(span);
+      }
+    });
+  }
+
+  function normalizeError(error) {
+    if (!error) {
+      return "Explore request failed.";
+    }
+    if (typeof error === "string") {
+      return error;
+    }
+    if (typeof error.message === "string" && error.message.trim()) {
+      return error.message;
+    }
+    return "Explore request failed.";
   }
 
   function formatRelativeTime(value) {
