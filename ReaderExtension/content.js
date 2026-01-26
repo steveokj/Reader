@@ -1073,11 +1073,15 @@
     const textarea = document.createElement("textarea");
     textarea.className = "chat-textarea";
     textarea.placeholder = "Ask a question";
+    textarea.rows = 1;
+    textarea.setAttribute("aria-label", "Explore message");
 
     const submit = document.createElement("button");
     submit.type = "submit";
     submit.className = "explore-chat-modal__submit";
-    submit.textContent = "Send";
+    submit.title = "Send";
+    submit.setAttribute("aria-label", "Send message");
+    submit.innerHTML = iconSend();
 
     form.appendChild(textarea);
     form.appendChild(submit);
@@ -1131,6 +1135,15 @@
       exploreState.draft = event.target.value;
       updateExploreSubmit();
       persistExploreSession();
+    });
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey || event.isComposing) {
+        return;
+      }
+      event.preventDefault();
+      if (!exploreState.isSubmitting && exploreState.draft.trim()) {
+        void handleExploreSubmit();
+      }
     });
 
     form.addEventListener("submit", (event) => {
@@ -2132,7 +2145,10 @@
   function updateExploreSubmit() {
     const trimmed = exploreState.draft.trim();
     exploreModal.submit.disabled = !trimmed || exploreState.isSubmitting;
-    exploreModal.submit.textContent = exploreState.isSubmitting ? "Sending..." : "Send";
+    exploreModal.submit.setAttribute(
+      "aria-busy",
+      exploreState.isSubmitting ? "true" : "false"
+    );
   }
 
   async function handleExploreSubmit() {
@@ -4275,6 +4291,10 @@
 
   function iconInfo() {
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 10v6" /><path d="M12 7h.01" /></svg>';
+  }
+
+  function iconSend() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-7-4 7 4 7-16-7z" /><path d="M8.5 12h7" /></svg>';
   }
 
   function iconLike() {
