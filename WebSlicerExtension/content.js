@@ -1595,12 +1595,22 @@
 
     let doc = "";
     const sliceHtml = html || "";
-    if (resolvedMode === "slice-only" || !pageHtml) {
-      doc = buildSliceDocument(sliceHtml, safeTitle, safeBase);
+    if (resolvedMode === "slice-only") {
+      if (pageHtml && Array.isArray(sliceRanges) && sliceRanges.length) {
+        doc = buildSliceOnlyDocument(pageHtml, safeTitle, safeBase, sliceRanges);
+      } else {
+        doc = buildSliceDocument(sliceHtml, safeTitle, safeBase);
+      }
     } else if (resolvedMode === "slice-in-page") {
+      if (!pageHtml) {
+        doc = buildSliceDocument(sliceHtml, safeTitle, safeBase);
+      } else {
+        doc = buildPageDocument(pageHtml, safeTitle, safeBase, sliceRanges || []);
+      }
+    } else if (pageHtml) {
       doc = buildPageDocument(pageHtml, safeTitle, safeBase, sliceRanges || []);
     } else {
-      doc = buildPageDocument(pageHtml, safeTitle, safeBase, []);
+      doc = buildSliceDocument(sliceHtml, safeTitle, safeBase);
     }
 
     fullPreview.title.textContent = displayTitle;
@@ -1654,6 +1664,35 @@
     <div class="slice-preview">${html || ""}</div>
   </body>
 </html>`;
+  }
+
+  function buildSliceOnlyDocument(pageHtml, safeTitle, safeBase, sliceRanges) {
+    const ranges = Array.isArray(sliceRanges) ? sliceRanges : [];
+    if (!ranges.length) {
+      return buildPageDocument(pageHtml, safeTitle, safeBase, []);
+    }
+    const top = Math.min(...ranges.map((range) => Math.min(range.yStart, range.yEnd)));
+    const bottom = Math.max(...ranges.map((range) => Math.max(range.yStart, range.yEnd)));
+    const height = Math.max(1, bottom - top);
+    let doc = pageHtml || "";
+    const baseTag = `<base href="${safeBase}">`;
+    const sliceStyle = `<style>
+      html, body { margin: 0; padding: 0; overflow: hidden; height: ${height}px; }
+      body { transform: translateY(-${top}px); transform-origin: top left; }
+      img, video { max-width: 100%; height: auto; }
+    </style>`;
+
+    if (doc.includes("<head")) {
+      doc = doc.replace(/<head[^>]*>/i, (match) => `${match}${baseTag}${sliceStyle}`);
+    } else {
+      doc = `<!doctype html><html><head><meta charset="utf-8"><title>${safeTitle}</title>${baseTag}${sliceStyle}</head>${doc}</html>`;
+    }
+
+    if (!doc.toLowerCase().includes("<title")) {
+      doc = doc.replace(/<head[^>]*>/i, (match) => `${match}<title>${safeTitle}</title>`);
+    }
+
+    return doc;
   }
 
   function buildPageDocument(pageHtml, safeTitle, safeBase, sliceRanges) {
