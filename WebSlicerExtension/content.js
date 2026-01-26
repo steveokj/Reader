@@ -1652,6 +1652,7 @@
       if (mode === "slice-in-page") {
         applyOverlayRanges(fullPreview.iframe, scaledRanges);
       } else if (mode === "slice-only") {
+        scrollIframeToSlice(fullPreview.iframe, scaledRanges);
         applySliceOnlyMask(fullPreview.iframe, scaledRanges);
       }
       if (mode !== "slice-in-page" || !scaledRanges.length) {
@@ -1838,7 +1839,7 @@
       doc.documentElement.appendChild(mask);
     }
 
-    lockIframeScroll(iframe, ranges[0]?.top ?? 0);
+    lockIframeScroll(iframe);
   }
 
   function buildMaskBlock(doc, background, top, height) {
@@ -1875,17 +1876,25 @@
     return trimmed;
   }
 
-  function lockIframeScroll(iframe, top) {
+  function scrollIframeToSlice(iframe, sliceRanges) {
     const doc = iframe?.contentDocument;
     const win = iframe?.contentWindow;
-    if (!doc || !win) {
+    if (!doc || !win || !Array.isArray(sliceRanges) || !sliceRanges.length) {
       return;
     }
-    const targetTop = Math.max(0, Number.isFinite(top) ? top : 0);
+    const targetTop = Math.max(0, sliceRanges[0].top ?? 0);
     try {
       win.scrollTo({ top: Math.max(0, targetTop - 40), behavior: "auto" });
     } catch (error) {
       win.scrollTo(0, Math.max(0, targetTop - 40));
+    }
+  }
+
+  function lockIframeScroll(iframe) {
+    const doc = iframe?.contentDocument;
+    const win = iframe?.contentWindow;
+    if (!doc || !win) {
+      return;
     }
     doc.documentElement.style.overflow = "hidden";
     doc.body.style.overflow = "hidden";
