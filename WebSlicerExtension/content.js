@@ -443,6 +443,7 @@
     }
     const pageHtml = buildCleanPageHtml();
     const sliceRanges = getSliceRangesFromSegments(state.segments);
+    const pageMetrics = buildPageMetrics();
     setPreviewContent({
       text: snapshot.text,
       html: snapshot.html,
@@ -451,6 +452,7 @@
       title: document.title,
       pageHtml,
       sliceRanges,
+      pageMetrics,
     });
   }
 
@@ -491,7 +493,16 @@
     previewPanel.showHtml.disabled = mode === "html";
   }
 
-  function setPreviewContent({ text, html, mode, baseUrl, title, pageHtml, sliceRanges }) {
+  function setPreviewContent({
+    text,
+    html,
+    mode,
+    baseUrl,
+    title,
+    pageHtml,
+    sliceRanges,
+    pageMetrics,
+  }) {
     previewPanel.text.textContent = text || "(no text)";
     previewPanel.html.innerHTML = html || "";
     setPreviewMode(mode || "text");
@@ -503,6 +514,7 @@
       title: title || "Slice Preview",
       pageHtml: pageHtml || "",
       sliceRanges: Array.isArray(sliceRanges) ? sliceRanges : [],
+      pageMetrics: pageMetrics || null,
     };
   }
 
@@ -666,6 +678,7 @@
   async function openSliceFromLibrary(item) {
     const pageHtml = await fetchPageHtml(item.page_id);
     const sliceRanges = getSliceRangesFromRecipe(item.recipe);
+    const pageMetrics = item?.recipe?.page_metrics || null;
     const baseUrl = item.url || window.location.href;
     const title = item.slice_title || item.page_title || item.url || "Slice Preview";
     state.lastPreview = {
@@ -675,6 +688,7 @@
       title,
       pageHtml: pageHtml || "",
       sliceRanges,
+      pageMetrics,
     };
     openFullPreview({
       html: item.html || "",
@@ -683,6 +697,7 @@
       title,
       mode: "slice-in-page",
       sliceRanges,
+      pageMetrics,
     });
     if (!pageHtml) {
       updateStatus("Saved page HTML missing; showing slice only");
@@ -1323,7 +1338,21 @@
       text: textParts.join("\n\n"),
       recipe: {
         segments: segmentRecipes,
+        page_metrics: buildPageMetrics(),
       },
+    };
+  }
+
+  function buildPageMetrics() {
+    return {
+      scrollHeight:
+        document.documentElement.scrollHeight ||
+        document.body.scrollHeight ||
+        0,
+      scrollWidth:
+        document.documentElement.scrollWidth ||
+        document.body.scrollWidth ||
+        0,
     };
   }
 
@@ -1585,7 +1614,7 @@
     state.scrollLock = null;
   }
 
-  function openFullPreview({ html, pageHtml, baseUrl, title, mode, sliceRanges }) {
+  function openFullPreview({ html, pageHtml, baseUrl, title, mode, sliceRanges, pageMetrics }) {
     const safeTitle = escapeHtml(title || "Slice Preview");
     const displayTitle = title || "Slice Preview";
     const safeBase = escapeHtml(baseUrl || window.location.href);
@@ -1616,14 +1645,22 @@
     fullPreview.title.textContent = displayTitle;
     fullPreview.iframe.srcdoc = doc;
     fullPreview.iframe.onload = () => {
-      if (state.fullPreviewMode !== "slice-in-page") {
-        return;
+      const scaledRanges = scaleSliceRanges(
+        sliceRanges || [],
+        pageMetrics,
+        fullPreview.iframe
+      );
+      if (state.fullPreviewMode === "slice-in-page") {
+        applyOverlayRanges(fullPreview.iframe, scaledRanges);
       }
-      if (!Array.isArray(sliceRanges) || sliceRanges.length === 0) {
+      if (state.fullPreviewMode === "slice-only") {
+        applySliceOnlyCrop(fullPreview.iframe, scaledRanges);
+      }
+      if (state.fullPreviewMode !== "slice-in-page" || !scaledRanges.length) {
         return;
       }
       const firstTop = Math.min(
-        ...sliceRanges.map((range) => Math.min(range.yStart, range.yEnd))
+        ...scaledRanges.map((range) => Math.min(range.yStart, range.yEnd))
       );
       try {
         fullPreview.iframe.contentWindow?.scrollTo({
@@ -1676,9 +1713,9 @@
     const height = Math.max(1, bottom - top);
     let doc = pageHtml || "";
     const baseTag = `<base href="${safeBase}">`;
-    const sliceStyle = `<style>
+    const sliceStyle = `<style id="slicer-slice-style">
       html, body { margin: 0; padding: 0; overflow: hidden; height: ${height}px; }
-      body { transform: translateY(-${top}px); transform-origin: top left; }
+      #slicer-slice-root { transform: translateY(-${top}px); transform-origin: top left; }
       img, video { max-width: 100%; height: auto; }
     </style>`;
 
@@ -1688,11 +1725,96 @@
       doc = `<!doctype html><html><head><meta charset="utf-8"><title>${safeTitle}</title>${baseTag}${sliceStyle}</head>${doc}</html>`;
     }
 
+    if (doc.includes("<body")) {
+      if (!doc.includes("slicer-slice-root")) {
+        doc = doc.replace(/<body[^>]*>/i, (match) => `${match}<div id="slicer-slice-root">`);
+        doc = doc.replace(/<\/body>/i, "</div></body>");
+      }
+    }
+
     if (!doc.toLowerCase().includes("<title")) {
       doc = doc.replace(/<head[^>]*>/i, (match) => `${match}<title>${safeTitle}</title>`);
     }
 
     return doc;
+  }
+
+  function scaleSliceRanges(sliceRanges, pageMetrics, iframe) {
+    if (!Array.isArray(sliceRanges) || sliceRanges.length === 0) {
+      return [];
+    }
+    if (!pageMetrics?.scrollHeight || !iframe?.contentDocument) {
+      return sliceRanges;
+    }
+    const actualHeight = iframe.contentDocument.documentElement.scrollHeight || 0;
+    if (!actualHeight || !Number.isFinite(actualHeight)) {
+      return sliceRanges;
+    }
+    const ratio = actualHeight / pageMetrics.scrollHeight;
+    if (!Number.isFinite(ratio) || ratio <= 0) {
+      return sliceRanges;
+    }
+    if (Math.abs(ratio - 1) < 0.01) {
+      return sliceRanges;
+    }
+    return sliceRanges.map((range) => ({
+      yStart: range.yStart * ratio,
+      yEnd: range.yEnd * ratio,
+    }));
+  }
+
+  function applyOverlayRanges(iframe, sliceRanges) {
+    if (!iframe?.contentDocument || !Array.isArray(sliceRanges)) {
+      return;
+    }
+    const doc = iframe.contentDocument;
+    const overlay = doc.getElementById("slicer-overlay");
+    if (!overlay) {
+      return;
+    }
+    const bodyOffset = doc.body
+      ? doc.body.getBoundingClientRect().top + (doc.defaultView?.scrollY || 0)
+      : 0;
+    const bands = overlay.querySelectorAll(".slicer-overlay-band");
+    if (!bands.length) {
+      return;
+    }
+    sliceRanges.forEach((range, index) => {
+      const band = bands[index];
+      if (!band) {
+        return;
+      }
+      const top = Math.max(0, Math.min(range.yStart, range.yEnd) - bodyOffset);
+      const height = Math.max(0, Math.abs(range.yEnd - range.yStart));
+      band.style.top = `${top}px`;
+      band.style.height = `${height}px`;
+    });
+  }
+
+  function applySliceOnlyCrop(iframe, sliceRanges) {
+    if (!iframe?.contentDocument || !Array.isArray(sliceRanges) || !sliceRanges.length) {
+      return;
+    }
+    const doc = iframe.contentDocument;
+    const style = doc.getElementById("slicer-slice-style");
+    if (!style) {
+      return;
+    }
+    const bodyOffset = doc.body
+      ? doc.body.getBoundingClientRect().top + (doc.defaultView?.scrollY || 0)
+      : 0;
+    const rawTop = Math.min(...sliceRanges.map((range) => Math.min(range.yStart, range.yEnd)));
+    const rawBottom = Math.max(
+      ...sliceRanges.map((range) => Math.max(range.yStart, range.yEnd))
+    );
+    const top = Math.max(0, rawTop - bodyOffset);
+    const bottom = Math.max(0, rawBottom - bodyOffset);
+    const height = Math.max(1, bottom - top);
+    style.textContent = `
+      html, body { margin: 0; padding: 0; overflow: hidden; height: ${height}px; }
+      #slicer-slice-root { transform: translateY(-${top}px); transform-origin: top left; }
+      img, video { max-width: 100%; height: auto; }
+    `;
   }
 
   function buildPageDocument(pageHtml, safeTitle, safeBase, sliceRanges) {
