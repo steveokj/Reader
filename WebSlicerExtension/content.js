@@ -1645,18 +1645,19 @@
     fullPreview.title.textContent = displayTitle;
     fullPreview.iframe.srcdoc = doc;
     fullPreview.iframe.onload = () => {
-      const scaledRanges = scaleSliceRanges(
-        sliceRanges || [],
-        pageMetrics,
-        fullPreview.iframe
-      );
-      if (state.fullPreviewMode === "slice-in-page") {
+      const mode = state.fullPreviewMode;
+      const rawRanges = Array.isArray(sliceRanges) ? sliceRanges : [];
+      const scaledRanges =
+        mode === "slice-in-page"
+          ? scaleSliceRanges(rawRanges, pageMetrics, fullPreview.iframe)
+          : rawRanges;
+      if (mode === "slice-in-page") {
         applyOverlayRanges(fullPreview.iframe, scaledRanges);
       }
-      if (state.fullPreviewMode === "slice-only") {
+      if (mode === "slice-only") {
         applySliceOnlyCrop(fullPreview.iframe, scaledRanges);
       }
-      if (state.fullPreviewMode !== "slice-in-page" || !scaledRanges.length) {
+      if (mode !== "slice-in-page" || !scaledRanges.length) {
         return;
       }
       const firstTop = Math.min(
