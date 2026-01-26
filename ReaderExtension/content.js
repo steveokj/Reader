@@ -968,6 +968,10 @@
     badge.className = "explore-chat-modal__badge";
     badge.style.display = "none";
 
+    const settingsBackdrop = document.createElement("div");
+    settingsBackdrop.className = "explore-settings__backdrop";
+    settingsBackdrop.style.display = "none";
+
     const settingsPanel = document.createElement("div");
     settingsPanel.className = "explore-settings";
     settingsPanel.style.display = "none";
@@ -1088,6 +1092,7 @@
 
     panel.appendChild(header);
     panel.appendChild(badge);
+    panel.appendChild(settingsBackdrop);
     panel.appendChild(settingsPanel);
     panel.appendChild(context);
     panel.appendChild(messages);
@@ -1123,7 +1128,7 @@
     });
 
     settings.addEventListener("click", () => {
-      toggleExploreSettingsPanel();
+      void toggleExploreSettingsPanel();
     });
 
     contextClear.addEventListener("click", () => {
@@ -1182,7 +1187,7 @@
     });
 
     settingsCancel.addEventListener("click", () => {
-      toggleExploreSettingsPanel(false);
+      void toggleExploreSettingsPanel(false);
     });
 
     settingsSave.addEventListener("click", () => {
@@ -1198,10 +1203,15 @@
       }
     });
 
+    settingsBackdrop.addEventListener("click", () => {
+      void toggleExploreSettingsPanel(false);
+    });
+
     return {
       el,
       panel,
       badge,
+      settingsBackdrop,
       settingsPanel,
       settingsButton: settings,
       settingsPrompt: promptInput,
@@ -1683,7 +1693,7 @@
   function closeExploreModal() {
     hideExploreZoom();
     hideArtifactMenu();
-    toggleExploreSettingsPanel(false);
+    void toggleExploreSettingsPanel(false);
     hideExploreModal();
   }
 
@@ -1840,7 +1850,7 @@
 
     const reasoningSelect = exploreModal.settingsReasoning;
     const allowedLevels = getExploreReasoningLevels(draft.model);
-    if (allowedLevels.length && !allowedLevels.includes(draft.reasoning)) {
+    if (allowedLevels.length && !allowedLevels.some((level) => level.value === draft.reasoning)) {
       const defaultLevel = getExploreDefaultReasoning(draft.model);
       draft.reasoning = defaultLevel;
     }
@@ -1889,19 +1899,22 @@
     return EXPLORE_DEFAULT_REASONING;
   }
 
-  function toggleExploreSettingsPanel(force) {
+  async function toggleExploreSettingsPanel(force) {
     const shouldOpen = typeof force === "boolean" ? force : !exploreSettings.showPanel;
     exploreSettings.showPanel = shouldOpen;
     if (shouldOpen) {
+      await loadExploreSettings();
       exploreSettings.draft = {
         systemPrompt: exploreSettings.systemPrompt || "",
         model: exploreSettings.model || EXPLORE_DEFAULT_MODEL,
         reasoning: exploreSettings.reasoning || EXPLORE_DEFAULT_REASONING,
       };
       renderExploreSettingsPanel();
+      exploreModal.settingsBackdrop.style.display = "block";
       exploreModal.settingsPanel.style.display = "block";
     } else {
       exploreSettings.draft = null;
+      exploreModal.settingsBackdrop.style.display = "none";
       exploreModal.settingsPanel.style.display = "none";
     }
   }
@@ -1973,7 +1986,7 @@
       showExploreBadge(changes.join(" · "));
     }
 
-    toggleExploreSettingsPanel(false);
+    void toggleExploreSettingsPanel(false);
   }
 
   function renderExploreModal() {
