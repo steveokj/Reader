@@ -149,7 +149,13 @@ def create_slice(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
         update_page_html(conn, page["id"], page_html, refresh=page_html_refresh)
     snapshot_id = None
     if page_html:
-        snapshot_id = ensure_snapshot(conn, page["id"], page["url"], page_html)
+        snapshot_id = ensure_snapshot(
+            conn,
+            page["id"],
+            page["url"],
+            page_html,
+            payload.get("page_viewport_width"),
+        )
     now = _iso_now()
     recipe_json = json.dumps(payload.get("recipe") or {})
     cur = conn.execute(
@@ -215,7 +221,9 @@ def refresh_page_html(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def ensure_snapshot(conn, page_id: int, url: str, html: str) -> int:
+def ensure_snapshot(
+    conn, page_id: int, url: str, html: str, viewport_width: Optional[int] = None
+) -> int:
     path, html_hash = _write_snapshot_html(html)
     row = conn.execute(
         "SELECT id FROM slicer_page_snapshots WHERE page_id = ? AND html_hash = ?",
@@ -226,10 +234,10 @@ def ensure_snapshot(conn, page_id: int, url: str, html: str) -> int:
     now = _iso_now()
     cur = conn.execute(
         """
-        INSERT INTO slicer_page_snapshots (page_id, html_hash, html_path, created_at)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO slicer_page_snapshots (page_id, html_hash, html_path, viewport_width, created_at)
+        VALUES (?, ?, ?, ?, ?)
         """,
-        (page_id, html_hash, path, now),
+        (page_id, html_hash, path, viewport_width, now),
     )
     conn.commit()
     return cur.lastrowid
@@ -238,7 +246,7 @@ def ensure_snapshot(conn, page_id: int, url: str, html: str) -> int:
 def get_snapshot_by_id(conn, snapshot_id: int) -> Optional[Dict[str, Any]]:
     row = conn.execute(
         """
-        SELECT sps.id, sps.page_id, sps.html_path, sps.created_at, sp.url
+        SELECT sps.id, sps.page_id, sps.html_path, sps.viewport_width, sps.created_at, sp.url
         FROM slicer_page_snapshots sps
         JOIN slicer_pages sp ON sp.id = sps.page_id
         WHERE sps.id = ?
@@ -254,6 +262,7 @@ def get_snapshot_by_id(conn, snapshot_id: int) -> Optional[Dict[str, Any]]:
         "snapshot_id": row["id"],
         "page_id": row["page_id"],
         "url": row["url"],
+        "viewport_width": row["viewport_width"],
         "html": html,
         "created_at": row["created_at"],
     }

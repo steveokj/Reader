@@ -772,9 +772,8 @@
   }
 
   async function openSliceFromLibrary(item) {
-    const pageHtml = item.snapshot_id
-      ? await fetchSnapshotHtml(item.snapshot_id)
-      : await fetchPageHtml(item.page_id);
+    const snapshot = item.snapshot_id ? await fetchSnapshotHtml(item.snapshot_id) : null;
+    const pageHtml = snapshot?.html || (await fetchPageHtml(item.page_id));
     const sliceRanges = getSliceRangesFromRecipe(item.recipe);
     const pageMetrics = item?.recipe?.page_metrics || null;
     const baseUrl = item.url || window.location.href;
@@ -786,6 +785,7 @@
       title,
       pageHtml: pageHtml || "",
       sliceRanges,
+      snapshotViewportWidth: snapshot?.viewport_width || null,
       pageMetrics,
     };
     openFullPreview({
@@ -795,6 +795,7 @@
       title,
       mode: "slice-in-page",
       sliceRanges,
+      snapshotViewportWidth: snapshot?.viewport_width || null,
       pageMetrics,
     });
     if (!pageHtml) {
@@ -1016,7 +1017,7 @@
       if (!response?.ok) {
         throw new Error(response?.error || "Failed to load snapshot html");
       }
-      return response.snapshot?.html || null;
+      return response.snapshot || null;
     } catch (error) {
       console.warn("Snapshot HTML fetch failed", error);
       return null;
@@ -2071,6 +2072,7 @@
       text: cleaned.text,
       page_html: pageHtml,
       page_html_refresh: false,
+      page_viewport_width: window.innerWidth,
     };
     try {
       const response = await chrome.runtime.sendMessage({
@@ -2148,7 +2150,16 @@
     state.scrollLock = null;
   }
 
-  function openFullPreview({ html, pageHtml, baseUrl, title, mode, sliceRanges, pageMetrics }) {
+  function openFullPreview({
+    html,
+    pageHtml,
+    baseUrl,
+    title,
+    mode,
+    sliceRanges,
+    pageMetrics,
+    snapshotViewportWidth,
+  }) {
     const safeTitle = escapeHtml(title || "Slice Preview");
     const displayTitle = title || "Slice Preview";
     const safeBase = escapeHtml(baseUrl || window.location.href);
@@ -2181,6 +2192,14 @@
     fullPreview.title.textContent = displayTitle;
     fullPreview.iframe.srcdoc = doc;
     fullPreview.iframe.onload = () => {
+      if (snapshotViewportWidth) {
+        fullPreview.iframe.style.width = `${snapshotViewportWidth}px`;
+        fullPreview.iframe.style.margin = "0 auto";
+        fullPreview.iframe.style.display = "block";
+      } else {
+        fullPreview.iframe.style.width = "100%";
+        fullPreview.iframe.style.margin = "0";
+      }
       const mode = state.fullPreviewMode;
       const rawRanges = Array.isArray(sliceRanges) ? sliceRanges : [];
       const scaledRanges =
@@ -2274,7 +2293,7 @@
     ${headContent}
     <style>
       body { margin: 0; padding: 24px; }
-      .slice-preview { max-width: 960px; margin: 0 auto; }
+      .slice-preview { width: 100%; margin: 0; }
       img, video { max-width: 100%; height: auto; }
     </style>
   </head>
@@ -2289,7 +2308,8 @@
     if (!match) {
       return "";
     }
-    return match[1] || "";
+    const raw = match[1] || "";
+    return raw.replace(/<script[\s\S]*?<\/script>/gi, "");
   }
 
   function scaleSliceRanges(sliceRanges, pageMetrics, iframe) {

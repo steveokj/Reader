@@ -325,6 +325,7 @@ class SlicerSliceCreate(BaseModel):
     text: str
     page_html: Optional[str] = None
     page_html_refresh: Optional[bool] = False
+    page_viewport_width: Optional[int] = None
 
 
 class SlicerSlice(BaseModel):
@@ -370,6 +371,7 @@ class SlicerSnapshot(BaseModel):
     snapshot_id: int
     page_id: int
     url: str
+    viewport_width: Optional[int] = None
     html: str
     created_at: str
 
