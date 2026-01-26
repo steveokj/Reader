@@ -4,6 +4,7 @@ const SETTINGS_KEYS = {
   doubleClickLibrary: "slicer_double_click_library",
   hotkeySave: "slicer_hotkey_save",
 };
+const RELOAD_PENDING_KEY = "reader_reload_pending";
 
 let configPromise = null;
 let clickTimer = null;
@@ -90,6 +91,11 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 chrome.commands.onCommand.addListener(async (command) => {
   if (command === "reload-extension") {
+    try {
+      await chrome.storage.local.set({ [RELOAD_PENDING_KEY]: true });
+    } catch (error) {
+      console.warn("Web Slicer reload flag failed", error);
+    }
     chrome.runtime.reload();
     return;
   }
@@ -111,6 +117,31 @@ chrome.commands.onCommand.addListener(async (command) => {
   } catch (error) {
     console.warn("Web Slicer save hotkey failed", error);
   }
+});
+
+async function handleReloadPending() {
+  try {
+    const data = await chrome.storage.local.get(RELOAD_PENDING_KEY);
+    if (!data[RELOAD_PENDING_KEY]) {
+      return;
+    }
+    await chrome.storage.local.remove(RELOAD_PENDING_KEY);
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs[0];
+    if (tab?.id) {
+      chrome.tabs.reload(tab.id);
+    }
+  } catch (error) {
+    console.warn("Web Slicer reload pending failed", error);
+  }
+}
+
+chrome.runtime.onStartup.addListener(() => {
+  handleReloadPending();
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+  handleReloadPending();
 });
 
 chrome.commands.onCommand.addListener((command) => {
