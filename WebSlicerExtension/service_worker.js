@@ -1,6 +1,13 @@
 const STORAGE_KEY = "slicer_api_base";
+const SETTINGS_KEYS = {
+  defaultMode: "slicer_default_mode",
+  doubleClickLibrary: "slicer_double_click_library",
+  hotkeySave: "slicer_hotkey_save",
+};
 
 let configPromise = null;
+let clickTimer = null;
+let lastClickTime = 0;
 
 async function getConfig() {
   if (configPromise) {
@@ -21,6 +28,21 @@ async function getApiBase() {
   return config.api_base || "";
 }
 
+async function getSettings() {
+  const data = await chrome.storage.sync.get(Object.values(SETTINGS_KEYS));
+  return {
+    defaultMode: data[SETTINGS_KEYS.defaultMode] || "pick",
+    doubleClickLibrary:
+      typeof data[SETTINGS_KEYS.doubleClickLibrary] === "boolean"
+        ? data[SETTINGS_KEYS.doubleClickLibrary]
+        : false,
+    hotkeySave:
+      typeof data[SETTINGS_KEYS.hotkeySave] === "boolean"
+        ? data[SETTINGS_KEYS.hotkeySave]
+        : true,
+  };
+}
+
 async function ensureContentScript(tabId) {
   await chrome.scripting.executeScript({
     target: { tabId },
@@ -37,7 +59,58 @@ chrome.action.onClicked.addListener(async (tab) => {
   } catch (error) {
     console.warn("Web Slicer failed to inject content script", error);
   }
+  try {
+    const settings = await getSettings();
+    if (settings.doubleClickLibrary) {
+      const now = Date.now();
+      if (now - lastClickTime < 350) {
+        lastClickTime = 0;
+        if (clickTimer) {
+          clearTimeout(clickTimer);
+          clickTimer = null;
+        }
+        chrome.tabs.sendMessage(tab.id, { type: "slicer-open-library" });
+        return;
+      }
+      lastClickTime = now;
+      if (clickTimer) {
+        clearTimeout(clickTimer);
+      }
+      clickTimer = setTimeout(() => {
+        chrome.tabs.sendMessage(tab.id, { type: "slicer-toggle" });
+        clickTimer = null;
+      }, 350);
+      return;
+    }
+  } catch (error) {
+    console.warn("Web Slicer settings lookup failed", error);
+  }
   chrome.tabs.sendMessage(tab.id, { type: "slicer-toggle" });
+});
+
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command === "reload-extension") {
+    chrome.runtime.reload();
+    return;
+  }
+  if (command !== "save-slice") {
+    return;
+  }
+  try {
+    const settings = await getSettings();
+    if (!settings.hotkeySave) {
+      return;
+    }
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = tabs[0];
+    if (!tab?.id) {
+      return;
+    }
+    await ensureContentScript(tab.id);
+    chrome.tabs.sendMessage(tab.id, { type: "slicer-save-now" });
+  } catch (error) {
+    console.warn("Web Slicer save hotkey failed", error);
+  }
 });
 
 chrome.commands.onCommand.addListener((command) => {

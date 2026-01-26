@@ -18,6 +18,13 @@
         "mac": "Command+Shift+U"
       },
       "description": "Reload Web Slicer"
+    },
+    "save-slice": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Save current slice"
     }
   },
   "options_page": "options.html",

@@ -23,6 +23,12 @@
     scrollLock: null,
   };
 
+  const SETTINGS_KEYS = {
+    defaultMode: "slicer_default_mode",
+    doubleClickLibrary: "slicer_double_click_library",
+    hotkeySave: "slicer_hotkey_save",
+  };
+
   const overlay = mountOverlay();
   const toolbar = buildToolbar();
   const previewPanel = buildPreviewPanel();
@@ -53,6 +59,12 @@
   chrome.runtime.onMessage.addListener((message) => {
     if (message?.type === "slicer-toggle") {
       toggleToolbar();
+    }
+    if (message?.type === "slicer-open-library") {
+      handleToggleToolbar({ openLibrary: true });
+    }
+    if (message?.type === "slicer-save-now") {
+      saveSlice();
     }
   });
 
@@ -384,27 +396,58 @@
     }
   }
 
-  function toggleToolbar() {
+  async function getExtensionSettings() {
+    const data = await chrome.storage.sync.get(Object.values(SETTINGS_KEYS));
+    return {
+      defaultMode: data[SETTINGS_KEYS.defaultMode] || "pick",
+    };
+  }
+
+  async function toggleToolbar() {
+    await handleToggleToolbar();
+  }
+
+  async function handleToggleToolbar(options = {}) {
+    if (options.openLibrary) {
+      if (!state.visible) {
+        const settings = await getExtensionSettings();
+        showToolbar({ startMode: settings.defaultMode });
+      }
+      showLibrary();
+      return;
+    }
     if (state.visible) {
       hideToolbar();
-    } else {
-      showToolbar({ startPick: true });
+      return;
     }
+    const settings = await getExtensionSettings();
+    showToolbar({ startMode: settings.defaultMode });
   }
 
   function showToolbar(options = {}) {
     state.visible = true;
     overlay.uiRoot.style.display = "block";
     toolbar.el.style.display = "flex";
-    if (options.startPick) {
-      state.mode = "pick";
-      state.startElement = null;
-      state.lastPickedElement = null;
-      state.sliceStartY = null;
-      hideSliceLines();
+    if (options.startMode) {
+      applyStartMode(options.startMode);
     }
     updateStatus();
     renderSegmentHighlights();
+  }
+
+  function applyStartMode(mode) {
+    state.startElement = null;
+    state.lastPickedElement = null;
+    state.sliceStartY = null;
+    hideSliceLines();
+    if (mode === "slice") {
+      state.mode = "slice";
+      hideHighlight();
+    } else if (mode === "none" || mode === "idle") {
+      state.mode = "idle";
+    } else {
+      state.mode = "pick";
+    }
   }
 
   function hideToolbar() {

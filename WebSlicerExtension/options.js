@@ -1,4 +1,9 @@
 const STORAGE_KEY = "slicer_api_base";
+const SETTINGS_KEYS = {
+  defaultMode: "slicer_default_mode",
+  doubleClickLibrary: "slicer_double_click_library",
+  hotkeySave: "slicer_hotkey_save",
+};
 
 let configPromise = null;
 
@@ -15,20 +20,37 @@ async function getConfig() {
 const apiBaseInput = document.getElementById("apiBase");
 const status = document.getElementById("status");
 const saveButton = document.getElementById("save");
+const defaultModeSelect = document.getElementById("defaultMode");
+const doubleClickLibrary = document.getElementById("doubleClickLibrary");
+const hotkeySave = document.getElementById("hotkeySave");
 
 async function loadSettings() {
-  const data = await chrome.storage.sync.get(STORAGE_KEY);
+  const data = await chrome.storage.sync.get([STORAGE_KEY, ...Object.values(SETTINGS_KEYS)]);
   if (data[STORAGE_KEY]) {
     apiBaseInput.value = data[STORAGE_KEY];
-    return;
+  } else {
+    const config = await getConfig();
+    apiBaseInput.value = config.api_base || "";
   }
-  const config = await getConfig();
-  apiBaseInput.value = config.api_base || "";
+  defaultModeSelect.value = data[SETTINGS_KEYS.defaultMode] || "pick";
+  doubleClickLibrary.checked =
+    typeof data[SETTINGS_KEYS.doubleClickLibrary] === "boolean"
+      ? data[SETTINGS_KEYS.doubleClickLibrary]
+      : false;
+  hotkeySave.checked =
+    typeof data[SETTINGS_KEYS.hotkeySave] === "boolean"
+      ? data[SETTINGS_KEYS.hotkeySave]
+      : true;
 }
 
 async function saveSettings() {
   const value = apiBaseInput.value.trim();
-  await chrome.storage.sync.set({ [STORAGE_KEY]: value });
+  await chrome.storage.sync.set({
+    [STORAGE_KEY]: value,
+    [SETTINGS_KEYS.defaultMode]: defaultModeSelect.value,
+    [SETTINGS_KEYS.doubleClickLibrary]: doubleClickLibrary.checked,
+    [SETTINGS_KEYS.hotkeySave]: hotkeySave.checked,
+  });
   status.textContent = "Saved.";
   setTimeout(() => {
     status.textContent = "";
