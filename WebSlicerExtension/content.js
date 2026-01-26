@@ -1625,11 +1625,9 @@
     let doc = "";
     const sliceHtml = html || "";
     if (resolvedMode === "slice-only") {
-      if (pageHtml && Array.isArray(sliceRanges) && sliceRanges.length) {
-        doc = buildSliceOnlyDocument(pageHtml, safeTitle, safeBase, sliceRanges);
-      } else {
-        doc = buildSliceDocument(sliceHtml, safeTitle, safeBase);
-      }
+      doc = pageHtml
+        ? buildPlainPageDocument(pageHtml, safeTitle, safeBase)
+        : buildSliceDocument(sliceHtml, safeTitle, safeBase);
     } else if (resolvedMode === "slice-in-page") {
       if (!pageHtml) {
         doc = buildSliceDocument(sliceHtml, safeTitle, safeBase);
@@ -1648,14 +1646,13 @@
       const mode = state.fullPreviewMode;
       const rawRanges = Array.isArray(sliceRanges) ? sliceRanges : [];
       const scaledRanges =
-        mode === "slice-in-page"
+        mode === "slice-in-page" || mode === "slice-only"
           ? scaleSliceRanges(rawRanges, pageMetrics, fullPreview.iframe)
           : rawRanges;
       if (mode === "slice-in-page") {
         applyOverlayRanges(fullPreview.iframe, scaledRanges);
-      }
-      if (mode === "slice-only") {
-        applySliceOnlyCrop(fullPreview.iframe, scaledRanges);
+      } else if (mode === "slice-only") {
+        applySliceOnlyMask(fullPreview.iframe, scaledRanges);
       }
       if (mode !== "slice-in-page" || !scaledRanges.length) {
         return;
@@ -1702,42 +1699,6 @@
     <div class="slice-preview">${html || ""}</div>
   </body>
 </html>`;
-  }
-
-  function buildSliceOnlyDocument(pageHtml, safeTitle, safeBase, sliceRanges) {
-    const ranges = Array.isArray(sliceRanges) ? sliceRanges : [];
-    if (!ranges.length) {
-      return buildPageDocument(pageHtml, safeTitle, safeBase, []);
-    }
-    const top = Math.min(...ranges.map((range) => Math.min(range.yStart, range.yEnd)));
-    const bottom = Math.max(...ranges.map((range) => Math.max(range.yStart, range.yEnd)));
-    const height = Math.max(1, bottom - top);
-    let doc = pageHtml || "";
-    const baseTag = `<base href="${safeBase}">`;
-    const sliceStyle = `<style id="slicer-slice-style">
-      html, body { margin: 0; padding: 0; overflow: hidden; height: ${height}px; }
-      #slicer-slice-root { transform: translateY(-${top}px); transform-origin: top left; }
-      img, video { max-width: 100%; height: auto; }
-    </style>`;
-
-    if (doc.includes("<head")) {
-      doc = doc.replace(/<head[^>]*>/i, (match) => `${match}${baseTag}${sliceStyle}`);
-    } else {
-      doc = `<!doctype html><html><head><meta charset="utf-8"><title>${safeTitle}</title>${baseTag}${sliceStyle}</head>${doc}</html>`;
-    }
-
-    if (doc.includes("<body")) {
-      if (!doc.includes("slicer-slice-root")) {
-        doc = doc.replace(/<body[^>]*>/i, (match) => `${match}<div id="slicer-slice-root">`);
-        doc = doc.replace(/<\/body>/i, "</div></body>");
-      }
-    }
-
-    if (!doc.toLowerCase().includes("<title")) {
-      doc = doc.replace(/<head[^>]*>/i, (match) => `${match}<title>${safeTitle}</title>`);
-    }
-
-    return doc;
   }
 
   function buildPlainPageDocument(pageHtml, safeTitle, safeBase) {
@@ -1807,30 +1768,80 @@
     });
   }
 
-  function applySliceOnlyCrop(iframe, sliceRanges) {
+  function applySliceOnlyMask(iframe, sliceRanges) {
     if (!iframe?.contentDocument || !Array.isArray(sliceRanges) || !sliceRanges.length) {
       return;
     }
     const doc = iframe.contentDocument;
-    const style = doc.getElementById("slicer-slice-style");
-    if (!style) {
+    const win = doc.defaultView;
+    const existing = doc.getElementById("slicer-slice-mask");
+    if (existing) {
+      existing.remove();
+    }
+
+    const bodyOffset = doc.body
+      ? doc.body.getBoundingClientRect().top + (win?.scrollY || 0)
+      : 0;
+    const docHeight =
+      Math.max(
+        doc.documentElement.scrollHeight || 0,
+        doc.body?.scrollHeight || 0
+      ) - Math.max(0, bodyOffset);
+    const ranges = sliceRanges
+      .map((range) => ({
+        top: Math.max(0, Math.min(range.yStart, range.yEnd) - bodyOffset),
+        bottom: Math.max(0, Math.max(range.yStart, range.yEnd) - bodyOffset),
+      }))
+      .filter((range) => range.bottom > range.top)
+      .sort((a, b) => a.top - b.top);
+
+    if (!ranges.length || docHeight <= 0) {
       return;
     }
-    const bodyOffset = doc.body
-      ? doc.body.getBoundingClientRect().top + (doc.defaultView?.scrollY || 0)
-      : 0;
-    const rawTop = Math.min(...sliceRanges.map((range) => Math.min(range.yStart, range.yEnd)));
-    const rawBottom = Math.max(
-      ...sliceRanges.map((range) => Math.max(range.yStart, range.yEnd))
-    );
-    const top = Math.max(0, rawTop - bodyOffset);
-    const bottom = Math.max(0, rawBottom - bodyOffset);
-    const height = Math.max(1, bottom - top);
-    style.textContent = `
-      html, body { margin: 0; padding: 0; overflow: hidden; height: ${height}px; }
-      #slicer-slice-root { transform: translateY(-${top}px); transform-origin: top left; }
-      img, video { max-width: 100%; height: auto; }
-    `;
+
+    const mask = doc.createElement("div");
+    mask.id = "slicer-slice-mask";
+    mask.style.position = "absolute";
+    mask.style.left = "0";
+    mask.style.right = "0";
+    mask.style.top = "0";
+    mask.style.height = `${docHeight}px`;
+    mask.style.pointerEvents = "none";
+    mask.style.zIndex = "2147483646";
+
+    const bodyBg = doc.body
+      ? win?.getComputedStyle(doc.body).backgroundColor
+      : "rgba(255, 255, 255, 1)";
+    const background =
+      !bodyBg || bodyBg === "rgba(0, 0, 0, 0)" ? "rgba(255, 255, 255, 1)" : bodyBg;
+
+    let cursor = 0;
+    ranges.forEach((range) => {
+      if (range.top > cursor) {
+        mask.appendChild(buildMaskBlock(doc, background, cursor, range.top - cursor));
+      }
+      cursor = Math.max(cursor, range.bottom);
+    });
+    if (cursor < docHeight) {
+      mask.appendChild(buildMaskBlock(doc, background, cursor, docHeight - cursor));
+    }
+
+    if (doc.body) {
+      doc.body.appendChild(mask);
+    } else {
+      doc.documentElement.appendChild(mask);
+    }
+  }
+
+  function buildMaskBlock(doc, background, top, height) {
+    const block = doc.createElement("div");
+    block.style.position = "absolute";
+    block.style.left = "0";
+    block.style.right = "0";
+    block.style.top = `${top}px`;
+    block.style.height = `${Math.max(0, height)}px`;
+    block.style.background = background;
+    return block;
   }
 
   function buildPageDocument(pageHtml, safeTitle, safeBase, sliceRanges) {
