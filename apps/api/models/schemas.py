@@ -388,6 +388,37 @@ class ReaderSettingsResponse(BaseModel):
     settings: ReaderSettings
 
 
+class ExploreSettings(BaseModel):
+    system_prompt: str
+    model: str
+    reasoning_effort: str
+
+
+class ExploreSettingsUpdate(BaseModel):
+    system_prompt: Optional[str] = None
+    model: Optional[str] = None
+    reasoning_effort: Optional[str] = None
+
+
+class ExploreSettingsResponse(BaseModel):
+    settings: ExploreSettings
+
+
+class ExploreModelInfo(BaseModel):
+    id: str
+    label: Optional[str] = None
+
+
+class ExploreReasoningLevel(BaseModel):
+    value: str
+    label: str
+
+
+class ExploreModelsResponse(BaseModel):
+    models: List[ExploreModelInfo]
+    reasoning_levels: List[ExploreReasoningLevel]
+
+
 class ExploreRequest(BaseModel):
     selection_text: str
     context_text: Optional[str] = None
@@ -407,6 +438,8 @@ class ExploreChatRequest(BaseModel):
     mode: Optional[str] = "codex-cli"
     action: Optional[str] = None
     system_prompt: Optional[str] = None
+    model: Optional[str] = None
+    reasoning_effort: Optional[str] = None
     title: Optional[str] = None
     book_title: Optional[str] = None
     document_id: Optional[int] = None

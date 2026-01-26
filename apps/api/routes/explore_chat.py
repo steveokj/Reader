@@ -16,6 +16,7 @@ from ..models.schemas import (
     ExploreThreadUpdate,
 )
 from ..services import explore_chat as explore_chat_service
+from ..services import explore_settings as explore_settings_service
 
 router = APIRouter(prefix="/explore/chat", tags=["explore"])
 
@@ -95,6 +96,8 @@ def run_codex_cli(
     *,
     resume_last: bool = False,
     session_id: Optional[str] = None,
+    model: Optional[str] = None,
+    reasoning_effort: Optional[str] = None,
 ) -> tuple[str, Optional[str], str]:
     codex_path = resolve_codex_path()
     if not codex_path:
@@ -110,6 +113,10 @@ def run_codex_cli(
         output_path,
         "--json",
     ]
+    if model:
+        cmd.extend(["--model", model])
+    if reasoning_effort:
+        cmd.extend(["-c", f'model_reasoning_effort="{reasoning_effort}"'])
     if session_id:
         cmd.extend(["resume", session_id, "-"])
     elif resume_last:
@@ -179,6 +186,11 @@ def explore_chat(payload: ExploreChatRequest):
 
     conn = get_conn()
     try:
+        settings = explore_settings_service.get_settings(conn)
+        resolved_model = (payload.model or settings.get("model") or "").strip() or None
+        resolved_reasoning = (payload.reasoning_effort or settings.get("reasoning_effort") or "").strip() or None
+        resolved_system_prompt = (payload.system_prompt or settings.get("system_prompt") or "").strip()
+
         thread = None
         if payload.thread_id and action != "new":
             thread = explore_chat_service.get_thread(conn, payload.thread_id)
@@ -186,7 +198,7 @@ def explore_chat(payload: ExploreChatRequest):
                 raise HTTPException(status_code=404, detail="Thread not found.")
 
         if not thread:
-            system_prompt = (payload.system_prompt or _resolve_system_prompt(payload)).strip()
+            system_prompt = resolved_system_prompt or _resolve_system_prompt(payload)
             title = payload.title.strip() if payload.title else None
             if not title:
                 title = (message[:48] + "...") if len(message) > 48 else message
@@ -211,12 +223,16 @@ def explore_chat(payload: ExploreChatRequest):
                         prompt,
                         timeout_seconds,
                         session_id=session_id,
+                        model=resolved_model,
+                        reasoning_effort=resolved_reasoning,
                     )
                 else:
                     response_text, session_id, _ = run_codex_cli(
                         prompt,
                         timeout_seconds,
                         resume_last=True,
+                        model=resolved_model,
+                        reasoning_effort=resolved_reasoning,
                     )
             else:
                 system_prompt = thread.get("system_prompt") or _resolve_system_prompt(payload)
@@ -225,6 +241,8 @@ def explore_chat(payload: ExploreChatRequest):
                     prompt,
                     timeout_seconds,
                     resume_last=resume_last,
+                    model=resolved_model,
+                    reasoning_effort=resolved_reasoning,
                 )
 
             if session_id and not thread.get("cli_session_id"):

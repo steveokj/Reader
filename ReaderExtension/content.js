@@ -15,6 +15,21 @@
     /https?:\/\/[^\s)]+?\.(?:png|jpe?g|gif|webp|svg)(?:\?[^\s)]+)?/gi;
   const EXPLORE_MARKDOWN_IMAGE_REGEX = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/gi;
 
+  const EXPLORE_DEFAULT_MODEL = "gpt-5.2-codex";
+  const EXPLORE_DEFAULT_REASONING = "medium";
+  const EXPLORE_REASONING_LEVELS = [
+    { value: "none", label: "None" },
+    { value: "minimal", label: "Minimal" },
+    { value: "low", label: "Low" },
+    { value: "medium", label: "Medium" },
+    { value: "high", label: "High" },
+    { value: "xhigh", label: "Extra high" },
+  ];
+  const EXPLORE_MODEL_OPTIONS = [
+    { id: "gpt-5.2-codex", label: "gpt-5.2-codex" },
+    { id: "gpt-5.2", label: "gpt-5.2" },
+  ];
+
   const state = {
     selection: null,
     selectionId: null,
@@ -58,6 +73,20 @@
     anchorText: "",
     anchorUrl: "",
     anchorTitle: "",
+  };
+
+  const exploreSettings = {
+    loaded: false,
+    systemPrompt: "",
+    model: "",
+    reasoning: "",
+    availableModels: [],
+    reasoningLevels: [],
+    showPanel: false,
+    draft: null,
+    forceNewThread: false,
+    badgeText: "",
+    badgeTimeout: null,
   };
 
   const artifactState = {
@@ -905,13 +934,76 @@
     title.className = "explore-chat-modal__title";
     title.textContent = "Explore";
 
+    const headerActions = document.createElement("div");
+    headerActions.className = "explore-chat-modal__actions";
+
+    const settings = document.createElement("button");
+    settings.type = "button";
+    settings.className = "explore-chat-modal__settings";
+    settings.innerHTML = iconSettings();
+
     const close = document.createElement("button");
     close.type = "button";
     close.className = "explore-chat-modal__close";
     close.innerHTML = iconClose();
 
+    headerActions.appendChild(settings);
+    headerActions.appendChild(close);
+
     header.appendChild(title);
-    header.appendChild(close);
+    header.appendChild(headerActions);
+
+    const badge = document.createElement("div");
+    badge.className = "explore-chat-modal__badge";
+    badge.style.display = "none";
+
+    const settingsPanel = document.createElement("div");
+    settingsPanel.className = "explore-settings";
+    settingsPanel.style.display = "none";
+
+    const promptField = document.createElement("div");
+    promptField.className = "explore-settings__field";
+    const promptLabel = document.createElement("label");
+    promptLabel.textContent = "System prompt";
+    const promptInput = document.createElement("textarea");
+    promptInput.className = "explore-settings__textarea";
+    promptField.appendChild(promptLabel);
+    promptField.appendChild(promptInput);
+
+    const modelField = document.createElement("div");
+    modelField.className = "explore-settings__field";
+    const modelLabel = document.createElement("label");
+    modelLabel.textContent = "Model";
+    const modelSelect = document.createElement("select");
+    modelSelect.className = "explore-settings__select";
+    modelField.appendChild(modelLabel);
+    modelField.appendChild(modelSelect);
+
+    const reasoningField = document.createElement("div");
+    reasoningField.className = "explore-settings__field";
+    const reasoningLabel = document.createElement("label");
+    reasoningLabel.textContent = "Reasoning level";
+    const reasoningSelect = document.createElement("select");
+    reasoningSelect.className = "explore-settings__select";
+    reasoningField.appendChild(reasoningLabel);
+    reasoningField.appendChild(reasoningSelect);
+
+    const settingsActions = document.createElement("div");
+    settingsActions.className = "explore-settings__actions";
+    const settingsCancel = document.createElement("button");
+    settingsCancel.type = "button";
+    settingsCancel.className = "secondary";
+    settingsCancel.textContent = "Cancel";
+    const settingsSave = document.createElement("button");
+    settingsSave.type = "button";
+    settingsSave.textContent = "Save settings";
+    settingsActions.appendChild(settingsCancel);
+    settingsActions.appendChild(settingsSave);
+
+    settingsPanel.appendChild(promptField);
+    settingsPanel.appendChild(modelField);
+    settingsPanel.appendChild(reasoningField);
+    settingsPanel.appendChild(settingsActions);
 
     const context = document.createElement("div");
     context.className = "explore-chat-modal__context";
@@ -955,6 +1047,8 @@
     form.appendChild(submit);
 
     panel.appendChild(header);
+    panel.appendChild(badge);
+    panel.appendChild(settingsPanel);
     panel.appendChild(context);
     panel.appendChild(messages);
     panel.appendChild(error);
@@ -987,6 +1081,10 @@
       closeExploreModal();
     });
 
+    settings.addEventListener("click", () => {
+      toggleExploreSettingsPanel();
+    });
+
     contextClear.addEventListener("click", () => {
       exploreState.contextText = "";
       renderExploreContext();
@@ -1003,6 +1101,35 @@
       void handleExploreSubmit();
     });
 
+    promptInput.addEventListener("input", (event) => {
+      if (!exploreSettings.draft) {
+        return;
+      }
+      exploreSettings.draft.systemPrompt = event.target.value;
+    });
+
+    modelSelect.addEventListener("change", (event) => {
+      if (!exploreSettings.draft) {
+        return;
+      }
+      exploreSettings.draft.model = event.target.value;
+    });
+
+    reasoningSelect.addEventListener("change", (event) => {
+      if (!exploreSettings.draft) {
+        return;
+      }
+      exploreSettings.draft.reasoning = event.target.value;
+    });
+
+    settingsCancel.addEventListener("click", () => {
+      toggleExploreSettingsPanel(false);
+    });
+
+    settingsSave.addEventListener("click", () => {
+      void handleExploreSettingsSave();
+    });
+
     zoomClose.addEventListener("click", () => {
       hideExploreZoom();
     });
@@ -1015,6 +1142,14 @@
     return {
       el,
       panel,
+      badge,
+      settingsPanel,
+      settingsButton: settings,
+      settingsPrompt: promptInput,
+      settingsModel: modelSelect,
+      settingsReasoning: reasoningSelect,
+      settingsSave,
+      settingsCancel,
       context,
       contextText,
       contextClear,
@@ -1469,6 +1604,7 @@
     exploreState.error = "";
     exploreState.isSubmitting = false;
     exploreState.storageKey = getExploreStorageKey();
+    void loadExploreSettings();
     loadExploreSession();
     exploreModal.textarea.value = exploreState.draft;
     renderExploreModal();
@@ -1485,6 +1621,7 @@
   function closeExploreModal() {
     hideExploreZoom();
     hideArtifactMenu();
+    toggleExploreSettingsPanel(false);
     hideExploreModal();
   }
 
@@ -1561,11 +1698,191 @@
     }
   }
 
+  async function loadExploreSettings() {
+    if (exploreSettings.loaded) {
+      return;
+    }
+    let settings = null;
+    let models = null;
+    try {
+      const settingsResult = await apiRequest({ path: "/explore/settings" });
+      if (settingsResult.ok && settingsResult.data?.settings) {
+        settings = settingsResult.data.settings;
+      }
+    } catch (error) {
+      settings = null;
+    }
+    try {
+      const modelsResult = await apiRequest({ path: "/explore/models" });
+      if (modelsResult.ok && modelsResult.data) {
+        models = modelsResult.data;
+      }
+    } catch (error) {
+      models = null;
+    }
+
+    exploreSettings.systemPrompt =
+      settings?.system_prompt || exploreSettings.systemPrompt || "";
+    exploreSettings.model =
+      settings?.model || exploreSettings.model || EXPLORE_DEFAULT_MODEL;
+    exploreSettings.reasoning =
+      settings?.reasoning_effort || exploreSettings.reasoning || EXPLORE_DEFAULT_REASONING;
+
+    exploreSettings.availableModels = Array.isArray(models?.models)
+      ? models.models
+      : EXPLORE_MODEL_OPTIONS;
+    exploreSettings.reasoningLevels = Array.isArray(models?.reasoning_levels)
+      ? models.reasoning_levels
+      : EXPLORE_REASONING_LEVELS;
+
+    exploreSettings.loaded = true;
+    renderExploreSettingsPanel();
+  }
+
+  function getReasoningLabel(value) {
+    const option =
+      exploreSettings.reasoningLevels.find((level) => level.value === value) ||
+      EXPLORE_REASONING_LEVELS.find((level) => level.value === value);
+    return option ? option.label : value;
+  }
+
+  function renderExploreSettingsPanel() {
+    const panel = exploreModal.settingsPanel;
+    if (!panel) {
+      return;
+    }
+    const draft =
+      exploreSettings.draft || {
+        systemPrompt: exploreSettings.systemPrompt || "",
+        model: exploreSettings.model || EXPLORE_DEFAULT_MODEL,
+        reasoning: exploreSettings.reasoning || EXPLORE_DEFAULT_REASONING,
+      };
+    exploreSettings.draft = draft;
+
+    exploreModal.settingsPrompt.value = draft.systemPrompt || "";
+
+    const modelSelect = exploreModal.settingsModel;
+    modelSelect.innerHTML = "";
+    (exploreSettings.availableModels.length
+      ? exploreSettings.availableModels
+      : EXPLORE_MODEL_OPTIONS
+    ).forEach((model) => {
+      const option = document.createElement("option");
+      option.value = model.id;
+      option.textContent = model.label || model.id;
+      if (model.id === draft.model) {
+        option.selected = true;
+      }
+      modelSelect.appendChild(option);
+    });
+
+    const reasoningSelect = exploreModal.settingsReasoning;
+    reasoningSelect.innerHTML = "";
+    (exploreSettings.reasoningLevels.length
+      ? exploreSettings.reasoningLevels
+      : EXPLORE_REASONING_LEVELS
+    ).forEach((level) => {
+      const option = document.createElement("option");
+      option.value = level.value;
+      option.textContent = level.label;
+      if (level.value === draft.reasoning) {
+        option.selected = true;
+      }
+      reasoningSelect.appendChild(option);
+    });
+
+    exploreModal.settingsSave.disabled = !exploreSettings.loaded;
+  }
+
+  function toggleExploreSettingsPanel(force) {
+    const shouldOpen = typeof force === "boolean" ? force : !exploreSettings.showPanel;
+    exploreSettings.showPanel = shouldOpen;
+    if (shouldOpen) {
+      exploreSettings.draft = {
+        systemPrompt: exploreSettings.systemPrompt || "",
+        model: exploreSettings.model || EXPLORE_DEFAULT_MODEL,
+        reasoning: exploreSettings.reasoning || EXPLORE_DEFAULT_REASONING,
+      };
+      renderExploreSettingsPanel();
+      exploreModal.settingsPanel.style.display = "block";
+    } else {
+      exploreSettings.draft = null;
+      exploreModal.settingsPanel.style.display = "none";
+    }
+  }
+
+  function showExploreBadge(text) {
+    if (!text) {
+      return;
+    }
+    exploreSettings.badgeText = text;
+    exploreModal.badge.textContent = text;
+    exploreModal.badge.style.display = "inline-flex";
+    if (exploreSettings.badgeTimeout) {
+      window.clearTimeout(exploreSettings.badgeTimeout);
+    }
+    exploreSettings.badgeTimeout = window.setTimeout(() => {
+      exploreModal.badge.style.display = "none";
+      exploreModal.badge.textContent = "";
+      exploreSettings.badgeText = "";
+    }, 2600);
+  }
+
+  async function handleExploreSettingsSave() {
+    if (!exploreSettings.draft) {
+      return;
+    }
+    const draft = exploreSettings.draft;
+    const previousReasoning = exploreSettings.reasoning;
+    const previousModel = exploreSettings.model;
+    const previousPrompt = exploreSettings.systemPrompt;
+
+    const result = await apiRequest({
+      path: "/explore/settings",
+      method: "PUT",
+      json: {
+        system_prompt: draft.systemPrompt,
+        model: draft.model,
+        reasoning_effort: draft.reasoning,
+      },
+    });
+    if (!result.ok) {
+      exploreState.error = result.error || "Failed to save settings.";
+      renderExploreError();
+      return;
+    }
+    exploreSettings.systemPrompt = draft.systemPrompt;
+    exploreSettings.model = draft.model;
+    exploreSettings.reasoning = draft.reasoning;
+    exploreSettings.forceNewThread = true;
+
+    const changes = [];
+    if (previousReasoning !== draft.reasoning) {
+      changes.push(
+        `Reasoning: ${getReasoningLabel(previousReasoning)} → ${getReasoningLabel(
+          draft.reasoning
+        )}`
+      );
+    }
+    if (previousModel !== draft.model) {
+      changes.push(`Model: ${previousModel || "default"} → ${draft.model}`);
+    }
+    if (previousPrompt !== draft.systemPrompt) {
+      changes.push("Prompt updated");
+    }
+    if (changes.length) {
+      showExploreBadge(changes.join(" · "));
+    }
+
+    toggleExploreSettingsPanel(false);
+  }
+
   function renderExploreModal() {
     renderExploreContext();
     renderExploreMessages();
     renderExploreError();
     updateExploreSubmit();
+    renderExploreSettingsPanel();
   }
 
   function renderExploreContext() {
@@ -1679,14 +1996,21 @@
     const payloadMessage = `${contextPrefix}${trimmed}`;
 
     try {
+      await loadExploreSettings();
+      const forceNewThread = exploreSettings.forceNewThread;
+      const threadId = forceNewThread ? null : exploreState.threadId;
+      const action = threadId ? "resume" : "new";
       const result = await apiRequest({
         path: "/explore/chat",
         method: "POST",
         json: {
-          thread_id: exploreState.threadId,
+          thread_id: threadId,
           message: payloadMessage,
-          action: exploreState.threadId ? "resume" : "new",
+          action,
           mode: "codex-cli",
+          system_prompt: exploreSettings.systemPrompt || null,
+          model: exploreSettings.model || null,
+          reasoning_effort: exploreSettings.reasoning || null,
           book_title: document.title || "the current page",
           document_id: null,
         },
@@ -1698,8 +2022,11 @@
       }
       const data = result.data || {};
       const assistantText = data.messages?.[0]?.content ?? "";
-      if (data.thread?.id && !exploreState.threadId) {
+      if (data.thread?.id && !threadId) {
         exploreState.threadId = data.thread.id;
+      }
+      if (forceNewThread) {
+        exploreSettings.forceNewThread = false;
       }
       if (assistantText) {
         const assistantMessage = {
@@ -3705,6 +4032,10 @@
 
   function iconExplore() {
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7l4 8-8-4 4-4z" /></svg>';
+  }
+
+  function iconSettings() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 100 8 4 4 0 000-8z" /><path d="M4 12a8 8 0 011.2-4.1l2 1.2a6 6 0 000 5.8l-2 1.2A8 8 0 014 12z" /><path d="M20 12a8 8 0 01-1.2 4.1l-2-1.2a6 6 0 000-5.8l2-1.2A8 8 0 0120 12z" /><path d="M12 4a8 8 0 014.1 1.2l-1.2 2a6 6 0 00-5.8 0l-1.2-2A8 8 0 0112 4z" /><path d="M12 20a8 8 0 01-4.1-1.2l1.2-2a6 6 0 005.8 0l1.2 2A8 8 0 0112 20z" /></svg>';
   }
 
   function iconJump() {
