@@ -1802,6 +1802,9 @@
       return;
     }
 
+    const firstTop = ranges[0]?.top ?? 0;
+    pinIframeScroll(iframe, firstTop);
+
     const mask = doc.createElement("div");
     mask.id = "slicer-slice-mask";
     mask.style.position = "absolute";
@@ -1935,6 +1938,26 @@
         block(event);
       }
     });
+  }
+
+  function pinIframeScroll(iframe, top) {
+    const doc = iframe?.contentDocument;
+    const win = iframe?.contentWindow;
+    if (!doc || !win || !doc.body) {
+      return;
+    }
+    const targetTop = Math.max(0, Number.isFinite(top) ? top : 0);
+    try {
+      win.scrollTo({ top: Math.max(0, targetTop - 40), behavior: "auto" });
+    } catch (error) {
+      win.scrollTo(0, Math.max(0, targetTop - 40));
+    }
+    const offset = win.scrollY || 0;
+    doc.body.style.position = "fixed";
+    doc.body.style.top = `-${offset}px`;
+    doc.body.style.left = "0";
+    doc.body.style.right = "0";
+    doc.body.style.width = "100%";
   }
 
   function buildPageDocument(pageHtml, safeTitle, safeBase, sliceRanges) {
