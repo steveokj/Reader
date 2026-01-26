@@ -1794,7 +1794,7 @@
         doc.documentElement.scrollHeight || 0,
         doc.body?.scrollHeight || 0
       ) - Math.max(0, bodyOffset);
-    const ranges = getOverlayRanges(doc, sliceRanges)
+    let ranges = getOverlayRanges(doc, sliceRanges)
       .filter((range) => range.bottom > range.top)
       .sort((a, b) => a.top - b.top);
 
@@ -1804,6 +1804,9 @@
 
     const firstTop = ranges[0]?.top ?? 0;
     pinIframeScroll(iframe, firstTop);
+    ranges = getOverlayRanges(doc, sliceRanges)
+      .filter((range) => range.bottom > range.top)
+      .sort((a, b) => a.top - b.top);
 
     const mask = doc.createElement("div");
     mask.id = "slicer-slice-mask";
