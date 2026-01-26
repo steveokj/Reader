@@ -2190,16 +2190,19 @@
     }
 
     fullPreview.title.textContent = displayTitle;
+    if (snapshotViewportWidth) {
+      fullPreview.iframe.style.width = `${snapshotViewportWidth}px`;
+      fullPreview.iframe.style.maxWidth = "100%";
+      fullPreview.iframe.style.margin = "0 auto";
+      fullPreview.iframe.style.display = "block";
+    } else {
+      fullPreview.iframe.style.width = "100%";
+      fullPreview.iframe.style.maxWidth = "";
+      fullPreview.iframe.style.margin = "0";
+      fullPreview.iframe.style.display = "block";
+    }
     fullPreview.iframe.srcdoc = doc;
     fullPreview.iframe.onload = () => {
-      if (snapshotViewportWidth) {
-        fullPreview.iframe.style.width = `${snapshotViewportWidth}px`;
-        fullPreview.iframe.style.margin = "0 auto";
-        fullPreview.iframe.style.display = "block";
-      } else {
-        fullPreview.iframe.style.width = "100%";
-        fullPreview.iframe.style.margin = "0";
-      }
       const mode = state.fullPreviewMode;
       const rawRanges = Array.isArray(sliceRanges) ? sliceRanges : [];
       const scaledRanges =
