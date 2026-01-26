@@ -1778,6 +1778,12 @@
     if (existing) {
       existing.remove();
     }
+    if (doc.documentElement) {
+      doc.documentElement.style.position = "relative";
+    }
+    if (doc.body) {
+      doc.body.style.position = "relative";
+    }
 
     const bodyOffset = doc.body
       ? doc.body.getBoundingClientRect().top + (win?.scrollY || 0)
@@ -1809,11 +1815,11 @@
     mask.style.pointerEvents = "none";
     mask.style.zIndex = "2147483646";
 
-    const bodyBg = doc.body
-      ? win?.getComputedStyle(doc.body).backgroundColor
-      : "rgba(255, 255, 255, 1)";
-    const background =
-      !bodyBg || bodyBg === "rgba(0, 0, 0, 0)" ? "rgba(255, 255, 255, 1)" : bodyBg;
+    const bodyBg = doc.body ? win?.getComputedStyle(doc.body).backgroundColor : "";
+    const htmlBg = doc.documentElement
+      ? win?.getComputedStyle(doc.documentElement).backgroundColor
+      : "";
+    const background = pickMaskBackground(bodyBg, htmlBg);
 
     let cursor = 0;
     ranges.forEach((range) => {
@@ -1831,6 +1837,8 @@
     } else {
       doc.documentElement.appendChild(mask);
     }
+
+    lockIframeScroll(iframe, ranges[0]?.top ?? 0);
   }
 
   function buildMaskBlock(doc, background, top, height) {
@@ -1842,6 +1850,72 @@
     block.style.height = `${Math.max(0, height)}px`;
     block.style.background = background;
     return block;
+  }
+
+  function pickMaskBackground(bodyBg, htmlBg) {
+    const resolvedBody = normalizeBackground(bodyBg);
+    if (resolvedBody) {
+      return resolvedBody;
+    }
+    const resolvedHtml = normalizeBackground(htmlBg);
+    if (resolvedHtml) {
+      return resolvedHtml;
+    }
+    return "rgba(255, 255, 255, 1)";
+  }
+
+  function normalizeBackground(value) {
+    if (!value) {
+      return "";
+    }
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "transparent" || trimmed === "rgba(0, 0, 0, 0)") {
+      return "";
+    }
+    return trimmed;
+  }
+
+  function lockIframeScroll(iframe, top) {
+    const doc = iframe?.contentDocument;
+    const win = iframe?.contentWindow;
+    if (!doc || !win) {
+      return;
+    }
+    const targetTop = Math.max(0, Number.isFinite(top) ? top : 0);
+    try {
+      win.scrollTo({ top: Math.max(0, targetTop - 40), behavior: "auto" });
+    } catch (error) {
+      win.scrollTo(0, Math.max(0, targetTop - 40));
+    }
+    doc.documentElement.style.overflow = "hidden";
+    doc.body.style.overflow = "hidden";
+    doc.documentElement.style.height = "100%";
+    doc.body.style.height = "100%";
+    if (iframe.dataset.slicerScrollLocked) {
+      return;
+    }
+    iframe.dataset.slicerScrollLocked = "1";
+    const block = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    doc.addEventListener("wheel", block, { passive: false });
+    doc.addEventListener("touchmove", block, { passive: false });
+    doc.addEventListener("keydown", (event) => {
+      const key = event.key;
+      if (
+        key === "ArrowDown" ||
+        key === "ArrowUp" ||
+        key === "PageDown" ||
+        key === "PageUp" ||
+        key === "Home" ||
+        key === "End" ||
+        key === " " ||
+        key === "Spacebar"
+      ) {
+        block(event);
+      }
+    });
   }
 
   function buildPageDocument(pageHtml, safeTitle, safeBase, sliceRanges) {
