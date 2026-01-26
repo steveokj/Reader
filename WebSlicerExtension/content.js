@@ -1472,40 +1472,52 @@
     };
   }
 
-  async function applyCleanedSliceRanges(recipe, pageHtml) {
+  async function applyCleanedSliceSnapshot(recipe, pageHtml, snapshot) {
     if (!recipe || !Array.isArray(recipe.segments) || !pageHtml) {
-      return recipe;
+      return {
+        recipe,
+        html: snapshot?.html || "",
+        text: snapshot?.text || "",
+      };
     }
-    const cleanedRanges = await computeCleanedSliceRanges(
+    const cleaned = await computeCleanedSliceSnapshot(
       recipe.segments,
       pageHtml,
       recipe.page_metrics
     );
-    if (!cleanedRanges) {
-      return recipe;
+    if (!cleaned) {
+      return {
+        recipe,
+        html: snapshot?.html || "",
+        text: snapshot?.text || "",
+      };
     }
     const updatedSegments = recipe.segments.map((segment, index) => {
       if (segment.type !== "slice") {
         return segment;
       }
-      const cleaned = cleanedRanges[index];
-      if (!cleaned) {
+      const cleanedRange = cleaned.ranges[index];
+      if (!cleanedRange) {
         return segment;
       }
       return {
         ...segment,
-        cleaned_yStart: cleaned.yStart,
-        cleaned_yEnd: cleaned.yEnd,
-        cleaned_source: cleaned._source || null,
+        cleaned_yStart: cleanedRange.yStart,
+        cleaned_yEnd: cleanedRange.yEnd,
+        cleaned_source: cleanedRange._source || null,
       };
     });
     return {
-      ...recipe,
-      segments: updatedSegments,
+      recipe: {
+        ...recipe,
+        segments: updatedSegments,
+      },
+      html: cleaned.html || snapshot?.html || "",
+      text: cleaned.text || snapshot?.text || "",
     };
   }
 
-  async function computeCleanedSliceRanges(segments, pageHtml, pageMetrics) {
+  async function computeCleanedSliceSnapshot(segments, pageHtml, pageMetrics) {
     const sliceSegments = Array.isArray(segments)
       ? segments.map((segment) => (segment?.type === "slice" ? segment : null))
       : [];
@@ -1525,7 +1537,7 @@
     iframe.srcdoc = pageHtml;
     document.body.appendChild(iframe);
 
-    const ranges = await new Promise((resolve) => {
+    const cleaned = await new Promise((resolve) => {
       const cleanup = () => {
         iframe.removeEventListener("load", onLoad);
       };
@@ -1590,7 +1602,8 @@
           ...debug,
           ranges: results.filter(Boolean),
         });
-        resolve(results);
+        const snapshot = buildSnapshotFromCleanedDocument(segments, results, doc);
+        resolve({ ranges: results, html: snapshot.html, text: snapshot.text });
       };
       iframe.addEventListener("load", onLoad, { once: true });
       setTimeout(() => {
@@ -1599,7 +1612,7 @@
     });
 
     iframe.remove();
-    return ranges;
+    return cleaned;
   }
 
   function resolveByLocatorInDocument(locator, doc) {
@@ -1623,6 +1636,164 @@
       return current;
     }
     return null;
+  }
+
+  function buildSnapshotFromCleanedDocument(segments, cleanedRanges, doc) {
+    const htmlParts = [];
+    const textParts = [];
+    const ranges = Array.isArray(cleanedRanges) ? cleanedRanges : [];
+    segments.forEach((segment, index) => {
+      if (!segment) {
+        return;
+      }
+      if (segment.type === "slice") {
+        const range = ranges[index];
+        const yStart = range ? range.yStart : segment.yStart;
+        const yEnd = range ? range.yEnd : segment.yEnd;
+        const slice = buildSliceSnapshotInDocument(yStart, yEnd, doc);
+        if (slice?.html) {
+          htmlParts.push(slice.html);
+        }
+        if (slice?.text) {
+          textParts.push(slice.text);
+        }
+        return;
+      }
+      const element = buildElementSnapshotInDocument(segment, doc);
+      if (element?.html) {
+        htmlParts.push(element.html);
+      }
+      if (element?.text) {
+        textParts.push(element.text);
+      }
+    });
+    return {
+      html: htmlParts.join("\n"),
+      text: textParts.join("\n\n"),
+    };
+  }
+
+  function buildElementSnapshotInDocument(segment, doc) {
+    const startEl = resolveByLocatorInDocument(segment.start, doc);
+    const endEl = resolveByLocatorInDocument(segment.end, doc);
+    if (!startEl || !endEl) {
+      return null;
+    }
+    const range = doc.createRange();
+    range.setStartBefore(startEl);
+    range.setEndAfter(endEl);
+    const fragment = range.cloneContents();
+    const container = doc.createElement("div");
+    container.appendChild(fragment);
+    container.querySelectorAll("script").forEach((node) => node.remove());
+    return {
+      html: container.innerHTML.trim(),
+      text: container.innerText.trim(),
+    };
+  }
+
+  function buildSliceSnapshotInDocument(yStart, yEnd, doc) {
+    const start = Math.min(yStart, yEnd);
+    const end = Math.max(yStart, yEnd);
+    if (end <= start) {
+      return null;
+    }
+    const candidates = collectSliceElementsInDocument(start, end, doc);
+    if (!candidates.length) {
+      const spacer = doc.createElement("div");
+      spacer.style.height = `${end - start}px`;
+      spacer.style.width = "100%";
+      spacer.style.background = "transparent";
+      return { html: spacer.outerHTML, text: "" };
+    }
+    const container = doc.createElement("div");
+    const sorted = candidates.sort((a, b) => a.top - b.top);
+    const firstTop = sorted[0].top;
+    const lastBottom = sorted[sorted.length - 1].bottom;
+    if (firstTop > start) {
+      const spacer = doc.createElement("div");
+      spacer.style.height = `${firstTop - start}px`;
+      spacer.style.width = "100%";
+      spacer.style.background = "transparent";
+      container.appendChild(spacer);
+    }
+    sorted.forEach((item) => {
+      const clone = item.el.cloneNode(true);
+      container.appendChild(clone);
+    });
+    if (end > lastBottom) {
+      const spacer = doc.createElement("div");
+      spacer.style.height = `${end - lastBottom}px`;
+      spacer.style.width = "100%";
+      spacer.style.background = "transparent";
+      container.appendChild(spacer);
+    }
+    container.querySelectorAll("script").forEach((node) => node.remove());
+    return {
+      html: container.innerHTML.trim(),
+      text: container.innerText.trim(),
+    };
+  }
+
+  function collectSliceElementsInDocument(yStart, yEnd, doc) {
+    const selector = [
+      "article",
+      "section",
+      "div",
+      "p",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "h5",
+      "h6",
+      "blockquote",
+      "pre",
+      "ul",
+      "ol",
+      "li",
+      "table",
+      "thead",
+      "tbody",
+      "tr",
+      "td",
+      "th",
+      "figure",
+      "figcaption",
+      "header",
+      "footer",
+      "main",
+      "aside",
+    ].join(",");
+    const win = doc.defaultView;
+    const elements = Array.from(doc.body.querySelectorAll(selector));
+    const intersecting = [];
+    elements.forEach((el) => {
+      const rect = el.getBoundingClientRect();
+      const top = rect.top + (win?.scrollY || 0);
+      const bottom = rect.bottom + (win?.scrollY || 0);
+      if (bottom < yStart || top > yEnd) {
+        return;
+      }
+      if (rect.width === 0 || rect.height === 0) {
+        return;
+      }
+      intersecting.push({ el, top, bottom });
+    });
+    if (!intersecting.length) {
+      return [];
+    }
+    const intersectingSet = new Set(intersecting.map((item) => item.el));
+    return intersecting.filter((item) => {
+      let parent = item.el.parentElement;
+      while (parent) {
+        if (intersectingSet.has(parent)) {
+          return false;
+        }
+        parent = parent.parentElement;
+      }
+      return true;
+    });
   }
 
   function buildSliceSnapshot(segment) {
@@ -1808,15 +1979,15 @@
       pageHeight: snapshot.recipe.page_metrics?.scrollHeight || 0,
       ranges: nativeRanges,
     });
-    const recipe = await applyCleanedSliceRanges(snapshot.recipe, pageHtml);
+    const cleaned = await applyCleanedSliceSnapshot(snapshot.recipe, pageHtml, snapshot);
     updateStatus("Saving...");
     const payload = {
       url: window.location.href,
       page_title: document.title,
       slice_title: null,
-      recipe,
-      html: snapshot.html,
-      text: snapshot.text,
+      recipe: cleaned.recipe,
+      html: cleaned.html,
+      text: cleaned.text,
       page_html: pageHtml,
       page_html_refresh: false,
     };
