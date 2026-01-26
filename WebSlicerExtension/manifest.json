@@ -11,6 +11,15 @@
   "background": {
     "service_worker": "service_worker.js"
   },
+  "commands": {
+    "reload-extension": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+U",
+        "mac": "Command+Shift+U"
+      },
+      "description": "Reload Web Slicer"
+    }
+  },
   "options_page": "options.html",
   "content_scripts": [
     {

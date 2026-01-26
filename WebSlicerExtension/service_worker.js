@@ -40,6 +40,12 @@ chrome.action.onClicked.addListener(async (tab) => {
   chrome.tabs.sendMessage(tab.id, { type: "slicer-toggle" });
 });
 
+chrome.commands.onCommand.addListener((command) => {
+  if (command === "reload-extension") {
+    chrome.runtime.reload();
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message) {
     return;
