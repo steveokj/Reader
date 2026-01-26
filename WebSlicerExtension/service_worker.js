@@ -231,6 +231,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })();
     return true;
   }
+  if (message.type === "slicer-snapshot-html") {
+    (async () => {
+      try {
+        const apiBase = await getApiBase();
+        const response = await fetch(`${apiBase}/slicer/snapshots/${message.snapshotId}`);
+        if (!response.ok) {
+          throw new Error(`Snapshot HTML failed (${response.status})`);
+        }
+        const data = await response.json();
+        sendResponse({ ok: true, snapshot: data.snapshot });
+      } catch (error) {
+        console.warn("Web Slicer snapshot html failed", error);
+        sendResponse({ ok: false, error: String(error) });
+      }
+    })();
+    return true;
+  }
   if (message.type === "slicer-page-html-refresh") {
     (async () => {
       try {

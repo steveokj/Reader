@@ -4,6 +4,7 @@ from ..db.slicer_conn import get_slicer_conn
 from ..models.schemas import (
     SlicerPageHtmlCreate,
     SlicerPageHtmlResponse,
+    SlicerSnapshotResponse,
     SlicerSliceCreate,
     SlicerSliceResponse,
     SlicerSlicesResponse,
@@ -53,6 +54,18 @@ def get_page_html(page_id: int):
         if page is None:
             raise HTTPException(status_code=404, detail="Page HTML not found")
         return {"page": page}
+    finally:
+        conn.close()
+
+
+@router.get("/snapshots/{snapshot_id}", response_model=SlicerSnapshotResponse)
+def get_snapshot(snapshot_id: int):
+    conn = get_slicer_conn()
+    try:
+        snapshot = slicer_service.get_snapshot_by_id(conn, snapshot_id)
+        if snapshot is None:
+            raise HTTPException(status_code=404, detail="Snapshot not found")
+        return {"snapshot": snapshot}
     finally:
         conn.close()
 

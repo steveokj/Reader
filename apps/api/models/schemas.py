@@ -330,6 +330,7 @@ class SlicerSliceCreate(BaseModel):
 class SlicerSlice(BaseModel):
     id: int
     page_id: int
+    snapshot_id: Optional[int] = None
     url: str
     page_title: Optional[str] = None
     slice_title: Optional[str] = None
@@ -363,6 +364,18 @@ class SlicerPageHtml(BaseModel):
 
 class SlicerPageHtmlResponse(BaseModel):
     page: SlicerPageHtml
+
+
+class SlicerSnapshot(BaseModel):
+    snapshot_id: int
+    page_id: int
+    url: str
+    html: str
+    created_at: str
+
+
+class SlicerSnapshotResponse(BaseModel):
+    snapshot: SlicerSnapshot
 
 
 class ArticleIngest(BaseModel):

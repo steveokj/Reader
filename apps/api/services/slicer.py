@@ -12,10 +12,15 @@ def _iso_now() -> str:
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 PAGES_DIR = os.path.join(DATA_DIR, "slicer_pages")
+SNAPSHOTS_DIR = os.path.join(DATA_DIR, "slicer_snapshots")
 
 
 def _ensure_pages_dir() -> None:
     os.makedirs(PAGES_DIR, exist_ok=True)
+
+
+def _ensure_snapshots_dir() -> None:
+    os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
 
 
 def _hash_html(html: str) -> str:
@@ -34,6 +39,18 @@ def _write_page_html(html: str) -> Tuple[str, str]:
     return rel_path, html_hash
 
 
+def _write_snapshot_html(html: str) -> Tuple[str, str]:
+    _ensure_snapshots_dir()
+    html_hash = _hash_html(html)
+    filename = f"{html_hash}.html"
+    path = os.path.join(SNAPSHOTS_DIR, filename)
+    if not os.path.exists(path):
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(html)
+    rel_path = os.path.join("slicer_snapshots", filename)
+    return rel_path, html_hash
+
+
 def _read_page_html(path: str) -> Optional[str]:
     if not path:
         return None
@@ -42,6 +59,10 @@ def _read_page_html(path: str) -> Optional[str]:
         return None
     with open(full_path, "r", encoding="utf-8") as handle:
         return handle.read()
+
+
+def _read_snapshot_html(path: str) -> Optional[str]:
+    return _read_page_html(path)
 
 
 def _touch_page(conn, url: str, title: Optional[str]) -> Dict[str, Any]:
@@ -126,15 +147,19 @@ def create_slice(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
     page_html_refresh = payload.get("page_html_refresh", False)
     if page_html and (page.get("content_html_path") is None or page_html_refresh):
         update_page_html(conn, page["id"], page_html, refresh=page_html_refresh)
+    snapshot_id = None
+    if page_html:
+        snapshot_id = ensure_snapshot(conn, page["id"], page["url"], page_html)
     now = _iso_now()
     recipe_json = json.dumps(payload.get("recipe") or {})
     cur = conn.execute(
         """
-        INSERT INTO slicer_slices (page_id, title, recipe_json, html, text, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO slicer_slices (page_id, snapshot_id, title, recipe_json, html, text, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
             page["id"],
+            snapshot_id,
             payload.get("slice_title"),
             recipe_json,
             payload["html"],
@@ -147,6 +172,7 @@ def create_slice(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "id": cur.lastrowid,
         "page_id": page["id"],
+        "snapshot_id": snapshot_id,
         "url": page["url"],
         "page_title": page["title"],
         "slice_title": payload.get("slice_title"),
@@ -189,10 +215,54 @@ def refresh_page_html(conn, payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def ensure_snapshot(conn, page_id: int, url: str, html: str) -> int:
+    path, html_hash = _write_snapshot_html(html)
+    row = conn.execute(
+        "SELECT id FROM slicer_page_snapshots WHERE page_id = ? AND html_hash = ?",
+        (page_id, html_hash),
+    ).fetchone()
+    if row:
+        return row["id"]
+    now = _iso_now()
+    cur = conn.execute(
+        """
+        INSERT INTO slicer_page_snapshots (page_id, html_hash, html_path, created_at)
+        VALUES (?, ?, ?, ?)
+        """,
+        (page_id, html_hash, path, now),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_snapshot_by_id(conn, snapshot_id: int) -> Optional[Dict[str, Any]]:
+    row = conn.execute(
+        """
+        SELECT sps.id, sps.page_id, sps.html_path, sps.created_at, sp.url
+        FROM slicer_page_snapshots sps
+        JOIN slicer_pages sp ON sp.id = sps.page_id
+        WHERE sps.id = ?
+        """,
+        (snapshot_id,),
+    ).fetchone()
+    if not row:
+        return None
+    html = _read_snapshot_html(row["html_path"] or "")
+    if html is None:
+        return None
+    return {
+        "snapshot_id": row["id"],
+        "page_id": row["page_id"],
+        "url": row["url"],
+        "html": html,
+        "created_at": row["created_at"],
+    }
+
+
 def get_slices(conn, url: Optional[str] = None) -> List[Dict[str, Any]]:
     query = (
-        "SELECT ss.id, ss.page_id, ss.title, ss.recipe_json, ss.html, ss.text, ss.created_at, "
-        "sp.url, sp.title AS page_title "
+        "SELECT ss.id, ss.page_id, ss.snapshot_id, ss.title, ss.recipe_json, ss.html, ss.text, "
+        "ss.created_at, sp.url, sp.title AS page_title "
         "FROM slicer_slices ss "
         "JOIN slicer_pages sp ON sp.id = ss.page_id"
     )
@@ -213,6 +283,7 @@ def get_slices(conn, url: Optional[str] = None) -> List[Dict[str, Any]]:
             {
                 "id": row["id"],
                 "page_id": row["page_id"],
+                "snapshot_id": row["snapshot_id"],
                 "url": row["url"],
                 "page_title": row["page_title"],
                 "slice_title": row["title"],
@@ -228,7 +299,7 @@ def get_slices(conn, url: Optional[str] = None) -> List[Dict[str, Any]]:
 def get_slice(conn, slice_id: int) -> Optional[Dict[str, Any]]:
     row = conn.execute(
         """
-        SELECT ss.id, ss.page_id, ss.title, ss.recipe_json, ss.html, ss.text, ss.created_at,
+        SELECT ss.id, ss.page_id, ss.snapshot_id, ss.title, ss.recipe_json, ss.html, ss.text, ss.created_at,
                sp.url, sp.title AS page_title
         FROM slicer_slices ss
         JOIN slicer_pages sp ON sp.id = ss.page_id
@@ -245,6 +316,7 @@ def get_slice(conn, slice_id: int) -> Optional[Dict[str, Any]]:
     return {
         "id": row["id"],
         "page_id": row["page_id"],
+        "snapshot_id": row["snapshot_id"],
         "url": row["url"],
         "page_title": row["page_title"],
         "slice_title": row["title"],

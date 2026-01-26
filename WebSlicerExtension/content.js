@@ -22,6 +22,7 @@
     sliceStartOffsetRatio: null,
     lastPreview: null,
     fullPreviewMode: "slice-in-page",
+    sliceOnlyMode: "mask",
     scrollLock: null,
   };
 
@@ -278,12 +279,24 @@
     actions.appendChild(modeSliceInPage);
     actions.appendChild(modePage);
 
+    const sliceOnlyActions = document.createElement("div");
+    sliceOnlyActions.className = "slicer-full__slice-actions";
+    const sliceMask = createButton("Mask");
+    const sliceFragment = createButton("Fragment + head");
+    const sliceClip = createButton("Clip");
+    const sliceInline = createButton("Inline styles");
+    sliceOnlyActions.appendChild(sliceMask);
+    sliceOnlyActions.appendChild(sliceFragment);
+    sliceOnlyActions.appendChild(sliceClip);
+    sliceOnlyActions.appendChild(sliceInline);
+
     const close = createButton("X");
     close.classList.add("slicer-full__close");
     close.setAttribute("aria-label", "Close full preview");
 
     header.appendChild(title);
     header.appendChild(actions);
+    header.appendChild(sliceOnlyActions);
     header.appendChild(close);
 
     const iframe = document.createElement("iframe");
@@ -297,6 +310,10 @@
     modeSlice.addEventListener("click", () => setFullPreviewMode("slice-only"));
     modeSliceInPage.addEventListener("click", () => setFullPreviewMode("slice-in-page"));
     modePage.addEventListener("click", () => setFullPreviewMode("page"));
+    sliceMask.addEventListener("click", () => setSliceOnlyMode("mask"));
+    sliceFragment.addEventListener("click", () => setSliceOnlyMode("fragment"));
+    sliceClip.addEventListener("click", () => setSliceOnlyMode("clip"));
+    sliceInline.addEventListener("click", () => setSliceOnlyMode("inline"));
     close.addEventListener("click", () => hideFullPreview());
     el.addEventListener("click", (event) => {
       if (event.target === el) {
@@ -304,7 +321,19 @@
       }
     });
 
-    return { el, iframe, title, modeSlice, modeSliceInPage, modePage };
+    return {
+      el,
+      iframe,
+      title,
+      modeSlice,
+      modeSliceInPage,
+      modePage,
+      sliceOnlyActions,
+      sliceMask,
+      sliceFragment,
+      sliceClip,
+      sliceInline,
+    };
   }
 
   function buildSliceLine(className) {
@@ -543,6 +572,15 @@
     openFullPreview({ ...state.lastPreview, mode });
   }
 
+  function setSliceOnlyMode(mode) {
+    state.sliceOnlyMode = mode;
+    updateFullPreviewButtons();
+    if (!state.lastPreview || state.fullPreviewMode !== "slice-only") {
+      return;
+    }
+    openFullPreview({ ...state.lastPreview, mode: "slice-only" });
+  }
+
   function setPreviewMode(mode) {
     previewPanel.mode = mode;
     previewPanel.text.style.display = mode === "text" ? "block" : "none";
@@ -734,7 +772,9 @@
   }
 
   async function openSliceFromLibrary(item) {
-    const pageHtml = await fetchPageHtml(item.page_id);
+    const pageHtml = item.snapshot_id
+      ? await fetchSnapshotHtml(item.snapshot_id)
+      : await fetchPageHtml(item.page_id);
     const sliceRanges = getSliceRangesFromRecipe(item.recipe);
     const pageMetrics = item?.recipe?.page_metrics || null;
     const baseUrl = item.url || window.location.href;
@@ -960,6 +1000,25 @@
       return response.page?.html || null;
     } catch (error) {
       console.warn("Page HTML fetch failed", error);
+      return null;
+    }
+  }
+
+  async function fetchSnapshotHtml(snapshotId) {
+    if (!snapshotId) {
+      return null;
+    }
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "slicer-snapshot-html",
+        snapshotId,
+      });
+      if (!response?.ok) {
+        throw new Error(response?.error || "Failed to load snapshot html");
+      }
+      return response.snapshot?.html || null;
+    } catch (error) {
+      console.warn("Snapshot HTML fetch failed", error);
       return null;
     }
   }
@@ -1650,7 +1709,7 @@
         const range = ranges[index];
         const yStart = range ? range.yStart : segment.yStart;
         const yEnd = range ? range.yEnd : segment.yEnd;
-        const slice = buildSliceSnapshotInDocument(yStart, yEnd, doc);
+        const slice = buildSliceSnapshotInDocument(yStart, yEnd, segment, doc);
         if (slice?.html) {
           htmlParts.push(slice.html);
         }
@@ -1686,13 +1745,21 @@
     const container = doc.createElement("div");
     container.appendChild(fragment);
     container.querySelectorAll("script").forEach((node) => node.remove());
+    if (Array.isArray(segment.excludes)) {
+      segment.excludes.forEach((exclude) => {
+        if (!exclude?.selector) {
+          return;
+        }
+        container.querySelectorAll(exclude.selector).forEach((node) => node.remove());
+      });
+    }
     return {
       html: container.innerHTML.trim(),
       text: container.innerText.trim(),
     };
   }
 
-  function buildSliceSnapshotInDocument(yStart, yEnd, doc) {
+  function buildSliceSnapshotInDocument(yStart, yEnd, segment, doc) {
     const start = Math.min(yStart, yEnd);
     const end = Math.max(yStart, yEnd);
     if (end <= start) {
@@ -1729,6 +1796,14 @@
       container.appendChild(spacer);
     }
     container.querySelectorAll("script").forEach((node) => node.remove());
+    if (Array.isArray(segment?.excludes)) {
+      segment.excludes.forEach((exclude) => {
+        if (!exclude?.selector) {
+          return;
+        }
+        container.querySelectorAll(exclude.selector).forEach((node) => node.remove());
+      });
+    }
     return {
       html: container.innerHTML.trim(),
       text: container.innerText.trim(),
@@ -2078,9 +2153,13 @@
     let doc = "";
     const sliceHtml = html || "";
     if (resolvedMode === "slice-only") {
-      doc = pageHtml
-        ? buildPlainPageDocument(pageHtml, safeTitle, safeBase)
-        : buildSliceDocument(sliceHtml, safeTitle, safeBase);
+      if (state.sliceOnlyMode === "fragment" || state.sliceOnlyMode === "inline") {
+        doc = buildFragmentDocument(sliceHtml, pageHtml, safeTitle, safeBase);
+      } else {
+        doc = pageHtml
+          ? buildPlainPageDocument(pageHtml, safeTitle, safeBase)
+          : buildSliceDocument(sliceHtml, safeTitle, safeBase);
+      }
     } else if (resolvedMode === "slice-in-page") {
       if (!pageHtml) {
         doc = buildSliceDocument(sliceHtml, safeTitle, safeBase);
@@ -2105,8 +2184,15 @@
       if (mode === "slice-in-page") {
         applyOverlayRanges(fullPreview.iframe, scaledRanges);
       } else if (mode === "slice-only") {
-        scrollIframeToSlice(fullPreview.iframe, scaledRanges);
-        applySliceOnlyMask(fullPreview.iframe, scaledRanges);
+        if (state.sliceOnlyMode === "mask") {
+          scrollIframeToSlice(fullPreview.iframe, scaledRanges);
+          applySliceOnlyMask(fullPreview.iframe, scaledRanges);
+        } else if (state.sliceOnlyMode === "clip") {
+          scrollIframeToSlice(fullPreview.iframe, scaledRanges);
+          applySliceOnlyClip(fullPreview.iframe, scaledRanges);
+        } else if (state.sliceOnlyMode === "inline") {
+          applyInlineStyles(fullPreview.iframe);
+        }
       }
       if (mode !== "slice-in-page" || !scaledRanges.length) {
         return;
@@ -2168,6 +2254,36 @@
       doc = doc.replace(/<head[^>]*>/i, (match) => `${match}<title>${safeTitle}</title>`);
     }
     return doc;
+  }
+
+  function buildFragmentDocument(sliceHtml, pageHtml, safeTitle, safeBase) {
+    const headContent = extractHeadContent(pageHtml || "");
+    const baseTag = `<base href="${safeBase}">`;
+    return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>${safeTitle}</title>
+    ${baseTag}
+    ${headContent}
+    <style>
+      body { margin: 0; padding: 24px; }
+      .slice-preview { max-width: 960px; margin: 0 auto; }
+      img, video { max-width: 100%; height: auto; }
+    </style>
+  </head>
+  <body>
+    <div class="slice-preview">${sliceHtml || ""}</div>
+  </body>
+</html>`;
+  }
+
+  function extractHeadContent(pageHtml) {
+    const match = pageHtml.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+    if (!match) {
+      return "";
+    }
+    return match[1] || "";
   }
 
   function scaleSliceRanges(sliceRanges, pageMetrics, iframe) {
@@ -2298,6 +2414,97 @@
     }
 
     lockIframeScroll(iframe);
+  }
+
+  function applySliceOnlyClip(iframe, sliceRanges) {
+    if (!iframe?.contentDocument || !Array.isArray(sliceRanges) || !sliceRanges.length) {
+      return;
+    }
+    const doc = iframe.contentDocument;
+    const win = doc.defaultView;
+    const ranges = getOverlayRanges(doc, sliceRanges)
+      .filter((range) => range.bottom > range.top)
+      .sort((a, b) => a.top - b.top);
+    if (!ranges.length) {
+      return;
+    }
+    const rootId = "slicer-clip-root";
+    let root = doc.getElementById(rootId);
+    if (!root && doc.body) {
+      root = doc.createElement("div");
+      root.id = rootId;
+      while (doc.body.firstChild) {
+        root.appendChild(doc.body.firstChild);
+      }
+      doc.body.appendChild(root);
+    }
+    if (!root) {
+      return;
+    }
+    const existingMask = doc.getElementById("slicer-clip-mask");
+    if (existingMask) {
+      existingMask.remove();
+    }
+    const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("id", "slicer-clip-mask");
+    svg.setAttribute("width", "0");
+    svg.setAttribute("height", "0");
+    const mask = doc.createElementNS("http://www.w3.org/2000/svg", "mask");
+    mask.setAttribute("id", "slicer-mask-shape");
+    const bg = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.setAttribute("x", "0");
+    bg.setAttribute("y", "0");
+    bg.setAttribute("width", "100%");
+    bg.setAttribute("height", "100%");
+    bg.setAttribute("fill", "black");
+    mask.appendChild(bg);
+    ranges.forEach((range) => {
+      const rect = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+      rect.setAttribute("x", "0");
+      rect.setAttribute("y", `${range.top}`);
+      rect.setAttribute("width", "100%");
+      rect.setAttribute("height", `${Math.max(0, range.bottom - range.top)}`);
+      rect.setAttribute("fill", "white");
+      mask.appendChild(rect);
+    });
+    svg.appendChild(mask);
+    doc.body.appendChild(svg);
+    root.style.webkitMask = "url(#slicer-mask-shape)";
+    root.style.mask = "url(#slicer-mask-shape)";
+    root.style.webkitMaskRepeat = "no-repeat";
+    root.style.maskRepeat = "no-repeat";
+    root.style.webkitMaskSize = "100% 100%";
+    root.style.maskSize = "100% 100%";
+    lockIframeScroll(iframe);
+    if (win) {
+      win.scrollTo({ top: Math.max(0, ranges[0].top - 40), behavior: "auto" });
+    }
+  }
+
+  function applyInlineStyles(iframe) {
+    const doc = iframe?.contentDocument;
+    const win = iframe?.contentWindow;
+    if (!doc || !win || !doc.body) {
+      return;
+    }
+    inlineStylesForNode(doc.body, win);
+  }
+
+  function inlineStylesForNode(node, win) {
+    if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+      return;
+    }
+    const element = node;
+    const computed = win.getComputedStyle(element);
+    if (computed) {
+      let cssText = "";
+      for (let i = 0; i < computed.length; i += 1) {
+        const prop = computed[i];
+        cssText += `${prop}:${computed.getPropertyValue(prop)};`;
+      }
+      element.setAttribute("style", cssText);
+    }
+    Array.from(element.children).forEach((child) => inlineStylesForNode(child, win));
   }
 
   function buildMaskBlock(doc, background, top, height) {
@@ -2470,6 +2677,16 @@
       state.fullPreviewMode === "slice-in-page"
     );
     fullPreview.modePage.classList.toggle("active", state.fullPreviewMode === "page");
+    if (fullPreview.sliceOnlyActions) {
+      fullPreview.sliceOnlyActions.style.display =
+        state.fullPreviewMode === "slice-only" ? "flex" : "none";
+    }
+    if (fullPreview.sliceMask) {
+      fullPreview.sliceMask.classList.toggle("active", state.sliceOnlyMode === "mask");
+      fullPreview.sliceFragment.classList.toggle("active", state.sliceOnlyMode === "fragment");
+      fullPreview.sliceClip.classList.toggle("active", state.sliceOnlyMode === "clip");
+      fullPreview.sliceInline.classList.toggle("active", state.sliceOnlyMode === "inline");
+    }
   }
 
   function showHighlight(target) {
