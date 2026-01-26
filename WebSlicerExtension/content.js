@@ -17,6 +17,7 @@
     undoStack: [],
     redoStack: [],
     sliceStartY: null,
+    lastPreview: null,
   };
 
   const overlay = mountOverlay();
@@ -142,11 +143,13 @@
     actions.className = "slicer-preview__actions";
     const showText = createButton("Text");
     const showHtml = createButton("HTML");
+    const full = createButton("Full");
     const close = createButton("X");
     close.classList.add("slicer-preview__close");
     close.setAttribute("aria-label", "Close preview");
     actions.appendChild(showText);
     actions.appendChild(showHtml);
+    actions.appendChild(full);
     actions.appendChild(close);
     header.appendChild(title);
     header.appendChild(actions);
@@ -168,10 +171,11 @@
 
     showText.addEventListener("click", () => setPreviewMode("text"));
     showHtml.addEventListener("click", () => setPreviewMode("html"));
+    full.addEventListener("click", () => openLastPreviewInNewTab());
     close.addEventListener("click", () => hidePreview());
     el.addEventListener("wheel", handlePreviewWheel, { passive: false });
 
-    return { el, text, html, showText, showHtml, mode: "text" };
+    return { el, text, html, showText, showHtml, full, mode: "text" };
   }
 
   function buildLibraryPanel() {
@@ -288,6 +292,7 @@
     state.excludes = [];
     state.undoStack = [];
     state.redoStack = [];
+    state.lastPreview = null;
     hidePreview();
     hideLibrary();
     clearSegmentHighlights();
@@ -338,6 +343,7 @@
     state.sliceStartY = null;
     state.undoStack = [];
     state.redoStack = [];
+    state.lastPreview = null;
     overlay.uiRoot.style.display = "none";
     toolbar.el.style.display = "none";
     hidePreview();
@@ -365,6 +371,8 @@
       text: snapshot.text,
       html: snapshot.html,
       mode: "html",
+      baseUrl: window.location.href,
+      title: document.title,
     });
   }
 
@@ -380,11 +388,17 @@
     previewPanel.showHtml.disabled = mode === "html";
   }
 
-  function setPreviewContent({ text, html, mode }) {
+  function setPreviewContent({ text, html, mode, baseUrl, title }) {
     previewPanel.text.textContent = text || "(no text)";
     previewPanel.html.innerHTML = html || "";
     setPreviewMode(mode || "text");
     previewPanel.el.style.display = "block";
+    state.lastPreview = {
+      html: html || "",
+      text: text || "",
+      baseUrl: baseUrl || window.location.href,
+      title: title || "Slice Preview",
+    };
   }
 
   function toggleLibrary() {
@@ -478,6 +492,7 @@
       const copyHtml = createButton("Copy HTML");
       const copyText = createButton("Copy text");
       const remove = createButton("Delete");
+      const openFull = createButton("Full");
 
       preview.addEventListener("click", () => {
         setPreviewContent({
@@ -495,10 +510,19 @@
       remove.addEventListener("click", async () => {
         await deleteSlice(item.id);
       });
+      openFull.addEventListener("click", () => {
+        openFullPreview({
+          html: item.html || "",
+          text: item.text || "",
+          baseUrl: item.url || window.location.href,
+          title: item.slice_title || item.page_title || item.url || "Slice Preview",
+        });
+      });
 
       actions.appendChild(preview);
       actions.appendChild(copyHtml);
       actions.appendChild(copyText);
+      actions.appendChild(openFull);
       actions.appendChild(remove);
 
       row.appendChild(title);
@@ -1258,6 +1282,51 @@
       behavior: "auto",
     });
     event.preventDefault();
+  }
+
+  function openLastPreviewInNewTab() {
+    if (!state.lastPreview) {
+      updateStatus("Nothing to open");
+      return;
+    }
+    openFullPreview(state.lastPreview);
+  }
+
+  function openFullPreview({ html, baseUrl, title }) {
+    const previewWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!previewWindow) {
+      updateStatus("Popup blocked");
+      return;
+    }
+    const safeTitle = escapeHtml(title || "Slice Preview");
+    const safeBase = escapeHtml(baseUrl || window.location.href);
+    previewWindow.document.open();
+    previewWindow.document.write(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>${safeTitle}</title>
+    <base href="${safeBase}">
+    <style>
+      body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #111; }
+      .slice-preview { padding: 40px 48px; }
+      img, video { max-width: 100%; height: auto; }
+    </style>
+  </head>
+  <body>
+    <div class="slice-preview">${html || ""}</div>
+  </body>
+</html>`);
+    previewWindow.document.close();
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   function showHighlight(target) {
