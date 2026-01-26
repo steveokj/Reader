@@ -323,6 +323,8 @@ class SlicerSliceCreate(BaseModel):
     recipe: Dict[str, Any]
     html: str
     text: str
+    page_html: Optional[str] = None
+    page_html_refresh: Optional[bool] = False
 
 
 class SlicerSlice(BaseModel):
@@ -343,6 +345,24 @@ class SlicerSliceResponse(BaseModel):
 
 class SlicerSlicesResponse(BaseModel):
     slices: List[SlicerSlice]
+
+
+class SlicerPageHtmlCreate(BaseModel):
+    url: str
+    title: Optional[str] = None
+    html: str
+
+
+class SlicerPageHtml(BaseModel):
+    page_id: int
+    url: str
+    title: Optional[str] = None
+    html: str
+    content_html_updated_at: Optional[str] = None
+
+
+class SlicerPageHtmlResponse(BaseModel):
+    page: SlicerPageHtml
 
 
 class ArticleIngest(BaseModel):

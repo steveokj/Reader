@@ -1,7 +1,13 @@
 from fastapi import APIRouter, HTTPException
 
 from ..db.slicer_conn import get_slicer_conn
-from ..models.schemas import SlicerSliceCreate, SlicerSliceResponse, SlicerSlicesResponse
+from ..models.schemas import (
+    SlicerPageHtmlCreate,
+    SlicerPageHtmlResponse,
+    SlicerSliceCreate,
+    SlicerSliceResponse,
+    SlicerSlicesResponse,
+)
 from ..services import slicer as slicer_service
 
 router = APIRouter(prefix="/slicer", tags=["slicer"])
@@ -35,6 +41,28 @@ def get_slice(slice_id: int):
         if slice_row is None:
             raise HTTPException(status_code=404, detail="Slice not found")
         return {"slice": slice_row}
+    finally:
+        conn.close()
+
+
+@router.get("/pages/{page_id}/html", response_model=SlicerPageHtmlResponse)
+def get_page_html(page_id: int):
+    conn = get_slicer_conn()
+    try:
+        page = slicer_service.get_page_html_by_id(conn, page_id)
+        if page is None:
+            raise HTTPException(status_code=404, detail="Page HTML not found")
+        return {"page": page}
+    finally:
+        conn.close()
+
+
+@router.post("/pages/html", response_model=SlicerPageHtmlResponse)
+def refresh_page_html(payload: SlicerPageHtmlCreate):
+    conn = get_slicer_conn()
+    try:
+        page = slicer_service.refresh_page_html(conn, payload.model_dump())
+        return {"page": page}
     finally:
         conn.close()
 

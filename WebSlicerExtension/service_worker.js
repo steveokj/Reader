@@ -104,4 +104,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })();
     return true;
   }
+  if (message.type === "slicer-page-html") {
+    (async () => {
+      try {
+        const apiBase = await getApiBase();
+        const response = await fetch(`${apiBase}/slicer/pages/${message.pageId}/html`);
+        if (!response.ok) {
+          throw new Error(`Page HTML failed (${response.status})`);
+        }
+        const data = await response.json();
+        sendResponse({ ok: true, page: data.page });
+      } catch (error) {
+        console.warn("Web Slicer page html failed", error);
+        sendResponse({ ok: false, error: String(error) });
+      }
+    })();
+    return true;
+  }
+  if (message.type === "slicer-page-html-refresh") {
+    (async () => {
+      try {
+        const apiBase = await getApiBase();
+        const response = await fetch(`${apiBase}/slicer/pages/html`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(message.payload),
+        });
+        if (!response.ok) {
+          throw new Error(`Page HTML refresh failed (${response.status})`);
+        }
+        const data = await response.json();
+        sendResponse({ ok: true, page: data.page });
+      } catch (error) {
+        console.warn("Web Slicer page html refresh failed", error);
+        sendResponse({ ok: false, error: String(error) });
+      }
+    })();
+    return true;
+  }
 });

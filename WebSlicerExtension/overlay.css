@@ -198,6 +198,22 @@
   font-size: 14px;
 }
 
+.slicer-full__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.slicer-full__actions button {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.slicer-full__actions button.active {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
 .slicer-full__close {
   font-size: 16px;
   line-height: 1;

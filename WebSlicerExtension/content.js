@@ -19,6 +19,8 @@
     redoStack: [],
     sliceStartY: null,
     lastPreview: null,
+    fullPreviewMode: "slice-in-page",
+    scrollLock: null,
   };
 
   const overlay = mountOverlay();
@@ -199,12 +201,14 @@
     const typeAll = createButton("All");
     const typePicks = createButton("Picks");
     const typeSlices = createButton("Slices");
+    const refreshPage = createButton("Refresh page");
     const refresh = createButton("Refresh");
     const close = createButton("Close");
     headerActions.appendChild(filter);
     headerActions.appendChild(typeAll);
     headerActions.appendChild(typePicks);
     headerActions.appendChild(typeSlices);
+    headerActions.appendChild(refreshPage);
     headerActions.appendChild(refresh);
     headerActions.appendChild(close);
 
@@ -229,10 +233,11 @@
     typeAll.addEventListener("click", () => setLibraryType("all"));
     typePicks.addEventListener("click", () => setLibraryType("pick"));
     typeSlices.addEventListener("click", () => setLibraryType("slice"));
+    refreshPage.addEventListener("click", () => refreshPageHtml());
     refresh.addEventListener("click", () => loadLibrary());
     close.addEventListener("click", () => hideLibrary());
 
-    return { el, list, filter, typeAll, typePicks, typeSlices };
+    return { el, list, filter, typeAll, typePicks, typeSlices, refreshPage };
   }
 
   function buildFullPreview() {
@@ -249,11 +254,21 @@
     title.className = "slicer-full__title";
     title.textContent = "Slice Preview";
 
+    const actions = document.createElement("div");
+    actions.className = "slicer-full__actions";
+    const modeSlice = createButton("Slice only");
+    const modeSliceInPage = createButton("Slice in page");
+    const modePage = createButton("Page");
+    actions.appendChild(modeSlice);
+    actions.appendChild(modeSliceInPage);
+    actions.appendChild(modePage);
+
     const close = createButton("X");
     close.classList.add("slicer-full__close");
     close.setAttribute("aria-label", "Close full preview");
 
     header.appendChild(title);
+    header.appendChild(actions);
     header.appendChild(close);
 
     const iframe = document.createElement("iframe");
@@ -264,6 +279,9 @@
     card.appendChild(iframe);
     el.appendChild(card);
 
+    modeSlice.addEventListener("click", () => setFullPreviewMode("slice-only"));
+    modeSliceInPage.addEventListener("click", () => setFullPreviewMode("slice-in-page"));
+    modePage.addEventListener("click", () => setFullPreviewMode("page"));
     close.addEventListener("click", () => hideFullPreview());
     el.addEventListener("click", (event) => {
       if (event.target === el) {
@@ -271,7 +289,7 @@
       }
     });
 
-    return { el, iframe, title };
+    return { el, iframe, title, modeSlice, modeSliceInPage, modePage };
   }
 
   function buildSliceLine(className) {
@@ -423,12 +441,16 @@
       updateStatus("Nothing to preview");
       return;
     }
+    const pageHtml = buildCleanPageHtml();
+    const sliceRanges = getSliceRangesFromSegments(state.segments);
     setPreviewContent({
       text: snapshot.text,
       html: snapshot.html,
       mode: "html",
       baseUrl: window.location.href,
       title: document.title,
+      pageHtml,
+      sliceRanges,
     });
   }
 
@@ -441,7 +463,8 @@
       updateStatus("Nothing to open");
       return;
     }
-    openFullPreview(state.lastPreview);
+    const defaultMode = state.lastPreview.sliceRanges?.length ? "slice-in-page" : "page";
+    openFullPreview({ ...state.lastPreview, mode: defaultMode });
   }
 
   function hideFullPreview() {
@@ -449,6 +472,15 @@
     if (fullPreview.iframe) {
       fullPreview.iframe.srcdoc = "";
     }
+    unlockScroll();
+  }
+
+  function setFullPreviewMode(mode) {
+    state.fullPreviewMode = mode;
+    if (!state.lastPreview) {
+      return;
+    }
+    openFullPreview({ ...state.lastPreview, mode });
   }
 
   function setPreviewMode(mode) {
@@ -459,7 +491,7 @@
     previewPanel.showHtml.disabled = mode === "html";
   }
 
-  function setPreviewContent({ text, html, mode, baseUrl, title }) {
+  function setPreviewContent({ text, html, mode, baseUrl, title, pageHtml, sliceRanges }) {
     previewPanel.text.textContent = text || "(no text)";
     previewPanel.html.innerHTML = html || "";
     setPreviewMode(mode || "text");
@@ -469,6 +501,8 @@
       text: text || "",
       baseUrl: baseUrl || window.location.href,
       title: title || "Slice Preview",
+      pageHtml: pageHtml || "",
+      sliceRanges: Array.isArray(sliceRanges) ? sliceRanges : [],
     };
   }
 
@@ -576,18 +610,15 @@
 
       preview.addEventListener("click", () => {
         if (type === "slice") {
-          openFullPreview({
-            html: item.html || "",
-            text: item.text || "",
-            baseUrl: item.url || window.location.href,
-            title: item.slice_title || item.page_title || item.url || "Slice Preview",
-          });
+          openSliceFromLibrary(item);
           return;
         }
         setPreviewContent({
           text: item.text,
           html: item.html,
           mode: "html",
+          baseUrl: item.url || window.location.href,
+          title: item.slice_title || item.page_title || item.url || "Slice Preview",
         });
       });
       copyHtml.addEventListener("click", async () => {
@@ -600,11 +631,20 @@
         await deleteSlice(item.id);
       });
       openFull.addEventListener("click", () => {
-        openFullPreview({
+        const baseUrl = item.url || window.location.href;
+        const title = item.slice_title || item.page_title || item.url || "Slice Preview";
+        state.lastPreview = {
           html: item.html || "",
           text: item.text || "",
-          baseUrl: item.url || window.location.href,
-          title: item.slice_title || item.page_title || item.url || "Slice Preview",
+          baseUrl,
+          title,
+          pageHtml: "",
+          sliceRanges: [],
+        };
+        openFullPreview({
+          html: item.html || "",
+          baseUrl,
+          title,
         });
       });
 
@@ -621,6 +661,32 @@
       row.appendChild(actions);
       libraryPanel.list.appendChild(row);
     });
+  }
+
+  async function openSliceFromLibrary(item) {
+    const pageHtml = await fetchPageHtml(item.page_id);
+    const sliceRanges = getSliceRangesFromRecipe(item.recipe);
+    const baseUrl = item.url || window.location.href;
+    const title = item.slice_title || item.page_title || item.url || "Slice Preview";
+    state.lastPreview = {
+      html: item.html || "",
+      text: item.text || "",
+      baseUrl,
+      title,
+      pageHtml: pageHtml || "",
+      sliceRanges,
+    };
+    openFullPreview({
+      html: item.html || "",
+      pageHtml,
+      baseUrl,
+      title,
+      mode: "slice-in-page",
+      sliceRanges,
+    });
+    if (!pageHtml) {
+      updateStatus("Saved page HTML missing; showing slice only");
+    }
   }
 
   async function deleteSlice(sliceId) {
@@ -748,6 +814,50 @@
     }
   }
 
+  async function refreshPageHtml() {
+    updateStatus("Refreshing page HTML...");
+    const html = buildCleanPageHtml();
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "slicer-page-html-refresh",
+        payload: {
+          url: window.location.href,
+          title: document.title,
+          html,
+        },
+      });
+      if (!response?.ok) {
+        throw new Error(response?.error || "Refresh failed");
+      }
+      if (state.lastPreview && state.lastPreview.baseUrl === window.location.href) {
+        state.lastPreview.pageHtml = html;
+      }
+      updateStatus("Page HTML refreshed");
+    } catch (error) {
+      console.warn("Page HTML refresh failed", error);
+      updateStatus("Page refresh failed");
+    }
+  }
+
+  async function fetchPageHtml(pageId) {
+    if (!pageId) {
+      return null;
+    }
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "slicer-page-html",
+        pageId,
+      });
+      if (!response?.ok) {
+        throw new Error(response?.error || "Failed to load page html");
+      }
+      return response.page?.html || null;
+    } catch (error) {
+      console.warn("Page HTML fetch failed", error);
+      return null;
+    }
+  }
+
   function filterLibraryItems(items) {
     if (state.libraryType === "all") {
       return items;
@@ -762,6 +872,27 @@
     }
     const hasSlice = segments.some((segment) => segment?.type === "slice");
     return hasSlice ? "slice" : "pick";
+  }
+
+  function getSliceRangesFromSegments(segments) {
+    if (!Array.isArray(segments)) {
+      return [];
+    }
+    return segments
+      .filter(
+        (segment) =>
+          segment?.type === "slice" &&
+          Number.isFinite(segment.yStart) &&
+          Number.isFinite(segment.yEnd)
+      )
+      .map((segment) => ({
+        yStart: segment.yStart,
+        yEnd: segment.yEnd,
+      }));
+  }
+
+  function getSliceRangesFromRecipe(recipe) {
+    return getSliceRangesFromSegments(recipe?.segments);
   }
 
   function handleKeyDown(event) {
@@ -942,13 +1073,25 @@
     });
   }
 
-  function pushUndo() {
-    state.undoStack.push(
-      state.segments.map((segment) => ({
+  function cloneSegments(segments) {
+    return segments.map((segment) => {
+      if (segment.type === "slice") {
+        return {
+          type: "slice",
+          yStart: segment.yStart,
+          yEnd: segment.yEnd,
+        };
+      }
+      return {
+        type: "element",
         start: segment.start,
         end: segment.end,
-      }))
-    );
+      };
+    });
+  }
+
+  function pushUndo() {
+    state.undoStack.push(cloneSegments(state.segments));
     state.redoStack = [];
   }
 
@@ -957,16 +1100,12 @@
       updateStatus("Nothing to undo");
       return;
     }
-    state.redoStack.push(
-      state.segments.map((segment) => ({
-        start: segment.start,
-        end: segment.end,
-      }))
-    );
+    state.redoStack.push(cloneSegments(state.segments));
     const previous = state.undoStack.pop();
     state.segments = previous;
     const last = state.segments[state.segments.length - 1];
-    state.lastPickedElement = last ? resolveByLocator(last.end) : null;
+    state.lastPickedElement =
+      last && last.type !== "slice" ? resolveByLocator(last.end) : null;
     renderSegmentHighlights();
     updateStatus("Undo");
   }
@@ -976,16 +1115,12 @@
       updateStatus("Nothing to redo");
       return;
     }
-    state.undoStack.push(
-      state.segments.map((segment) => ({
-        start: segment.start,
-        end: segment.end,
-      }))
-    );
+    state.undoStack.push(cloneSegments(state.segments));
     const next = state.redoStack.pop();
     state.segments = next;
     const last = state.segments[state.segments.length - 1];
-    state.lastPickedElement = last ? resolveByLocator(last.end) : null;
+    state.lastPickedElement =
+      last && last.type !== "slice" ? resolveByLocator(last.end) : null;
     renderSegmentHighlights();
     updateStatus("Redo");
   }
@@ -1330,12 +1465,39 @@
     });
   }
 
+  function buildCleanPageHtml() {
+    const clone = document.documentElement.cloneNode(true);
+    const overlayRoot = clone.querySelector("#web-slicer-root");
+    if (overlayRoot) {
+      overlayRoot.remove();
+    }
+    clone
+      .querySelectorAll("script,noscript,iframe,object,embed")
+      .forEach((node) => node.remove());
+    clone.querySelectorAll("meta[http-equiv]").forEach((meta) => {
+      const httpEquiv = meta.getAttribute("http-equiv") || "";
+      if (httpEquiv.toLowerCase() === "refresh") {
+        meta.remove();
+      }
+    });
+    clone.querySelectorAll("base").forEach((node) => node.remove());
+    clone.querySelectorAll("*").forEach((node) => {
+      Array.from(node.attributes).forEach((attr) => {
+        if (attr.name.toLowerCase().startsWith("on")) {
+          node.removeAttribute(attr.name);
+        }
+      });
+    });
+    return `<!doctype html>\n${clone.outerHTML}`;
+  }
+
   async function saveSlice() {
     const snapshot = buildSnapshot();
     if (!snapshot) {
       updateStatus("Nothing to save");
       return;
     }
+    const pageHtml = buildCleanPageHtml();
     updateStatus("Saving...");
     const payload = {
       url: window.location.href,
@@ -1344,6 +1506,8 @@
       recipe: snapshot.recipe,
       html: snapshot.html,
       text: snapshot.text,
+      page_html: pageHtml,
+      page_html_refresh: false,
     };
     try {
       const response = await chrome.runtime.sendMessage({
@@ -1400,10 +1564,81 @@
     event.preventDefault();
   }
 
-  function openFullPreview({ html, baseUrl, title }) {
+  function lockScroll() {
+    if (state.scrollLock) {
+      return;
+    }
+    state.scrollLock = {
+      htmlOverflow: document.documentElement.style.overflow,
+      bodyOverflow: document.body.style.overflow,
+    };
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+  }
+
+  function unlockScroll() {
+    if (!state.scrollLock) {
+      return;
+    }
+    document.documentElement.style.overflow = state.scrollLock.htmlOverflow || "";
+    document.body.style.overflow = state.scrollLock.bodyOverflow || "";
+    state.scrollLock = null;
+  }
+
+  function openFullPreview({ html, pageHtml, baseUrl, title, mode, sliceRanges }) {
     const safeTitle = escapeHtml(title || "Slice Preview");
+    const displayTitle = title || "Slice Preview";
     const safeBase = escapeHtml(baseUrl || window.location.href);
-    const doc = `<!doctype html>
+    const resolvedMode = mode || "page";
+    state.fullPreviewMode = resolvedMode;
+    updateFullPreviewButtons();
+
+    let doc = "";
+    const sliceHtml = html || "";
+    if (resolvedMode === "slice-only" || !pageHtml) {
+      doc = buildSliceDocument(sliceHtml, safeTitle, safeBase);
+    } else if (resolvedMode === "slice-in-page") {
+      doc = buildPageDocument(pageHtml, safeTitle, safeBase, sliceRanges || []);
+    } else {
+      doc = buildPageDocument(pageHtml, safeTitle, safeBase, []);
+    }
+
+    fullPreview.title.textContent = displayTitle;
+    fullPreview.iframe.srcdoc = doc;
+    fullPreview.iframe.onload = () => {
+      if (state.fullPreviewMode !== "slice-in-page") {
+        return;
+      }
+      if (!Array.isArray(sliceRanges) || sliceRanges.length === 0) {
+        return;
+      }
+      const firstTop = Math.min(
+        ...sliceRanges.map((range) => Math.min(range.yStart, range.yEnd))
+      );
+      try {
+        fullPreview.iframe.contentWindow?.scrollTo({
+          top: Math.max(0, firstTop - 40),
+          behavior: "auto",
+        });
+      } catch (error) {
+        console.warn("Preview scroll failed", error);
+      }
+    };
+    fullPreview.el.style.display = "flex";
+    lockScroll();
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function buildSliceDocument(html, safeTitle, safeBase) {
+    return `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8">
@@ -1419,18 +1654,59 @@
     <div class="slice-preview">${html || ""}</div>
   </body>
 </html>`;
-    fullPreview.title.textContent = safeTitle;
-    fullPreview.iframe.srcdoc = doc;
-    fullPreview.el.style.display = "flex";
   }
 
-  function escapeHtml(value) {
-    return String(value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
+  function buildPageDocument(pageHtml, safeTitle, safeBase, sliceRanges) {
+    const overlayMarkup = buildOverlayMarkup(sliceRanges || []);
+    let doc = pageHtml || "";
+    const baseTag = `<base href="${safeBase}">`;
+    const overlayStyle = `<style>
+      body { position: relative; }
+      #slicer-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 2147483647; }
+      .slicer-overlay-band { position: absolute; left: 0; right: 0; background: rgba(90, 170, 255, 0.22); border: 1px solid rgba(90, 170, 255, 0.45); }
+    </style>`;
+
+    if (doc.includes("<head")) {
+      doc = doc.replace(/<head[^>]*>/i, (match) => `${match}${baseTag}${overlayStyle}`);
+    } else {
+      doc = `<!doctype html><html><head><meta charset="utf-8"><title>${safeTitle}</title>${baseTag}${overlayStyle}</head>${doc}</html>`;
+    }
+
+    if (doc.includes("<body")) {
+      doc = doc.replace(/<body[^>]*>/i, (match) => `${match}<div id="slicer-overlay">${overlayMarkup}</div>`);
+    } else {
+      doc += `<div id="slicer-overlay">${overlayMarkup}</div>`;
+    }
+
+    if (!doc.toLowerCase().includes("<title")) {
+      doc = doc.replace(/<head[^>]*>/i, (match) => `${match}<title>${safeTitle}</title>`);
+    }
+    return doc;
+  }
+
+  function buildOverlayMarkup(sliceRanges) {
+    if (!sliceRanges.length) {
+      return "";
+    }
+    return sliceRanges
+      .map((range) => {
+        const top = Math.min(range.yStart, range.yEnd);
+        const height = Math.max(0, Math.abs(range.yEnd - range.yStart));
+        return `<div class="slicer-overlay-band" style="top:${top}px;height:${height}px"></div>`;
+      })
+      .join("");
+  }
+
+  function updateFullPreviewButtons() {
+    if (!fullPreview.modeSlice) {
+      return;
+    }
+    fullPreview.modeSlice.classList.toggle("active", state.fullPreviewMode === "slice-only");
+    fullPreview.modeSliceInPage.classList.toggle(
+      "active",
+      state.fullPreviewMode === "slice-in-page"
+    );
+    fullPreview.modePage.classList.toggle("active", state.fullPreviewMode === "page");
   }
 
   function showHighlight(target) {
