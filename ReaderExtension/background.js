@@ -284,7 +284,16 @@ chrome.commands.onCommand.addListener((command) => {
     return;
   }
   console.log("[ReaderExt] Reload command triggered");
-  chrome.runtime.reload();
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+    const tabId = tabs?.[0]?.id;
+    if (tabId) {
+      chrome.tabs.reload(tabId, {}, () => {
+        chrome.runtime.reload();
+      });
+      return;
+    }
+    chrome.runtime.reload();
+  });
 });
 
 chrome.action.onClicked.addListener((tab) => {
