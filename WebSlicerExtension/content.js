@@ -1637,7 +1637,7 @@
         doc = buildPageDocument(pageHtml, safeTitle, safeBase, sliceRanges || []);
       }
     } else if (pageHtml) {
-      doc = buildPageDocument(pageHtml, safeTitle, safeBase, sliceRanges || []);
+      doc = buildPlainPageDocument(pageHtml, safeTitle, safeBase);
     } else {
       doc = buildSliceDocument(sliceHtml, safeTitle, safeBase);
     }
@@ -1737,6 +1737,21 @@
       doc = doc.replace(/<head[^>]*>/i, (match) => `${match}<title>${safeTitle}</title>`);
     }
 
+    return doc;
+  }
+
+  function buildPlainPageDocument(pageHtml, safeTitle, safeBase) {
+    let doc = pageHtml || "";
+    const baseTag = `<base href="${safeBase}">`;
+    if (doc.includes("<head")) {
+      doc = doc.replace(/<head[^>]*>/i, (match) => `${match}${baseTag}`);
+    } else {
+      doc = `<!doctype html><html><head><meta charset="utf-8"><title>${safeTitle}</title>${baseTag}</head>${doc}</html>`;
+    }
+
+    if (!doc.toLowerCase().includes("<title")) {
+      doc = doc.replace(/<head[^>]*>/i, (match) => `${match}<title>${safeTitle}</title>`);
+    }
     return doc;
   }
 
