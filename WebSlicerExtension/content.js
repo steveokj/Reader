@@ -1794,11 +1794,7 @@
         doc.documentElement.scrollHeight || 0,
         doc.body?.scrollHeight || 0
       ) - Math.max(0, bodyOffset);
-    const ranges = sliceRanges
-      .map((range) => ({
-        top: Math.max(0, Math.min(range.yStart, range.yEnd) - bodyOffset),
-        bottom: Math.max(0, Math.max(range.yStart, range.yEnd) - bodyOffset),
-      }))
+    const ranges = getOverlayRanges(doc, sliceRanges)
       .filter((range) => range.bottom > range.top)
       .sort((a, b) => a.top - b.top);
 
@@ -1851,6 +1847,20 @@
     block.style.height = `${Math.max(0, height)}px`;
     block.style.background = background;
     return block;
+  }
+
+  function getOverlayRanges(doc, sliceRanges) {
+    const bodyOffset = doc.body
+      ? doc.body.getBoundingClientRect().top + (doc.defaultView?.scrollY || 0)
+      : 0;
+    return sliceRanges.map((range) => {
+      const top = Math.max(0, Math.min(range.yStart, range.yEnd) - bodyOffset);
+      const height = Math.max(0, Math.abs(range.yEnd - range.yStart));
+      return {
+        top,
+        bottom: top + height,
+      };
+    });
   }
 
   function pickMaskBackground(bodyBg, htmlBg) {
