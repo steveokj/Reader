@@ -984,6 +984,7 @@
           ? segment.cleaned_yStart
           : segment.yStart,
         yEnd: Number.isFinite(segment.cleaned_yEnd) ? segment.cleaned_yEnd : segment.yEnd,
+        source: Number.isFinite(segment.cleaned_yStart) ? "cleaned" : "raw",
       }));
   }
 
@@ -1781,6 +1782,18 @@
       return;
     }
     const pageHtml = buildCleanPageHtml();
+    const nativeRanges = (snapshot.recipe.segments || [])
+      .filter((segment) => segment?.type === "slice")
+      .map((segment) => ({
+        yStart: segment.yStart,
+        yEnd: segment.yEnd,
+        anchorStart: segment.anchor_start || segment.anchorStart || null,
+        anchorEnd: segment.anchor_end || segment.anchorEnd || null,
+      }));
+    console.info("WebSlicer native slice ranges", {
+      pageHeight: snapshot.recipe.page_metrics?.scrollHeight || 0,
+      ranges: nativeRanges,
+    });
     const recipe = await applyCleanedSliceRanges(snapshot.recipe, pageHtml);
     updateStatus("Saving...");
     const payload = {
@@ -1975,6 +1988,9 @@
   function scaleSliceRanges(sliceRanges, pageMetrics, iframe) {
     if (!Array.isArray(sliceRanges) || sliceRanges.length === 0) {
       return [];
+    }
+    if (sliceRanges.every((range) => range.source === "cleaned")) {
+      return sliceRanges;
     }
     if (!pageMetrics?.scrollHeight || !iframe?.contentDocument) {
       return sliceRanges;
