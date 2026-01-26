@@ -2000,6 +2000,8 @@
 
   function renderExploreMessages() {
     const container = exploreModal.messages;
+    const wasNearBottom = isNearBottom(container);
+    const prevScrollTop = container.scrollTop;
     container.innerHTML = "";
     if (!exploreState.messages.length) {
       const empty = document.createElement("div");
@@ -2093,7 +2095,12 @@
       container.appendChild(loading);
     }
     requestAnimationFrame(() => {
-      container.scrollTop = container.scrollHeight;
+      if (wasNearBottom) {
+        container.scrollTop = container.scrollHeight;
+        return;
+      }
+      const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+      container.scrollTop = Math.min(prevScrollTop, maxScrollTop);
     });
   }
 
@@ -3822,6 +3829,14 @@
       return `${Math.round(diff / hour)}h ago`;
     }
     return new Date(value).toLocaleDateString();
+  }
+
+  function isNearBottom(container, threshold = 80) {
+    if (!container) {
+      return true;
+    }
+    const remaining = container.scrollHeight - container.scrollTop - container.clientHeight;
+    return remaining <= threshold;
   }
 
   function jumpToSelection(selection) {
