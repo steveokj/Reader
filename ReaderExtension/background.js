@@ -1,4 +1,5 @@
 const STORAGE_KEY = "reader_api_base";
+const RELOAD_FLAG_KEY = "reader_reload_pending";
 let configApiBasePromise = null;
 
 function loadConfigApiBase() {
@@ -279,19 +280,46 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+async function consumeReloadFlag() {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.local.get([RELOAD_FLAG_KEY], (data) => {
+        const pending = Boolean(data?.[RELOAD_FLAG_KEY]);
+        if (!pending) {
+          resolve(false);
+          return;
+        }
+        chrome.storage.local.remove([RELOAD_FLAG_KEY], () => {
+          resolve(true);
+        });
+      });
+    } catch (error) {
+      resolve(false);
+    }
+  });
+}
+
+async function reloadActiveTabIfPending(source) {
+  const pending = await consumeReloadFlag();
+  if (!pending) {
+    return;
+  }
+  console.log("[ReaderExt] Reload pending; refreshing active tab", source);
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+    const tabId = tabs?.[0]?.id;
+    if (!tabId) {
+      return;
+    }
+    chrome.tabs.reload(tabId);
+  });
+}
+
 chrome.commands.onCommand.addListener((command) => {
   if (command !== "reader:reload") {
     return;
   }
   console.log("[ReaderExt] Reload command triggered");
-  chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
-    const tabId = tabs?.[0]?.id;
-    if (tabId) {
-      chrome.tabs.reload(tabId, {}, () => {
-        chrome.runtime.reload();
-      });
-      return;
-    }
+  chrome.storage.local.set({ [RELOAD_FLAG_KEY]: true }, () => {
     chrome.runtime.reload();
   });
 });
@@ -311,3 +339,13 @@ chrome.action.onClicked.addListener((tab) => {
     console.log("[ReaderExt] Toggle nav response", response);
   });
 });
+
+chrome.runtime.onInstalled.addListener(() => {
+  void reloadActiveTabIfPending("installed");
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  void reloadActiveTabIfPending("startup");
+});
+
+void reloadActiveTabIfPending("boot");
