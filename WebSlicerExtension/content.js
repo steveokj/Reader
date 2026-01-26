@@ -13,6 +13,7 @@
     highlightTarget: null,
     libraryOpen: false,
     libraryFilter: "page",
+    libraryType: "all",
     lastPickedElement: null,
     undoStack: [],
     redoStack: [],
@@ -195,9 +196,15 @@
     headerActions.className = "slicer-library__actions";
 
     const filter = createButton("This page");
+    const typeAll = createButton("All");
+    const typePicks = createButton("Picks");
+    const typeSlices = createButton("Slices");
     const refresh = createButton("Refresh");
     const close = createButton("Close");
     headerActions.appendChild(filter);
+    headerActions.appendChild(typeAll);
+    headerActions.appendChild(typePicks);
+    headerActions.appendChild(typeSlices);
     headerActions.appendChild(refresh);
     headerActions.appendChild(close);
 
@@ -219,10 +226,13 @@
     });
 
     filter.addEventListener("click", () => toggleLibraryFilter());
+    typeAll.addEventListener("click", () => setLibraryType("all"));
+    typePicks.addEventListener("click", () => setLibraryType("pick"));
+    typeSlices.addEventListener("click", () => setLibraryType("slice"));
     refresh.addEventListener("click", () => loadLibrary());
     close.addEventListener("click", () => hideLibrary());
 
-    return { el, list, filter };
+    return { el, list, filter, typeAll, typePicks, typeSlices };
   }
 
   function buildFullPreview() {
@@ -335,6 +345,7 @@
     state.undoStack = [];
     state.redoStack = [];
     state.lastPreview = null;
+    state.libraryType = "all";
     hidePreview();
     hideLibrary();
     hideFullPreview();
@@ -387,6 +398,7 @@
     state.undoStack = [];
     state.redoStack = [];
     state.lastPreview = null;
+    state.libraryType = "all";
     overlay.uiRoot.style.display = "none";
     toolbar.el.style.display = "none";
     hidePreview();
@@ -472,6 +484,7 @@
     libraryPanel.el.style.display = "block";
     state.libraryOpen = true;
     updateLibraryFilterButton();
+    updateLibraryTypeButtons();
     loadLibrary();
   }
 
@@ -483,6 +496,12 @@
   function toggleLibraryFilter() {
     state.libraryFilter = state.libraryFilter === "page" ? "all" : "page";
     updateLibraryFilterButton();
+    loadLibrary();
+  }
+
+  function setLibraryType(type) {
+    state.libraryType = type;
+    updateLibraryTypeButtons();
     loadLibrary();
   }
 
@@ -513,7 +532,8 @@
       if (!response?.ok) {
         throw new Error(response?.error || "Failed to load");
       }
-      renderLibrary(response.slices || []);
+      const filtered = filterLibraryItems(response.slices || []);
+      renderLibrary(filtered);
     } catch (error) {
       libraryPanel.list.innerHTML = "";
       const fallback = document.createElement("div");
@@ -536,24 +556,34 @@
       const row = document.createElement("div");
       row.className = "slicer-library__item";
 
+      const type = getItemType(item);
       const title = document.createElement("div");
       title.className = "slicer-library__title";
       title.textContent = item.slice_title || item.page_title || item.url;
 
       const meta = document.createElement("div");
       meta.className = "slicer-library__meta";
-      meta.textContent = `${item.url} - ${formatDate(item.created_at)}`;
+      meta.textContent = `${type.toUpperCase()} - ${item.url} - ${formatDate(item.created_at)}`;
 
       const actions = document.createElement("div");
       actions.className = "slicer-library__item-actions";
 
-      const preview = createButton("Preview");
+      const preview = createButton(type === "slice" ? "Full" : "Preview");
       const copyHtml = createButton("Copy HTML");
       const copyText = createButton("Copy text");
       const remove = createButton("Delete");
       const openFull = createButton("Full");
 
       preview.addEventListener("click", () => {
+        if (type === "slice") {
+          openFullPreview({
+            html: item.html || "",
+            text: item.text || "",
+            baseUrl: item.url || window.location.href,
+            title: item.slice_title || item.page_title || item.url || "Slice Preview",
+          });
+          return;
+        }
         setPreviewContent({
           text: item.text,
           html: item.html,
@@ -581,7 +611,9 @@
       actions.appendChild(preview);
       actions.appendChild(copyHtml);
       actions.appendChild(copyText);
-      actions.appendChild(openFull);
+      if (type === "pick") {
+        actions.appendChild(openFull);
+      }
       actions.appendChild(remove);
 
       row.appendChild(title);
@@ -639,6 +671,15 @@
     }
     state.highlightTarget = target;
     showHighlight(target);
+  }
+
+  function updateLibraryTypeButtons() {
+    if (!libraryPanel.typeAll) {
+      return;
+    }
+    libraryPanel.typeAll.classList.toggle("active", state.libraryType === "all");
+    libraryPanel.typePicks.classList.toggle("active", state.libraryType === "pick");
+    libraryPanel.typeSlices.classList.toggle("active", state.libraryType === "slice");
   }
 
   function handleClick(event) {
@@ -705,6 +746,22 @@
       updateStatus("Exclude added");
       return;
     }
+  }
+
+  function filterLibraryItems(items) {
+    if (state.libraryType === "all") {
+      return items;
+    }
+    return items.filter((item) => getItemType(item) === state.libraryType);
+  }
+
+  function getItemType(item) {
+    const segments = item?.recipe?.segments;
+    if (!Array.isArray(segments)) {
+      return "pick";
+    }
+    const hasSlice = segments.some((segment) => segment?.type === "slice");
+    return hasSlice ? "slice" : "pick";
   }
 
   function handleKeyDown(event) {

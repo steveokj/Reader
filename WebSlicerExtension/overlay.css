@@ -243,6 +243,7 @@
 .slicer-library__actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .slicer-library__actions button {
