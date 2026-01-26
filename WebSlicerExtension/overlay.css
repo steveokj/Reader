@@ -163,6 +163,57 @@
   color: #121212;
 }
 
+.slicer-full {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 10, 0.6);
+  z-index: 6;
+  pointer-events: auto;
+}
+
+.slicer-full__card {
+  width: min(1100px, 96vw);
+  height: min(92vh, 960px);
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.slicer-full__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e5e5;
+  font-weight: 600;
+}
+
+.slicer-full__title {
+  font-size: 14px;
+}
+
+.slicer-full__close {
+  font-size: 16px;
+  line-height: 1;
+  width: 28px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slicer-full__frame {
+  flex: 1;
+  border: none;
+  width: 100%;
+}
+
 .slicer-library {
   pointer-events: auto;
   position: fixed;

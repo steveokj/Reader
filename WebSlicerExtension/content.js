@@ -27,6 +27,7 @@
   const segmentLayer = buildSegmentLayer();
   const sliceLine = buildSliceLine("slicer-slice-line");
   const sliceStartLine = buildSliceLine("slicer-slice-start");
+  const fullPreview = buildFullPreview();
   const highlight = buildHighlight();
 
   overlay.uiRoot.appendChild(toolbar.el);
@@ -35,6 +36,7 @@
   overlay.uiRoot.appendChild(segmentLayer.el);
   overlay.uiRoot.appendChild(sliceLine.el);
   overlay.uiRoot.appendChild(sliceStartLine.el);
+  overlay.uiRoot.appendChild(fullPreview.el);
   overlay.uiRoot.appendChild(highlight.el);
 
   updateStatus();
@@ -43,6 +45,7 @@
   hidePreview();
   hideLibrary();
   hideHighlight();
+  hideFullPreview();
 
   chrome.runtime.onMessage.addListener((message) => {
     if (message?.type === "slicer-toggle") {
@@ -171,7 +174,7 @@
 
     showText.addEventListener("click", () => setPreviewMode("text"));
     showHtml.addEventListener("click", () => setPreviewMode("html"));
-    full.addEventListener("click", () => openLastPreviewInNewTab());
+    full.addEventListener("click", () => showFullPreview());
     close.addEventListener("click", () => hidePreview());
     el.addEventListener("wheel", handlePreviewWheel, { passive: false });
 
@@ -220,6 +223,45 @@
     close.addEventListener("click", () => hideLibrary());
 
     return { el, list, filter };
+  }
+
+  function buildFullPreview() {
+    const el = document.createElement("div");
+    el.className = "slicer-full";
+
+    const card = document.createElement("div");
+    card.className = "slicer-full__card";
+
+    const header = document.createElement("div");
+    header.className = "slicer-full__header";
+
+    const title = document.createElement("div");
+    title.className = "slicer-full__title";
+    title.textContent = "Slice Preview";
+
+    const close = createButton("X");
+    close.classList.add("slicer-full__close");
+    close.setAttribute("aria-label", "Close full preview");
+
+    header.appendChild(title);
+    header.appendChild(close);
+
+    const iframe = document.createElement("iframe");
+    iframe.className = "slicer-full__frame";
+    iframe.setAttribute("sandbox", "allow-same-origin allow-popups allow-forms");
+
+    card.appendChild(header);
+    card.appendChild(iframe);
+    el.appendChild(card);
+
+    close.addEventListener("click", () => hideFullPreview());
+    el.addEventListener("click", (event) => {
+      if (event.target === el) {
+        hideFullPreview();
+      }
+    });
+
+    return { el, iframe, title };
   }
 
   function buildSliceLine(className) {
@@ -295,6 +337,7 @@
     state.lastPreview = null;
     hidePreview();
     hideLibrary();
+    hideFullPreview();
     clearSegmentHighlights();
     hideSliceLines();
     updateStatus();
@@ -348,6 +391,7 @@
     toolbar.el.style.display = "none";
     hidePreview();
     hideLibrary();
+    hideFullPreview();
     hideHighlight();
     clearSegmentHighlights();
     hideSliceLines();
@@ -378,6 +422,21 @@
 
   function hidePreview() {
     previewPanel.el.style.display = "none";
+  }
+
+  function showFullPreview() {
+    if (!state.lastPreview) {
+      updateStatus("Nothing to open");
+      return;
+    }
+    openFullPreview(state.lastPreview);
+  }
+
+  function hideFullPreview() {
+    fullPreview.el.style.display = "none";
+    if (fullPreview.iframe) {
+      fullPreview.iframe.srcdoc = "";
+    }
   }
 
   function setPreviewMode(mode) {
@@ -1284,24 +1343,10 @@
     event.preventDefault();
   }
 
-  function openLastPreviewInNewTab() {
-    if (!state.lastPreview) {
-      updateStatus("Nothing to open");
-      return;
-    }
-    openFullPreview(state.lastPreview);
-  }
-
   function openFullPreview({ html, baseUrl, title }) {
-    const previewWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!previewWindow) {
-      updateStatus("Popup blocked");
-      return;
-    }
     const safeTitle = escapeHtml(title || "Slice Preview");
     const safeBase = escapeHtml(baseUrl || window.location.href);
-    previewWindow.document.open();
-    previewWindow.document.write(`<!doctype html>
+    const doc = `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8">
@@ -1309,15 +1354,17 @@
     <base href="${safeBase}">
     <style>
       body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #111; }
-      .slice-preview { padding: 40px 48px; }
+      .slice-preview { padding: 40px 48px; max-width: 960px; margin: 0 auto; }
       img, video { max-width: 100%; height: auto; }
     </style>
   </head>
   <body>
     <div class="slice-preview">${html || ""}</div>
   </body>
-</html>`);
-    previewWindow.document.close();
+</html>`;
+    fullPreview.title.textContent = safeTitle;
+    fullPreview.iframe.srcdoc = doc;
+    fullPreview.el.style.display = "flex";
   }
 
   function escapeHtml(value) {
