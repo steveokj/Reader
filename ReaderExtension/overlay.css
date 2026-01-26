@@ -1186,6 +1186,92 @@
   text-justify: inter-word;
 }
 
+.chat-message__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chat-message__action {
+  border: 1px solid var(--reader-border);
+  background: var(--reader-panel);
+  color: var(--reader-ink);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.chat-message__action svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.explore-quote {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 16px 4px;
+}
+
+.explore-quote__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(31, 28, 22, 0.08);
+  border: 1px solid var(--reader-border);
+  font-size: 12px;
+  color: var(--reader-ink);
+}
+
+.explore-quote__label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  color: var(--reader-ink-muted);
+}
+
+.explore-quote__text {
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.explore-quote__clear {
+  border: none;
+  background: none;
+  color: var(--reader-ink-muted);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.explore-quote__clear svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .explore-chat-modal__zoom {
   position: fixed;
   inset: 0;

@@ -83,6 +83,7 @@
     anchorText: "",
     anchorUrl: "",
     anchorTitle: "",
+    quoteText: "",
   };
 
   const exploreSettings = {
@@ -1041,6 +1042,31 @@
     error.className = "explore-chat-modal__error";
     error.style.display = "none";
 
+    const quoteRow = document.createElement("div");
+    quoteRow.className = "explore-quote";
+    quoteRow.style.display = "none";
+
+    const quotePill = document.createElement("div");
+    quotePill.className = "explore-quote__pill";
+
+    const quoteLabel = document.createElement("span");
+    quoteLabel.className = "explore-quote__label";
+    quoteLabel.textContent = "Quote";
+
+    const quoteText = document.createElement("span");
+    quoteText.className = "explore-quote__text";
+
+    quotePill.appendChild(quoteLabel);
+    quotePill.appendChild(quoteText);
+
+    const quoteClear = document.createElement("button");
+    quoteClear.type = "button";
+    quoteClear.className = "explore-quote__clear";
+    quoteClear.innerHTML = iconClose();
+
+    quoteRow.appendChild(quotePill);
+    quoteRow.appendChild(quoteClear);
+
     const form = document.createElement("form");
     form.className = "chat-input";
 
@@ -1062,6 +1088,7 @@
     panel.appendChild(context);
     panel.appendChild(messages);
     panel.appendChild(error);
+    panel.appendChild(quoteRow);
     panel.appendChild(form);
 
     el.appendChild(panel);
@@ -1109,6 +1136,10 @@
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       void handleExploreSubmit();
+    });
+
+    quoteClear.addEventListener("click", () => {
+      clearExploreQuote();
     });
 
     promptInput.addEventListener("input", (event) => {
@@ -1172,6 +1203,9 @@
       error,
       textarea,
       submit,
+      quoteRow,
+      quoteText,
+      quoteClear,
       zoom,
       zoomImg,
       zoomClose,
@@ -1933,6 +1967,7 @@
     renderExploreContext();
     renderExploreMessages();
     renderExploreError();
+    renderExploreQuote();
     updateExploreSubmit();
     renderExploreSettingsPanel();
   }
@@ -1986,6 +2021,49 @@
           });
         }
         appendExploreMessageParts(card, message.content);
+        if (message.role === "assistant") {
+          const actions = document.createElement("div");
+          actions.className = "chat-message__actions";
+
+          const copyButton = document.createElement("button");
+          copyButton.type = "button";
+          copyButton.className = "chat-message__action";
+          copyButton.title = "Copy";
+          copyButton.setAttribute("aria-label", "Copy response");
+          copyButton.innerHTML = iconCopy();
+          copyButton.addEventListener("click", async (event) => {
+            event.stopPropagation();
+            try {
+              await navigator.clipboard.writeText(message.content || "");
+              showExploreBadge("Copied");
+            } catch (error) {
+              console.warn("Reader extension copy failed", error);
+            }
+          });
+
+          const quoteButton = document.createElement("button");
+          quoteButton.type = "button";
+          quoteButton.className = "chat-message__action";
+          quoteButton.title = "Quote";
+          quoteButton.setAttribute("aria-label", "Quote response");
+          quoteButton.innerHTML = iconQuote();
+          quoteButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            setExploreQuote(message.content || "");
+          });
+
+          const infoButton = document.createElement("button");
+          infoButton.type = "button";
+          infoButton.className = "chat-message__action";
+          infoButton.title = buildExploreInfoTitle(message);
+          infoButton.setAttribute("aria-label", "Response info");
+          infoButton.innerHTML = iconInfo();
+
+          actions.appendChild(copyButton);
+          actions.appendChild(quoteButton);
+          actions.appendChild(infoButton);
+          card.appendChild(actions);
+        }
         container.appendChild(card);
       });
     }
@@ -2006,6 +2084,13 @@
     });
   }
 
+  function buildExploreInfoTitle(message) {
+    const model = message?.meta?.model || exploreSettings.model || "unknown";
+    const reasoningValue = message?.meta?.reasoning || exploreSettings.reasoning || "unknown";
+    const reasoning = getReasoningLabel(reasoningValue) || reasoningValue;
+    return `Model: ${model} | Reasoning: ${reasoning}`;
+  }
+
   function renderExploreError() {
     if (exploreState.error) {
       exploreModal.error.style.display = "block";
@@ -2014,6 +2099,34 @@
       exploreModal.error.style.display = "none";
       exploreModal.error.textContent = "";
     }
+  }
+
+  function renderExploreQuote() {
+    const quote = exploreState.quoteText || "";
+    if (!quote.trim()) {
+      exploreModal.quoteRow.style.display = "none";
+      exploreModal.quoteText.textContent = "";
+      exploreModal.quoteText.title = "";
+      return;
+    }
+    exploreModal.quoteRow.style.display = "flex";
+    exploreModal.quoteText.textContent = truncateContext(quote, 80);
+    exploreModal.quoteText.title = quote;
+  }
+
+  function setExploreQuote(text) {
+    const normalized = String(text || "").trim();
+    if (!normalized) {
+      return;
+    }
+    exploreState.quoteText = normalized;
+    renderExploreQuote();
+    exploreModal.textarea.focus();
+  }
+
+  function clearExploreQuote() {
+    exploreState.quoteText = "";
+    renderExploreQuote();
   }
 
   function updateExploreSubmit() {
@@ -2044,8 +2157,14 @@
     renderExploreModal();
     persistExploreSession();
 
-    const contextPrefix = exploreState.contextText ? `Context:\n${exploreState.contextText}\n\n` : "";
-    const payloadMessage = `${contextPrefix}${trimmed}`;
+    const contextPrefix = exploreState.contextText
+      ? `Context:\n${exploreState.contextText}\n\n`
+      : "";
+    const quoteText = (exploreState.quoteText || "").trim();
+    const quoteBlock = quoteText
+      ? `Quote (from previous response):\n<<<\n${quoteText}\n>>>\n\n`
+      : "";
+    const payloadMessage = `${contextPrefix}${quoteBlock}${trimmed}`;
 
     try {
       await loadExploreSettings();
@@ -2073,7 +2192,7 @@
         throw new Error(detail);
       }
       const data = result.data || {};
-      const assistantText = data.messages?.[0]?.content ?? "";
+      const assistantText = cleanExploreResponse(data.messages?.[0]?.content ?? "");
       if (data.thread?.id && !threadId) {
         exploreState.threadId = data.thread.id;
       }
@@ -2085,10 +2204,17 @@
           id: Date.now() + exploreMessageCounter++,
           role: "assistant",
           content: assistantText,
+          meta: {
+            model: exploreSettings.model || null,
+            reasoning: exploreSettings.reasoning || null,
+          },
         };
         exploreState.messages = [...exploreState.messages, assistantMessage];
         renderExploreMessages();
         await saveExploreAddition(assistantMessage, trimmed);
+      }
+      if (quoteText) {
+        clearExploreQuote();
       }
       persistExploreSession();
     } catch (error) {
@@ -3657,6 +3783,10 @@
     return "Explore request failed.";
   }
 
+  function cleanExploreResponse(text) {
+    return String(text || "").trim();
+  }
+
   function formatRelativeTime(value) {
     const timestamp = new Date(value).getTime();
     if (!Number.isFinite(timestamp)) {
@@ -4137,6 +4267,14 @@
 
   function iconHighlights() {
     return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v14H5z" /><path d="M8 9h8" /><path d="M8 13h6" /></svg>';
+  }
+
+  function iconQuote() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h5v6H6z" /><path d="M13 8h5v6h-5z" /></svg>';
+  }
+
+  function iconInfo() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 10v6" /><path d="M12 7h.01" /></svg>';
   }
 
   function iconLike() {
