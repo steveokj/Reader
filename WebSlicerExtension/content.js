@@ -29,6 +29,7 @@
     defaultMode: "slicer_default_mode",
     doubleClickLibrary: "slicer_double_click_library",
     hotkeySave: "slicer_hotkey_save",
+    autoSaveOnEnd: "slicer_auto_save_on_end",
   };
 
   const overlay = mountOverlay();
@@ -408,6 +409,10 @@
     const data = await chrome.storage.sync.get(Object.values(SETTINGS_KEYS));
     return {
       defaultMode: data[SETTINGS_KEYS.defaultMode] || "pick",
+      autoSaveOnEnd:
+        typeof data[SETTINGS_KEYS.autoSaveOnEnd] === "boolean"
+          ? data[SETTINGS_KEYS.autoSaveOnEnd]
+          : true,
     };
   }
 
@@ -889,6 +894,15 @@
         state.segments.push(segment);
         renderSegmentHighlights();
         updateStatus("Slice added");
+        getExtensionSettings()
+          .then((settings) => {
+            if (settings.autoSaveOnEnd) {
+              saveSlice();
+            }
+          })
+          .catch((error) => {
+            console.warn("Web Slicer auto-save settings failed", error);
+          });
       } else {
         updateStatus("Could not create slice");
       }
