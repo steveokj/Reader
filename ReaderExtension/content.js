@@ -2095,6 +2095,7 @@
       exploreState.error = normalizeError(error);
     } finally {
       exploreState.isSubmitting = false;
+      renderExploreMessages();
       updateExploreSubmit();
       renderExploreError();
       persistExploreSession();
