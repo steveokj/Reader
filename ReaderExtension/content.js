@@ -26,8 +26,18 @@
     { value: "xhigh", label: "Extra high" },
   ];
   const EXPLORE_MODEL_OPTIONS = [
-    { id: "gpt-5.2-codex", label: "gpt-5.2-codex" },
-    { id: "gpt-5.2", label: "gpt-5.2" },
+    {
+      id: "gpt-5.2-codex",
+      label: "gpt-5.2-codex",
+      reasoning_levels: ["low", "medium", "high", "xhigh"],
+      default_reasoning: "medium",
+    },
+    {
+      id: "gpt-5.2",
+      label: "gpt-5.2",
+      reasoning_levels: ["low", "medium", "high", "xhigh"],
+      default_reasoning: "medium",
+    },
   ];
 
   const state = {
@@ -1113,6 +1123,11 @@
         return;
       }
       exploreSettings.draft.model = event.target.value;
+      const allowed = getExploreReasoningLevels(exploreSettings.draft.model);
+      if (allowed.length && !allowed.some((level) => level.value === exploreSettings.draft.reasoning)) {
+        exploreSettings.draft.reasoning = getExploreDefaultReasoning(exploreSettings.draft.model);
+      }
+      renderExploreSettingsPanel();
     });
 
     reasoningSelect.addEventListener("change", (event) => {
@@ -1777,11 +1792,13 @@
     });
 
     const reasoningSelect = exploreModal.settingsReasoning;
+    const allowedLevels = getExploreReasoningLevels(draft.model);
+    if (allowedLevels.length && !allowedLevels.includes(draft.reasoning)) {
+      const defaultLevel = getExploreDefaultReasoning(draft.model);
+      draft.reasoning = defaultLevel;
+    }
     reasoningSelect.innerHTML = "";
-    (exploreSettings.reasoningLevels.length
-      ? exploreSettings.reasoningLevels
-      : EXPLORE_REASONING_LEVELS
-    ).forEach((level) => {
+    allowedLevels.forEach((level) => {
       const option = document.createElement("option");
       option.value = level.value;
       option.textContent = level.label;
@@ -1792,6 +1809,37 @@
     });
 
     exploreModal.settingsSave.disabled = !exploreSettings.loaded;
+  }
+
+  function getExploreModelConfig(modelId) {
+    const models = exploreSettings.availableModels.length
+      ? exploreSettings.availableModels
+      : EXPLORE_MODEL_OPTIONS;
+    return models.find((model) => model.id === modelId) || null;
+  }
+
+  function getExploreReasoningLevels(modelId) {
+    const model = getExploreModelConfig(modelId);
+    const allowed = Array.isArray(model?.reasoning_levels) ? model.reasoning_levels : null;
+    const options = exploreSettings.reasoningLevels.length
+      ? exploreSettings.reasoningLevels
+      : EXPLORE_REASONING_LEVELS;
+    if (!allowed || allowed.length === 0) {
+      return options;
+    }
+    return options.filter((level) => allowed.includes(level.value));
+  }
+
+  function getExploreDefaultReasoning(modelId) {
+    const model = getExploreModelConfig(modelId);
+    if (model?.default_reasoning) {
+      return model.default_reasoning;
+    }
+    const allowed = getExploreReasoningLevels(modelId);
+    if (allowed.length) {
+      return allowed[0].value;
+    }
+    return EXPLORE_DEFAULT_REASONING;
   }
 
   function toggleExploreSettingsPanel(force) {
@@ -1833,6 +1881,10 @@
       return;
     }
     const draft = exploreSettings.draft;
+    const allowedLevels = getExploreReasoningLevels(draft.model);
+    if (allowedLevels.length && !allowedLevels.some((level) => level.value === draft.reasoning)) {
+      draft.reasoning = getExploreDefaultReasoning(draft.model);
+    }
     const previousReasoning = exploreSettings.reasoning;
     const previousModel = exploreSettings.model;
     const previousPrompt = exploreSettings.systemPrompt;

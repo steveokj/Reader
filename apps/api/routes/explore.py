@@ -27,8 +27,18 @@ DEFAULT_INSTRUCTION = (
 )
 
 EXPLORE_MODEL_OPTIONS = [
-    {"id": "gpt-5.2-codex", "label": "gpt-5.2-codex"},
-    {"id": "gpt-5.2", "label": "gpt-5.2"},
+    {
+        "id": "gpt-5.2-codex",
+        "label": "gpt-5.2-codex",
+        "reasoning_levels": ["low", "medium", "high", "xhigh"],
+        "default_reasoning": "medium",
+    },
+    {
+        "id": "gpt-5.2",
+        "label": "gpt-5.2",
+        "reasoning_levels": ["low", "medium", "high", "xhigh"],
+        "default_reasoning": "medium",
+    },
 ]
 
 EXPLORE_REASONING_LEVELS = [

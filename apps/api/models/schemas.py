@@ -407,6 +407,8 @@ class ExploreSettingsResponse(BaseModel):
 class ExploreModelInfo(BaseModel):
     id: str
     label: Optional[str] = None
+    reasoning_levels: Optional[List[str]] = None
+    default_reasoning: Optional[str] = None
 
 
 class ExploreReasoningLevel(BaseModel):
