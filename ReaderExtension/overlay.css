@@ -938,8 +938,10 @@
 }
 
 .explore-chat-modal__badge {
-  align-self: flex-start;
-  margin: 10px 16px 0;
+  position: absolute;
+  top: 54px;
+  right: 16px;
+  z-index: 4;
   padding: 4px 10px;
   border-radius: 999px;
   background: rgba(217, 102, 63, 0.15);
@@ -947,6 +949,7 @@
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  pointer-events: none;
 }
 
 .explore-settings {
@@ -1240,6 +1243,49 @@
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.chat-message__action[data-tooltip] {
+  position: relative;
+}
+
+.chat-message__action[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translate(-50%, 4px);
+  background: rgba(31, 28, 22, 0.92);
+  color: white;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 8px 16px rgba(31, 28, 22, 0.2);
+}
+
+.chat-message__action[data-tooltip]::before {
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: rgba(31, 28, 22, 0.92);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.chat-message__action[data-tooltip]:hover::after,
+.chat-message__action[data-tooltip]:focus-visible::after,
+.chat-message__action[data-tooltip]:hover::before,
+.chat-message__action[data-tooltip]:focus-visible::before {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .explore-quote {

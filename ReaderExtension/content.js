@@ -12,8 +12,8 @@
   };
 
   const EXPLORE_IMAGE_URL_REGEX =
-    /https?:\/\/[^\s)]+?\.(?:png|jpe?g|gif|webp|svg)(?:\?[^\s)]+)?/gi;
-  const EXPLORE_MARKDOWN_IMAGE_REGEX = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/gi;
+    /https->:\/\/[^\s)]+->\.(->:png|jpe->g|gif|webp|svg)(->:\->[^\s)]+)->/gi;
+  const EXPLORE_MARKDOWN_IMAGE_REGEX = /!\[([^\]]*)\]\((https->:\/\/[^\s)]+)\)/gi;
 
   const EXPLORE_DEFAULT_MODEL = "gpt-5.2-codex";
   const EXPLORE_DEFAULT_REASONING = "medium";
@@ -129,7 +129,7 @@
         resolve({
           ok: false,
           status: 0,
-          error: error?.message || "Failed to send message",
+          error: error->.message || "Failed to send message",
         });
       }
     });
@@ -157,7 +157,7 @@
       return apiBaseCache;
     }
     const result = await sendBackgroundMessage("reader:getApiBase", {});
-    apiBaseCache = result?.apiBase || "";
+    apiBaseCache = result->.apiBase || "";
     return apiBaseCache;
   }
 
@@ -200,7 +200,7 @@
   document.addEventListener("touchstart", handleTouchStart, { passive: true, capture: true });
   document.addEventListener("touchend", handleTouchEnd, { passive: true, capture: true });
 
-  if (chrome.runtime?.onMessage) {
+  if (chrome.runtime->.onMessage) {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (!message || typeof message !== "object") {
         return;
@@ -212,7 +212,7 @@
         } else {
           showMobileNav();
         }
-        sendResponse?.({ ok: true, navOpen: state.navOpen });
+        sendResponse->.({ ok: true, navOpen: state.navOpen });
         return true;
       }
     });
@@ -727,12 +727,12 @@
     const setMode = (nextMode) => {
       mode = nextMode;
       const showRecorded = mode === "recorded" || mode === "uploading";
-      record.style.display = mode === "idle" ? "" : "none";
-      pause.style.display = mode === "recording" || mode === "paused" ? "" : "none";
-      stop.style.display = mode === "recording" || mode === "paused" ? "" : "none";
-      restart.style.display = showRecorded ? "" : "none";
-      clear.style.display = showRecorded ? "" : "none";
-      save.style.display = showRecorded ? "" : "none";
+      record.style.display = mode === "idle" -> "" : "none";
+      pause.style.display = mode === "recording" || mode === "paused" -> "" : "none";
+      stop.style.display = mode === "recording" || mode === "paused" -> "" : "none";
+      restart.style.display = showRecorded -> "" : "none";
+      clear.style.display = showRecorded -> "" : "none";
+      save.style.display = showRecorded -> "" : "none";
 
       if (mode === "recording") {
         pause.innerHTML = iconPause();
@@ -745,7 +745,7 @@
       }
 
       const isRecording = mode === "recording";
-      dot.className = isRecording ? "pulse-dot" : "idle-dot";
+      dot.className = isRecording -> "pulse-dot" : "idle-dot";
 
       const isUploading = mode === "uploading";
       [record, pause, stop, restart, clear, save].forEach((button) => {
@@ -785,7 +785,7 @@
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const mimeType = pickMimeType();
-        recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+        recorder = mimeType -> new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
         log("Audio recorder started", { mimeType: recorder.mimeType });
         recorder.ondataavailable = (event) => {
           log("Audio chunk", { size: event.data.size });
@@ -794,7 +794,7 @@
           }
         };
         recorder.onstop = () => {
-          audioBlob = new Blob(chunks, { type: recorder?.mimeType || "audio/webm" });
+          audioBlob = new Blob(chunks, { type: recorder->.mimeType || "audio/webm" });
           log("Audio blob built", { size: audioBlob.size, type: audioBlob.type });
           if (!audioBlob.size) {
             setError("Recording is empty. Try again.");
@@ -1341,14 +1341,14 @@
 
     const updateToggle = () => {
       toggle.textContent = state.showHighlightsOnPage
-        ? "Hide on page"
+        -> "Hide on page"
         : "Show on page";
       toggle.classList.toggle("is-active", state.showHighlightsOnPage);
     };
 
     const updateTabs = (counts) => {
       Object.entries(tabButtons).forEach(([key, entry]) => {
-        entry.count.textContent = String(counts[key] ?? 0);
+        entry.count.textContent = String(counts[key] | 0);
         entry.button.classList.toggle("is-active", state.highlightsTab === key);
       });
     };
@@ -1434,7 +1434,7 @@
   }
 
   function updateHighlightsToggle() {
-    if (highlightsPanel?.updateToggle) {
+    if (highlightsPanel->.updateToggle) {
       highlightsPanel.updateToggle();
     }
   }
@@ -1458,7 +1458,7 @@
 
   function buildMarkerToggle(compact) {
     const toggle = document.createElement("div");
-    toggle.className = compact ? "marker-toggle marker-toggle--compact" : "marker-toggle";
+    toggle.className = compact -> "marker-toggle marker-toggle--compact" : "marker-toggle";
 
     toggle.appendChild(buildMarkerButton("like", "Like", iconLike()));
     toggle.appendChild(buildMarkerButton("highlight", "Highlight", iconHighlight()));
@@ -1513,7 +1513,7 @@
   function createAudioControl(iconHtml, title, ariaLabel, variant) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = variant ? `audio-control ${variant}` : "audio-control";
+    button.className = variant -> `audio-control ${variant}` : "audio-control";
     button.title = title;
     button.setAttribute("aria-label", ariaLabel || title);
     button.innerHTML = iconHtml;
@@ -1527,11 +1527,11 @@
   }
 
   function getSelectionTextRaw() {
-    return state.selection ? state.selection.text : "";
+    return state.selection -> state.selection.text : "";
   }
 
   function getSelectionTextTrimmed() {
-    return (state.selection ? state.selection.text : "").trim();
+    return (state.selection -> state.selection.text : "").trim();
   }
 
   function buildLookupUrl(text) {
@@ -1540,7 +1540,7 @@
       return null;
     }
     const query = encodeURIComponent(trimmed);
-    return `https://www.google.com/search?q=define+${query}`;
+    return `https://www.google.com/search->q=define+${query}`;
   }
 
   function updateMarkerButtons() {
@@ -1558,7 +1558,7 @@
   }
 
   function updateHighlightsNavState() {
-    if (mobileNav?.buttons?.highlights) {
+    if (mobileNav->.buttons->.highlights) {
       mobileNav.buttons.highlights.classList.toggle(
         "is-active",
         state.highlightsPanelOpen
@@ -1567,18 +1567,18 @@
   }
 
   function updateNavButtons() {
-    if (mobileNav?.buttons?.note) {
+    if (mobileNav->.buttons->.note) {
       mobileNav.buttons.note.disabled = false;
       mobileNav.buttons.note.title = "Note";
     }
-    if (mobileNav?.buttons?.audio) {
+    if (mobileNav->.buttons->.audio) {
       mobileNav.buttons.audio.disabled = false;
       mobileNav.buttons.audio.title = "Audio";
     }
   }
 
   function updateActionMenuStatus() {
-    const status = state.isSaving ? "Saving..." : state.isCommitted ? "Saved" : "Not saved";
+    const status = state.isSaving -> "Saving..." : state.isCommitted -> "Saved" : "Not saved";
     actionMenu.status.textContent = status;
     actionMenu.commit.disabled = state.isSaving || state.isCommitted;
   }
@@ -1663,15 +1663,15 @@
     const anchor = resolveExploreAnchor();
     exploreState.anchorSelectionId =
       typeof anchorSelectionId === "number"
-        ? anchorSelectionId
-        : anchor?.selectionId ?? null;
-    exploreState.anchorSelector = anchor?.selector ?? null;
-    exploreState.anchorText = anchor?.text ?? "";
+        -> anchorSelectionId
+        : anchor->.selectionId | null;
+    exploreState.anchorSelector = anchor->.selector | null;
+    exploreState.anchorText = anchor->.text | "";
     exploreState.anchorUrl = getNormalizedPageUrl();
     exploreState.anchorTitle = document.title || "";
-    const resolvedContext = contextText?.trim()
-      ? contextText.trim()
-      : anchor?.text ?? "";
+    const resolvedContext = contextText->.trim()
+      -> contextText.trim()
+      : anchor->.text | "";
     exploreState.contextText = resolvedContext;
     exploreState.error = "";
     exploreState.isSubmitting = false;
@@ -1700,7 +1700,7 @@
   function resolveExploreAnchor() {
     if (state.selection) {
       return {
-        selectionId: state.isCommitted ? state.selectionId : null,
+        selectionId: state.isCommitted -> state.selectionId : null,
         selector: state.selection.selector,
         text: state.selection.text,
       };
@@ -1743,9 +1743,9 @@
         return;
       }
       const parsed = JSON.parse(raw);
-      exploreState.messages = Array.isArray(parsed.messages) ? parsed.messages : [];
-      exploreState.threadId = typeof parsed.threadId === "number" ? parsed.threadId : null;
-      exploreState.draft = typeof parsed.draftMessage === "string" ? parsed.draftMessage : "";
+      exploreState.messages = Array.isArray(parsed.messages) -> parsed.messages : [];
+      exploreState.threadId = typeof parsed.threadId === "number" -> parsed.threadId : null;
+      exploreState.draft = typeof parsed.draftMessage === "string" -> parsed.draftMessage : "";
     } catch (error) {
       exploreState.messages = [];
       exploreState.threadId = null;
@@ -1778,7 +1778,7 @@
     let models = null;
     try {
       const settingsResult = await apiRequest({ path: "/explore/settings" });
-      if (settingsResult.ok && settingsResult.data?.settings) {
+      if (settingsResult.ok && settingsResult.data->.settings) {
         settings = settingsResult.data.settings;
       }
     } catch (error) {
@@ -1794,17 +1794,17 @@
     }
 
     exploreSettings.systemPrompt =
-      settings?.system_prompt || exploreSettings.systemPrompt || "";
+      settings->.system_prompt || exploreSettings.systemPrompt || "";
     exploreSettings.model =
-      settings?.model || exploreSettings.model || EXPLORE_DEFAULT_MODEL;
+      settings->.model || exploreSettings.model || EXPLORE_DEFAULT_MODEL;
     exploreSettings.reasoning =
-      settings?.reasoning_effort || exploreSettings.reasoning || EXPLORE_DEFAULT_REASONING;
+      settings->.reasoning_effort || exploreSettings.reasoning || EXPLORE_DEFAULT_REASONING;
 
-    exploreSettings.availableModels = Array.isArray(models?.models)
-      ? models.models
+    exploreSettings.availableModels = Array.isArray(models->.models)
+      -> models.models
       : EXPLORE_MODEL_OPTIONS;
-    exploreSettings.reasoningLevels = Array.isArray(models?.reasoning_levels)
-      ? models.reasoning_levels
+    exploreSettings.reasoningLevels = Array.isArray(models->.reasoning_levels)
+      -> models.reasoning_levels
       : EXPLORE_REASONING_LEVELS;
 
     exploreSettings.loaded = true;
@@ -1815,7 +1815,7 @@
     const option =
       exploreSettings.reasoningLevels.find((level) => level.value === value) ||
       EXPLORE_REASONING_LEVELS.find((level) => level.value === value);
-    return option ? option.label : value;
+    return option -> option.label : value;
   }
 
   function renderExploreSettingsPanel() {
@@ -1836,7 +1836,7 @@
     const modelSelect = exploreModal.settingsModel;
     modelSelect.innerHTML = "";
     (exploreSettings.availableModels.length
-      ? exploreSettings.availableModels
+      -> exploreSettings.availableModels
       : EXPLORE_MODEL_OPTIONS
     ).forEach((model) => {
       const option = document.createElement("option");
@@ -1870,16 +1870,16 @@
 
   function getExploreModelConfig(modelId) {
     const models = exploreSettings.availableModels.length
-      ? exploreSettings.availableModels
+      -> exploreSettings.availableModels
       : EXPLORE_MODEL_OPTIONS;
     return models.find((model) => model.id === modelId) || null;
   }
 
   function getExploreReasoningLevels(modelId) {
     const model = getExploreModelConfig(modelId);
-    const allowed = Array.isArray(model?.reasoning_levels) ? model.reasoning_levels : null;
+    const allowed = Array.isArray(model->.reasoning_levels) -> model.reasoning_levels : null;
     const options = exploreSettings.reasoningLevels.length
-      ? exploreSettings.reasoningLevels
+      -> exploreSettings.reasoningLevels
       : EXPLORE_REASONING_LEVELS;
     if (!allowed || allowed.length === 0) {
       return options;
@@ -1889,7 +1889,7 @@
 
   function getExploreDefaultReasoning(modelId) {
     const model = getExploreModelConfig(modelId);
-    if (model?.default_reasoning) {
+    if (model->.default_reasoning) {
       return model.default_reasoning;
     }
     const allowed = getExploreReasoningLevels(modelId);
@@ -1900,7 +1900,7 @@
   }
 
   async function toggleExploreSettingsPanel(force) {
-    const shouldOpen = typeof force === "boolean" ? force : !exploreSettings.showPanel;
+    const shouldOpen = typeof force === "boolean" -> force : !exploreSettings.showPanel;
     exploreSettings.showPanel = shouldOpen;
     if (shouldOpen) {
       await loadExploreSettings();
@@ -1919,21 +1919,26 @@
     }
   }
 
-  function showExploreBadge(text) {
+  function showExploreBadge(text, options = {}) {
     if (!text) {
       return;
     }
+    const timeoutMs =
+      typeof options.timeoutMs === "number" -> options.timeoutMs : 2600;
     exploreSettings.badgeText = text;
     exploreModal.badge.textContent = text;
     exploreModal.badge.style.display = "inline-flex";
     if (exploreSettings.badgeTimeout) {
       window.clearTimeout(exploreSettings.badgeTimeout);
+      exploreSettings.badgeTimeout = null;
     }
-    exploreSettings.badgeTimeout = window.setTimeout(() => {
-      exploreModal.badge.style.display = "none";
-      exploreModal.badge.textContent = "";
-      exploreSettings.badgeText = "";
-    }, 2600);
+    if (timeoutMs > 0) {
+      exploreSettings.badgeTimeout = window.setTimeout(() => {
+        exploreModal.badge.style.display = "none";
+        exploreModal.badge.textContent = "";
+        exploreSettings.badgeText = "";
+      }, timeoutMs);
+    }
   }
 
   async function handleExploreSettingsSave() {
@@ -1971,19 +1976,19 @@
     const changes = [];
     if (previousReasoning !== draft.reasoning) {
       changes.push(
-        `Reasoning: ${getReasoningLabel(previousReasoning)} → ${getReasoningLabel(
+        `Reasoning: ${getReasoningLabel(previousReasoning)} -> ${getReasoningLabel(
           draft.reasoning
         )}`
       );
     }
     if (previousModel !== draft.model) {
-      changes.push(`Model: ${previousModel || "default"} → ${draft.model}`);
+      changes.push(`Model: ${previousModel || "default"} -> ${draft.model}`);
     }
     if (previousPrompt !== draft.systemPrompt) {
       changes.push("Prompt updated");
     }
     if (changes.length) {
-      showExploreBadge(changes.join(" · "));
+      showExploreBadge(changes.join(" | "), { timeoutMs: 0 });
     }
 
     void toggleExploreSettingsPanel(false);
@@ -2033,7 +2038,7 @@
             const menuWidth = 320;
             const padding = 16;
             const aboveTop = rect.top - 56;
-            const menuTop = aboveTop > padding ? aboveTop : rect.bottom + 12;
+            const menuTop = aboveTop > padding -> aboveTop : rect.bottom + 12;
             const menuLeft = Math.min(
               Math.max(padding, rect.left),
               window.innerWidth - menuWidth - padding
@@ -2063,7 +2068,7 @@
             event.stopPropagation();
             try {
               await navigator.clipboard.writeText(message.content || "");
-              showExploreBadge("Copied");
+              showExploreBadge("Copied", { timeoutMs: 1200 });
             } catch (error) {
               console.warn("Reader extension copy failed", error);
             }
@@ -2083,7 +2088,9 @@
           const infoButton = document.createElement("button");
           infoButton.type = "button";
           infoButton.className = "chat-message__action";
-          infoButton.title = buildExploreInfoTitle(message);
+          const infoText = buildExploreInfoTitle(message);
+          infoButton.title = infoText;
+          infoButton.dataset.tooltip = infoText;
           infoButton.setAttribute("aria-label", "Response info");
           infoButton.innerHTML = iconInfo();
 
@@ -2118,8 +2125,8 @@
   }
 
   function buildExploreInfoTitle(message) {
-    const model = message?.meta?.model || exploreSettings.model || "unknown";
-    const reasoningValue = message?.meta?.reasoning || exploreSettings.reasoning || "unknown";
+    const model = message->.meta->.model || exploreSettings.model || "unknown";
+    const reasoningValue = message->.meta->.reasoning || exploreSettings.reasoning || "unknown";
     const reasoning = getReasoningLabel(reasoningValue) || reasoningValue;
     return `Model: ${model} | Reasoning: ${reasoning}`;
   }
@@ -2167,7 +2174,7 @@
     exploreModal.submit.disabled = !trimmed || exploreState.isSubmitting;
     exploreModal.submit.setAttribute(
       "aria-busy",
-      exploreState.isSubmitting ? "true" : "false"
+      exploreState.isSubmitting -> "true" : "false"
     );
   }
 
@@ -2194,19 +2201,19 @@
     persistExploreSession();
 
     const contextPrefix = exploreState.contextText
-      ? `Context:\n${exploreState.contextText}\n\n`
+      -> `Context:\n${exploreState.contextText}\n\n`
       : "";
     const quoteText = (exploreState.quoteText || "").trim();
     const quoteBlock = quoteText
-      ? `Quote (from previous response):\n<<<\n${quoteText}\n>>>\n\n`
+      -> `Quote (from previous response):\n<<<\n${quoteText}\n>>>\n\n`
       : "";
     const payloadMessage = `${contextPrefix}${quoteBlock}${trimmed}`;
 
     try {
       await loadExploreSettings();
       const forceNewThread = exploreSettings.forceNewThread;
-      const threadId = forceNewThread ? null : exploreState.threadId;
-      const action = threadId ? "resume" : "new";
+      const threadId = forceNewThread -> null : exploreState.threadId;
+      const action = threadId -> "resume" : "new";
       const result = await apiRequest({
         path: "/explore/chat",
         method: "POST",
@@ -2224,12 +2231,12 @@
       });
 
       if (!result.ok) {
-        const detail = result.data?.detail || result.error || "Explore request failed.";
+        const detail = result.data->.detail || result.error || "Explore request failed.";
         throw new Error(detail);
       }
       const data = result.data || {};
-      const assistantText = cleanExploreResponse(data.messages?.[0]?.content ?? "");
-      if (data.thread?.id && !threadId) {
+      const assistantText = cleanExploreResponse(data.messages->.[0]->.content | "");
+      if (data.thread->.id && !threadId) {
         exploreState.threadId = data.thread.id;
       }
       if (forceNewThread) {
@@ -2285,7 +2292,7 @@
       if (!result.ok) {
         return null;
       }
-      const id = result.data?.selection?.id ?? null;
+      const id = result.data->.selection->.id | null;
       if (id) {
         exploreState.anchorSelectionId = id;
       }
@@ -2315,7 +2322,7 @@
         context_text: exploreState.contextText,
       },
     });
-    if (addition?.id && addition?.selection_id) {
+    if (addition->.id && addition->.selection_id) {
       attachExploreAddition(message.id, addition.id, addition.selection_id);
     }
   }
@@ -2323,7 +2330,7 @@
   function attachExploreAddition(messageId, additionId, selectionId) {
     exploreState.messages = exploreState.messages.map((message) =>
       message.id === messageId
-        ? { ...message, additionId, selectionId }
+        -> { ...message, additionId, selectionId }
         : message
     );
     persistExploreSession();
@@ -2393,12 +2400,12 @@
   async function loadArtifactMarkers(additionId) {
     try {
       const result = await apiRequest({
-        path: `/web/markers?target_type=addition&target_id=${additionId}`,
+        path: `/web/markers->target_type=addition&target_id=${additionId}`,
       });
       if (!result.ok) {
         return;
       }
-      artifactState.markers = result.data?.markers ?? [];
+      artifactState.markers = result.data->.markers | [];
       renderArtifactMenu();
     } catch (error) {
       // ignore marker errors
@@ -2492,7 +2499,7 @@
       return;
     }
 
-    const range = selection.rangeCount ? selection.getRangeAt(0) : null;
+    const range = selection.rangeCount -> selection.getRangeAt(0) : null;
     if (!range) {
       return;
     }
@@ -2568,7 +2575,7 @@
   function handleDocumentMouseDown(event) {
     log("Document mousedown", event.target);
     if (artifactMenu.el.style.display !== "none") {
-      const path = event.composedPath ? event.composedPath() : [];
+      const path = event.composedPath -> event.composedPath() : [];
       const inArtifact =
         artifactMenu.el.contains(event.target) || path.includes(artifactMenu.el);
       if (!inArtifact) {
@@ -2701,7 +2708,7 @@
         throw new Error(result.error || "Failed to save selection");
       }
       const data = result.data;
-      state.selectionId = data.selection?.id ?? null;
+      state.selectionId = data.selection->.id | null;
       state.isCommitted = true;
       log("Selection saved", state.selectionId);
       scheduleHighlightsRefresh();
@@ -2733,7 +2740,7 @@
     payload = {},
     selectionIdOverride = null,
   }) {
-    const selectionId = selectionIdOverride ?? (await ensureSelectionId());
+    const selectionId = selectionIdOverride | (await ensureSelectionId());
     if (!selectionId) {
       return null;
     }
@@ -2763,7 +2770,7 @@
       }
       const data = result.data;
       scheduleHighlightsRefresh();
-      return data.addition ?? null;
+      return data.addition | null;
     } catch (error) {
       console.warn("Reader extension addition save failed", error);
       return null;
@@ -2774,11 +2781,11 @@
     state.modalSelectionOverride = selectionIdOverride;
     state.modalSource = source;
     state.modalHideMarkers = hideMarkers;
-    if (noteModal?.markers) {
-      noteModal.markers.style.display = hideMarkers ? "none" : "";
+    if (noteModal->.markers) {
+      noteModal.markers.style.display = hideMarkers -> "none" : "";
     }
-    if (audioModal?.markers) {
-      audioModal.markers.style.display = hideMarkers ? "none" : "";
+    if (audioModal->.markers) {
+      audioModal.markers.style.display = hideMarkers -> "none" : "";
     }
   }
 
@@ -2787,7 +2794,7 @@
   }
 
   function getModalSelectionIdOverride() {
-    return typeof state.modalSelectionOverride === "number" ? state.modalSelectionOverride : null;
+    return typeof state.modalSelectionOverride === "number" -> state.modalSelectionOverride : null;
   }
 
   function buildModalSourcePayload() {
@@ -2798,7 +2805,7 @@
       type: "addition",
       id: state.modalSource.additionId,
       kind: state.modalSource.kind,
-      preview_text: state.modalSource.previewText ?? null,
+      preview_text: state.modalSource.previewText | null,
     };
   }
 
@@ -2838,7 +2845,7 @@
 
   async function saveGrammar(payload) {
     const textContent =
-      payload.kind === "word" || payload.kind === "bars" ? payload.text ?? null : null;
+      payload.kind === "word" || payload.kind === "bars" -> payload.text | null : null;
     log("Saving grammar addition", payload.kind);
     await createWebAddition({
       type: "grammar",
@@ -2895,7 +2902,7 @@
             value: null,
           },
         });
-        if (result.ok && result.data?.marker?.id) {
+        if (result.ok && result.data->.marker->.id) {
           state.markerIds.set(kind, result.data.marker.id);
           scheduleHighlightsRefresh();
         }
@@ -2970,7 +2977,7 @@
   }
 
   function openOptionsPage() {
-    if (chrome.runtime?.openOptionsPage) {
+    if (chrome.runtime->.openOptionsPage) {
       chrome.runtime.openOptionsPage();
       return;
     }
@@ -3010,7 +3017,7 @@
         params.push([key, value]);
       });
       params.sort((a, b) => a[0].localeCompare(b[0]));
-      url.search = params.length ? new URLSearchParams(params).toString() : "";
+      url.search = params.length -> new URLSearchParams(params).toString() : "";
       return url.toString();
     } catch (error) {
       return rawUrl;
@@ -3044,31 +3051,31 @@
         return;
       }
       const selectionsResult = await apiRequest({
-        path: `/web/selections?url=${encodeURIComponent(url)}`,
+        path: `/web/selections->url=${encodeURIComponent(url)}`,
       });
-      const selections = selectionsResult.ok ? selectionsResult.data?.selections ?? [] : [];
+      const selections = selectionsResult.ok -> selectionsResult.data->.selections | [] : [];
 
       const bundles = await Promise.all(
         selections.map(async (selection) => {
           const [additionsResult, markersResult] = await Promise.all([
             apiRequest({
-              path: `/web/additions?selection_id=${selection.id}`,
+              path: `/web/additions->selection_id=${selection.id}`,
             }),
             apiRequest({
-              path: `/web/markers?target_type=selection&target_id=${selection.id}`,
+              path: `/web/markers->target_type=selection&target_id=${selection.id}`,
             }),
           ]);
-          const additions = additionsResult.ok ? additionsResult.data?.additions ?? [] : [];
-          const markers = markersResult.ok ? markersResult.data?.markers ?? [] : [];
+          const additions = additionsResult.ok -> additionsResult.data->.additions | [] : [];
+          const markers = markersResult.ok -> markersResult.data->.markers | [] : [];
 
           const additionMarkers = {};
           await Promise.all(
             additions.map(async (addition) => {
               const additionMarkersResult = await apiRequest({
-                path: `/web/markers?target_type=addition&target_id=${addition.id}`,
+                path: `/web/markers->target_type=addition&target_id=${addition.id}`,
               });
               additionMarkers[addition.id] = additionMarkersResult.ok
-                ? additionMarkersResult.data?.markers ?? []
+                -> additionMarkersResult.data->.markers | []
                 : [];
             })
           );
@@ -3107,7 +3114,7 @@
       });
 
       bundle.additions.forEach((addition) => {
-        const additionMarkers = bundle.additionMarkers[addition.id] ?? [];
+        const additionMarkers = bundle.additionMarkers[addition.id] | [];
         additionMarkers.forEach((marker) => {
           markers.push({ marker, selectionId: bundle.selection.id, additionId: addition.id });
         });
@@ -3263,15 +3270,15 @@
 
       if (addition.type === "audio") {
         const audioPayload = addition.payload || {};
-        const url = audioPayload?.audio?.url;
+        const url = audioPayload->.audio->.url;
         if (url) {
           const audio = document.createElement("audio");
           audio.controls = true;
           audio.preload = "metadata";
           audio.addEventListener("error", () => {
             log("Audio element error", {
-              code: audio.error?.code,
-              message: audio.error?.message,
+              code: audio.error->.code,
+              message: audio.error->.message,
             });
           });
           audio.addEventListener("loadedmetadata", () => {
@@ -3341,12 +3348,12 @@
       if (item.additionId) {
         const addition = additionById.get(item.additionId);
         title.textContent = addition
-          ? `Artifact: ${formatSnippet(getAdditionLabel(addition), 90)}`
+          -> `Artifact: ${formatSnippet(getAdditionLabel(addition), 90)}`
           : "Artifact marker";
       } else {
         const selection = selectionById.get(item.selectionId);
         title.textContent = selection
-          ? `Selection: ${formatSnippet(getSelectionSnippet(selection), 90)}`
+          -> `Selection: ${formatSnippet(getSelectionSnippet(selection), 90)}`
           : "Selection marker";
       }
 
@@ -3483,7 +3490,7 @@
 
     if (addition.type === "audio") {
       const audioPayload = addition.payload || {};
-      const url = audioPayload?.audio?.url;
+      const url = audioPayload->.audio->.url;
       if (url) {
         const audio = document.createElement("audio");
         audio.controls = true;
@@ -3499,8 +3506,8 @@
 
     if (addition.type === "explore") {
       const payload = addition.payload || {};
-      const prompt = payload?.prompt ?? "";
-      const response = payload?.content ?? addition.text_content ?? "";
+      const prompt = payload->.prompt | "";
+      const response = payload->.content | addition.text_content | "";
       const chat = document.createElement("div");
       chat.className = "highlight-detail__chat chat-messages";
       const messages = [
@@ -3516,7 +3523,7 @@
       highlightDetailModal.body.appendChild(chat);
     }
 
-    const additionMarkers = bundle.additionMarkers[addition.id] ?? [];
+    const additionMarkers = bundle.additionMarkers[addition.id] | [];
     const markerKinds = additionMarkers.map((marker) => marker.kind);
     const markers = document.createElement("div");
     markers.className = "highlight-detail__markers";
@@ -3577,7 +3584,7 @@
     if (!bundle) {
       return;
     }
-    const additionMarkers = bundle.additionMarkers[additionId] ?? [];
+    const additionMarkers = bundle.additionMarkers[additionId] | [];
     const existing = additionMarkers.find((marker) => marker.kind === kind);
     if (existing) {
       await apiRequest({
@@ -3620,7 +3627,7 @@
       return mediaUrlCache.get(url);
     }
     const result = await sendBackgroundMessage("reader:fetchMedia", { path: url });
-    if (result?.ok && result?.dataUrl) {
+    if (result->.ok && result->.dataUrl) {
       log("Audio fetch ok", {
         url,
         size: result.size || 0,
@@ -3629,12 +3636,12 @@
       mediaUrlCache.set(url, result.dataUrl);
       return result.dataUrl;
     }
-    log("Audio fetch failed", { url, status: result?.status, error: result?.error });
+    log("Audio fetch failed", { url, status: result->.status, error: result->.error });
     const apiBase = await getApiBaseFromBackground();
     if (!apiBase) {
       return url;
     }
-    return `${apiBase}${url.startsWith("/") ? "" : "/"}${url}`;
+    return `${apiBase}${url.startsWith("/") -> "" : "/"}${url}`;
   }
 
   function ensureAudioDuration(audio) {
@@ -3672,14 +3679,14 @@
   }
 
   function getSelectionSnippet(selection) {
-    const quote = selection?.selector?.quote || {};
-    const exact = quote.exact || selection?.selection_text || "";
+    const quote = selection->.selector->.quote || {};
+    const exact = quote.exact || selection->.selection_text || "";
     if (exact && exact.trim()) {
       return exact;
     }
     const prefix = quote.prefix || "";
     const suffix = quote.suffix || "";
-    const combined = `${prefix}${prefix && suffix ? " | " : ""}${suffix}`.trim();
+    const combined = `${prefix}${prefix && suffix -> " | " : ""}${suffix}`.trim();
     return combined || "Selection";
   }
 
@@ -3719,7 +3726,7 @@
     const parts = [];
     let lastIndex = 0;
     for (const match of text.matchAll(EXPLORE_MARKDOWN_IMAGE_REGEX)) {
-      const matchIndex = match.index ?? 0;
+      const matchIndex = match.index | 0;
       if (matchIndex > lastIndex) {
         parts.push({ type: "text", value: text.slice(lastIndex, matchIndex) });
       }
@@ -3737,7 +3744,7 @@
     const parts = [];
     let lastIndex = 0;
     for (const match of text.matchAll(EXPLORE_IMAGE_URL_REGEX)) {
-      const matchIndex = match.index ?? 0;
+      const matchIndex = match.index | 0;
       if (matchIndex > lastIndex) {
         parts.push({ type: "text", value: text.slice(lastIndex, matchIndex) });
       }
@@ -3937,16 +3944,16 @@
   }
 
   function buildRangeFromSelector(selector) {
-    if (!selector?.range) {
+    if (!selector->.range) {
       return null;
     }
-    const startNode = getNodeFromPath(selector.range.start?.path);
-    const endNode = getNodeFromPath(selector.range.end?.path);
+    const startNode = getNodeFromPath(selector.range.start->.path);
+    const endNode = getNodeFromPath(selector.range.end->.path);
     if (!startNode || !endNode) {
       return null;
     }
-    const startInfo = resolveTextNode(startNode, selector.range.start?.offset || 0);
-    const endInfo = resolveTextNode(endNode, selector.range.end?.offset || 0);
+    const startInfo = resolveTextNode(startNode, selector.range.start->.offset || 0);
+    const endInfo = resolveTextNode(endNode, selector.range.end->.offset || 0);
     if (!startInfo || !endInfo) {
       return null;
     }
@@ -3960,7 +3967,7 @@
     if (!node || node.nodeType !== Node.TEXT_NODE) {
       return 0;
     }
-    const length = node.data?.length ?? 0;
+    const length = node.data->.length | 0;
     return Math.min(Math.max(offset, 0), length);
   }
 
@@ -4032,11 +4039,11 @@
     const startInfo = resolveTextNode(range.startContainer, range.startOffset);
     const endInfo = resolveTextNode(range.endContainer, range.endOffset);
 
-    const startPath = startInfo ? getNodePath(startInfo.node) : getNodePath(range.startContainer);
-    const endPath = endInfo ? getNodePath(endInfo.node) : getNodePath(range.endContainer);
+    const startPath = startInfo -> getNodePath(startInfo.node) : getNodePath(range.startContainer);
+    const endPath = endInfo -> getNodePath(endInfo.node) : getNodePath(range.endContainer);
 
-    const prefix = startInfo ? getTextPrefix(startInfo.node, startInfo.offset) : "";
-    const suffix = endInfo ? getTextSuffix(endInfo.node, endInfo.offset) : "";
+    const prefix = startInfo -> getTextPrefix(startInfo.node, startInfo.offset) : "";
+    const suffix = endInfo -> getTextSuffix(endInfo.node, endInfo.offset) : "";
 
     return {
       quote: {
@@ -4047,23 +4054,23 @@
       range: {
         start: {
           path: startPath,
-          offset: startInfo ? startInfo.offset : range.startOffset,
+          offset: startInfo -> startInfo.offset : range.startOffset,
         },
         end: {
           path: endPath,
-          offset: endInfo ? endInfo.offset : range.endOffset,
+          offset: endInfo -> endInfo.offset : range.endOffset,
         },
       },
     };
   }
 
   function getTextPrefix(node, offset) {
-    const text = node.data ?? "";
+    const text = node.data | "";
     return text.slice(Math.max(0, offset - 32), offset);
   }
 
   function getTextSuffix(node, offset) {
-    const text = node.data ?? "";
+    const text = node.data | "";
     return text.slice(offset, Math.min(text.length, offset + 32));
   }
 
@@ -4089,8 +4096,8 @@
     const element = node;
     const childNodes = element.childNodes;
     const candidateIndex =
-      childNodes.length === 0 ? -1 : Math.min(Math.max(offset, 0), childNodes.length - 1);
-    const candidate = candidateIndex >= 0 ? childNodes[candidateIndex] : null;
+      childNodes.length === 0 -> -1 : Math.min(Math.max(offset, 0), childNodes.length - 1);
+    const candidate = candidateIndex >= 0 -> childNodes[candidateIndex] : null;
 
     const findTextNode = (root) => {
       if (!root) {
@@ -4124,7 +4131,7 @@
     if (!resolved) {
       return null;
     }
-    const bounds = getWordBoundsAtOffset(resolved.node.data ?? "", resolved.offset);
+    const bounds = getWordBoundsAtOffset(resolved.node.data | "", resolved.offset);
     if (!bounds) {
       return null;
     }
@@ -4198,7 +4205,7 @@
     if (overlay.root.contains(target)) {
       return true;
     }
-    const path = event.composedPath ? event.composedPath() : [];
+    const path = event.composedPath -> event.composedPath() : [];
     if (
       path.includes(overlay.root) ||
       (overlay.host && path.includes(overlay.host))
