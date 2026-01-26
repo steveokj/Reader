@@ -279,6 +279,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+chrome.commands.onCommand.addListener((command) => {
+  if (command !== "reader:reload") {
+    return;
+  }
+  console.log("[ReaderExt] Reload command triggered");
+  chrome.runtime.reload();
+});
+
 chrome.action.onClicked.addListener((tab) => {
   console.log("[ReaderExt] action icon clicked", tab?.id);
   if (!tab?.id) {

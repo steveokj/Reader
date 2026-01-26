@@ -9,6 +9,15 @@
   "action": {
     "default_title": "Reader"
   },
+  "commands": {
+    "reader:reload": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "Command+Shift+Y"
+      },
+      "description": "Reload Reader extension"
+    }
+  },
   "background": {
     "service_worker": "background.js"
   },
