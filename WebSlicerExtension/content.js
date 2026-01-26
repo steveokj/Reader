@@ -1841,6 +1841,9 @@
       "aside",
     ].join(",");
     const win = doc.defaultView;
+    const sliceHeight = Math.max(1, yEnd - yStart);
+    const docHeight =
+      doc.documentElement.scrollHeight || doc.body.scrollHeight || sliceHeight;
     const elements = Array.from(doc.body.querySelectorAll(selector));
     const intersecting = [];
     elements.forEach((el) => {
@@ -1851,6 +1854,9 @@
         return;
       }
       if (rect.width === 0 || rect.height === 0) {
+        return;
+      }
+      if (rect.height > sliceHeight * 1.4 && rect.height > docHeight * 0.6) {
         return;
       }
       intersecting.push({ el, top, bottom });
@@ -2374,12 +2380,6 @@
       return;
     }
 
-    const firstTop = ranges[0]?.top ?? 0;
-    pinIframeScroll(iframe, firstTop);
-    ranges = getOverlayRanges(doc, sliceRanges)
-      .filter((range) => range.bottom > range.top)
-      .sort((a, b) => a.top - b.top);
-
     const mask = doc.createElement("div");
     mask.id = "slicer-slice-mask";
     mask.style.position = "absolute";
@@ -2413,7 +2413,7 @@
       doc.documentElement.appendChild(mask);
     }
 
-    lockIframeScroll(iframe);
+    lockIframeScroll(iframe, { preserveScroll: true });
   }
 
   function applySliceOnlyClip(iframe, sliceRanges) {
@@ -2475,7 +2475,7 @@
     root.style.maskRepeat = "no-repeat";
     root.style.webkitMaskSize = "100% 100%";
     root.style.maskSize = "100% 100%";
-    lockIframeScroll(iframe);
+    lockIframeScroll(iframe, { preserveScroll: true });
     if (win) {
       win.scrollTo({ top: Math.max(0, ranges[0].top - 40), behavior: "auto" });
     }
@@ -2569,16 +2569,18 @@
     }
   }
 
-  function lockIframeScroll(iframe) {
+  function lockIframeScroll(iframe, options = {}) {
     const doc = iframe?.contentDocument;
     const win = iframe?.contentWindow;
     if (!doc || !win) {
       return;
     }
-    doc.documentElement.style.overflow = "hidden";
-    doc.body.style.overflow = "hidden";
-    doc.documentElement.style.height = "100%";
-    doc.body.style.height = "100%";
+    if (!options.preserveScroll) {
+      doc.documentElement.style.overflow = "hidden";
+      doc.body.style.overflow = "hidden";
+      doc.documentElement.style.height = "100%";
+      doc.body.style.height = "100%";
+    }
     if (iframe.dataset.slicerScrollLocked) {
       return;
     }
@@ -2606,25 +2608,7 @@
     });
   }
 
-  function pinIframeScroll(iframe, top) {
-    const doc = iframe?.contentDocument;
-    const win = iframe?.contentWindow;
-    if (!doc || !win || !doc.body) {
-      return;
-    }
-    const targetTop = Math.max(0, Number.isFinite(top) ? top : 0);
-    try {
-      win.scrollTo({ top: Math.max(0, targetTop - 40), behavior: "auto" });
-    } catch (error) {
-      win.scrollTo(0, Math.max(0, targetTop - 40));
-    }
-    const offset = win.scrollY || 0;
-    doc.body.style.position = "fixed";
-    doc.body.style.top = `-${offset}px`;
-    doc.body.style.left = "0";
-    doc.body.style.right = "0";
-    doc.body.style.width = "100%";
-  }
+  
 
   function buildPageDocument(pageHtml, safeTitle, safeBase, sliceRanges) {
     const overlayMarkup = buildOverlayMarkup(sliceRanges || []);
