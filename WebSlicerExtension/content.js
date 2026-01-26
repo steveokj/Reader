@@ -18,6 +18,7 @@
     undoStack: [],
     redoStack: [],
     sliceStartY: null,
+    sliceStartAnchor: null,
     lastPreview: null,
     fullPreviewMode: "slice-in-page",
     scrollLock: null,
@@ -354,12 +355,14 @@
     if (state.mode === "slice") {
       state.mode = "idle";
       state.sliceStartY = null;
+      state.sliceStartAnchor = null;
       hideSliceLines();
     } else {
       state.mode = "slice";
       state.startElement = null;
       state.lastPickedElement = null;
       state.sliceStartY = null;
+      state.sliceStartAnchor = null;
       hideHighlight();
     }
     updateStatus();
@@ -370,6 +373,7 @@
     state.startElement = null;
     state.lastPickedElement = null;
     state.sliceStartY = null;
+    state.sliceStartAnchor = null;
     state.segments = [];
     state.excludes = [];
     state.undoStack = [];
@@ -456,6 +460,7 @@
     state.startElement = null;
     state.lastPickedElement = null;
     state.sliceStartY = null;
+    state.sliceStartAnchor = null;
     state.undoStack = [];
     state.redoStack = [];
     state.lastPreview = null;
@@ -845,13 +850,15 @@
       const y = event.clientY + window.scrollY;
       if (state.sliceStartY === null) {
         state.sliceStartY = y;
+        state.sliceStartAnchor = target ? buildLocator(target) : null;
         showSliceStartLine(y);
         updateStatus("Slice start set");
         return;
       }
       const start = Math.min(state.sliceStartY, y);
       const end = Math.max(state.sliceStartY, y);
-      const segment = buildSliceSegment(start, end);
+      const endAnchor = target ? buildLocator(target) : null;
+      const segment = buildSliceSegment(start, end, state.sliceStartAnchor, endAnchor);
       if (segment) {
         pushUndo();
         state.segments.push(segment);
@@ -861,6 +868,7 @@
         updateStatus("Could not create slice");
       }
       state.sliceStartY = null;
+      state.sliceStartAnchor = null;
       hideSliceStartLine();
       return;
     }
@@ -940,12 +948,16 @@
       .filter(
         (segment) =>
           segment?.type === "slice" &&
-          Number.isFinite(segment.yStart) &&
-          Number.isFinite(segment.yEnd)
+          (Number.isFinite(segment.cleaned_yStart) ||
+            Number.isFinite(segment.yStart)) &&
+          (Number.isFinite(segment.cleaned_yEnd) ||
+            Number.isFinite(segment.yEnd))
       )
       .map((segment) => ({
-        yStart: segment.yStart,
-        yEnd: segment.yEnd,
+        yStart: Number.isFinite(segment.cleaned_yStart)
+          ? segment.cleaned_yStart
+          : segment.yStart,
+        yEnd: Number.isFinite(segment.cleaned_yEnd) ? segment.cleaned_yEnd : segment.yEnd,
       }));
   }
 
@@ -1021,7 +1033,7 @@
     };
   }
 
-  function buildSliceSegment(yStart, yEnd) {
+  function buildSliceSegment(yStart, yEnd, startAnchor, endAnchor) {
     if (yStart === null || yEnd === null) {
       return null;
     }
@@ -1029,6 +1041,8 @@
       type: "slice",
       yStart,
       yEnd,
+      anchorStart: startAnchor || null,
+      anchorEnd: endAnchor || null,
     };
   }
 
@@ -1320,12 +1334,14 @@
         if (slice.text) {
           textParts.push(slice.text);
         }
-        segmentRecipes.push({
-          type: "slice",
-          yStart: segment.yStart,
-          yEnd: segment.yEnd,
-          excludes: slice.excludesApplied || [],
-        });
+      segmentRecipes.push({
+        type: "slice",
+        yStart: segment.yStart,
+        yEnd: segment.yEnd,
+        anchor_start: segment.anchorStart || null,
+        anchor_end: segment.anchorEnd || null,
+        excludes: slice.excludesApplied || [],
+      });
         continue;
       }
 
@@ -1397,6 +1413,135 @@
         document.body.scrollWidth ||
         0,
     };
+  }
+
+  async function applyCleanedSliceRanges(recipe, pageHtml) {
+    if (!recipe || !Array.isArray(recipe.segments) || !pageHtml) {
+      return recipe;
+    }
+    const cleanedRanges = await computeCleanedSliceRanges(
+      recipe.segments,
+      pageHtml,
+      recipe.page_metrics
+    );
+    if (!cleanedRanges) {
+      return recipe;
+    }
+    const updatedSegments = recipe.segments.map((segment, index) => {
+      if (segment.type !== "slice") {
+        return segment;
+      }
+      const cleaned = cleanedRanges[index];
+      if (!cleaned) {
+        return segment;
+      }
+      return {
+        ...segment,
+        cleaned_yStart: cleaned.yStart,
+        cleaned_yEnd: cleaned.yEnd,
+      };
+    });
+    return {
+      ...recipe,
+      segments: updatedSegments,
+    };
+  }
+
+  async function computeCleanedSliceRanges(segments, pageHtml, pageMetrics) {
+    const sliceSegments = Array.isArray(segments)
+      ? segments.map((segment) => (segment?.type === "slice" ? segment : null))
+      : [];
+    if (!sliceSegments.some(Boolean)) {
+      return null;
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.width = `${window.innerWidth}px`;
+    iframe.style.height = `${window.innerHeight}px`;
+    iframe.style.left = "-99999px";
+    iframe.style.top = "0";
+    iframe.style.opacity = "0";
+    iframe.style.pointerEvents = "none";
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.srcdoc = pageHtml;
+    document.body.appendChild(iframe);
+
+    const ranges = await new Promise((resolve) => {
+      const cleanup = () => {
+        iframe.removeEventListener("load", onLoad);
+      };
+      const onLoad = () => {
+        cleanup();
+        const doc = iframe.contentDocument;
+        const win = iframe.contentWindow;
+        if (!doc || !win) {
+          resolve(null);
+          return;
+        }
+        const results = segments.map((segment) => {
+          if (segment?.type !== "slice") {
+            return null;
+          }
+          const anchorStart = segment.anchor_start || segment.anchorStart;
+          const anchorEnd = segment.anchor_end || segment.anchorEnd;
+          const startEl = resolveByLocatorInDocument(anchorStart, doc);
+          const endEl = resolveByLocatorInDocument(anchorEnd, doc);
+          if (startEl && endEl) {
+            const startRect = startEl.getBoundingClientRect();
+            const endRect = endEl.getBoundingClientRect();
+            return {
+              yStart: startRect.top + win.scrollY,
+              yEnd: endRect.bottom + win.scrollY,
+            };
+          }
+          const pageHeight = pageMetrics?.scrollHeight || 0;
+          const docHeight = doc.documentElement.scrollHeight || 0;
+          if (pageHeight && docHeight) {
+            const ratio = docHeight / pageHeight;
+            return {
+              yStart: segment.yStart * ratio,
+              yEnd: segment.yEnd * ratio,
+            };
+          }
+          return {
+            yStart: segment.yStart,
+            yEnd: segment.yEnd,
+          };
+        });
+        resolve(results);
+      };
+      iframe.addEventListener("load", onLoad, { once: true });
+      setTimeout(() => {
+        resolve(null);
+      }, 1200);
+    });
+
+    iframe.remove();
+    return ranges;
+  }
+
+  function resolveByLocatorInDocument(locator, doc) {
+    if (!locator || !doc) {
+      return null;
+    }
+    if (locator.selector) {
+      const found = doc.querySelector(locator.selector);
+      if (found) {
+        return found;
+      }
+    }
+    if (locator.path && locator.path.length > 0) {
+      let current = doc.body;
+      for (const index of locator.path) {
+        if (!current || !current.children || !current.children[index]) {
+          return null;
+        }
+        current = current.children[index];
+      }
+      return current;
+    }
+    return null;
   }
 
   function buildSliceSnapshot(segment) {
@@ -1570,12 +1715,13 @@
       return;
     }
     const pageHtml = buildCleanPageHtml();
+    const recipe = await applyCleanedSliceRanges(snapshot.recipe, pageHtml);
     updateStatus("Saving...");
     const payload = {
       url: window.location.href,
       page_title: document.title,
       slice_title: null,
-      recipe: snapshot.recipe,
+      recipe,
       html: snapshot.html,
       text: snapshot.text,
       page_html: pageHtml,
