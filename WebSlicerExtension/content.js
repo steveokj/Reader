@@ -19,6 +19,7 @@
     redoStack: [],
     sliceStartY: null,
     sliceStartAnchor: null,
+    sliceStartOffsetRatio: null,
     lastPreview: null,
     fullPreviewMode: "slice-in-page",
     scrollLock: null,
@@ -356,6 +357,7 @@
       state.mode = "idle";
       state.sliceStartY = null;
       state.sliceStartAnchor = null;
+      state.sliceStartOffsetRatio = null;
       hideSliceLines();
     } else {
       state.mode = "slice";
@@ -363,6 +365,7 @@
       state.lastPickedElement = null;
       state.sliceStartY = null;
       state.sliceStartAnchor = null;
+      state.sliceStartOffsetRatio = null;
       hideHighlight();
     }
     updateStatus();
@@ -374,6 +377,7 @@
     state.lastPickedElement = null;
     state.sliceStartY = null;
     state.sliceStartAnchor = null;
+    state.sliceStartOffsetRatio = null;
     state.segments = [];
     state.excludes = [];
     state.undoStack = [];
@@ -461,6 +465,7 @@
     state.lastPickedElement = null;
     state.sliceStartY = null;
     state.sliceStartAnchor = null;
+    state.sliceStartOffsetRatio = null;
     state.undoStack = [];
     state.redoStack = [];
     state.lastPreview = null;
@@ -849,8 +854,16 @@
     if (state.mode === "slice") {
       const y = event.clientY + window.scrollY;
       if (state.sliceStartY === null) {
+        const rect = target.getBoundingClientRect();
+        const elementTop = rect.top + window.scrollY;
+        const elementHeight = rect.height || 1;
+        const offset = y - elementTop;
+        const offsetRatio = offset / elementHeight;
         state.sliceStartY = y;
         state.sliceStartAnchor = target ? buildLocator(target) : null;
+        state.sliceStartOffsetRatio = Number.isFinite(offsetRatio)
+          ? Math.min(1, Math.max(0, offsetRatio))
+          : null;
         showSliceStartLine(y);
         updateStatus("Slice start set");
         return;
@@ -858,7 +871,19 @@
       const start = Math.min(state.sliceStartY, y);
       const end = Math.max(state.sliceStartY, y);
       const endAnchor = target ? buildLocator(target) : null;
-      const segment = buildSliceSegment(start, end, state.sliceStartAnchor, endAnchor);
+      const endRect = target.getBoundingClientRect();
+      const endTop = endRect.top + window.scrollY;
+      const endHeight = endRect.height || 1;
+      const endOffset = y - endTop;
+      const endOffsetRatio = endOffset / endHeight;
+      const segment = buildSliceSegment(
+        start,
+        end,
+        state.sliceStartAnchor,
+        endAnchor,
+        state.sliceStartOffsetRatio,
+        Number.isFinite(endOffsetRatio) ? Math.min(1, Math.max(0, endOffsetRatio)) : null
+      );
       if (segment) {
         pushUndo();
         state.segments.push(segment);
@@ -869,6 +894,7 @@
       }
       state.sliceStartY = null;
       state.sliceStartAnchor = null;
+      state.sliceStartOffsetRatio = null;
       hideSliceStartLine();
       return;
     }
@@ -1033,7 +1059,14 @@
     };
   }
 
-  function buildSliceSegment(yStart, yEnd, startAnchor, endAnchor) {
+  function buildSliceSegment(
+    yStart,
+    yEnd,
+    startAnchor,
+    endAnchor,
+    startOffsetRatio,
+    endOffsetRatio
+  ) {
     if (yStart === null || yEnd === null) {
       return null;
     }
@@ -1043,6 +1076,9 @@
       yEnd,
       anchorStart: startAnchor || null,
       anchorEnd: endAnchor || null,
+      anchorStartOffsetRatio:
+        Number.isFinite(startOffsetRatio) ? startOffsetRatio : null,
+      anchorEndOffsetRatio: Number.isFinite(endOffsetRatio) ? endOffsetRatio : null,
     };
   }
 
@@ -1340,6 +1376,12 @@
         yEnd: segment.yEnd,
         anchor_start: segment.anchorStart || null,
         anchor_end: segment.anchorEnd || null,
+        anchor_start_offset_ratio:
+          Number.isFinite(segment.anchorStartOffsetRatio)
+            ? segment.anchorStartOffsetRatio
+            : null,
+        anchor_end_offset_ratio:
+          Number.isFinite(segment.anchorEndOffsetRatio) ? segment.anchorEndOffsetRatio : null,
         excludes: slice.excludesApplied || [],
       });
         continue;
@@ -1439,6 +1481,7 @@
         ...segment,
         cleaned_yStart: cleaned.yStart,
         cleaned_yEnd: cleaned.yEnd,
+        cleaned_source: cleaned._source || null,
       };
     });
     return {
@@ -1479,6 +1522,10 @@
           resolve(null);
           return;
         }
+        const debug = {
+          pageHeight: pageMetrics?.scrollHeight || 0,
+          cleanedHeight: doc.documentElement.scrollHeight || 0,
+        };
         const results = segments.map((segment) => {
           if (segment?.type !== "slice") {
             return null;
@@ -1490,9 +1537,22 @@
           if (startEl && endEl) {
             const startRect = startEl.getBoundingClientRect();
             const endRect = endEl.getBoundingClientRect();
+            const startRatio =
+              typeof segment.anchor_start_offset_ratio === "number"
+                ? segment.anchor_start_offset_ratio
+                : segment.anchorStartOffsetRatio;
+            const endRatio =
+              typeof segment.anchor_end_offset_ratio === "number"
+                ? segment.anchor_end_offset_ratio
+                : segment.anchorEndOffsetRatio;
+            const startOffset = Number.isFinite(startRatio)
+              ? startRect.height * startRatio
+              : 0;
+            const endOffset = Number.isFinite(endRatio) ? endRect.height * endRatio : 0;
             return {
-              yStart: startRect.top + win.scrollY,
-              yEnd: endRect.bottom + win.scrollY,
+              yStart: startRect.top + win.scrollY + startOffset,
+              yEnd: endRect.top + win.scrollY + endOffset,
+              _source: "anchor",
             };
           }
           const pageHeight = pageMetrics?.scrollHeight || 0;
@@ -1502,12 +1562,18 @@
             return {
               yStart: segment.yStart * ratio,
               yEnd: segment.yEnd * ratio,
+              _source: "ratio",
             };
           }
           return {
             yStart: segment.yStart,
             yEnd: segment.yEnd,
+            _source: "raw",
           };
+        });
+        console.info("WebSlicer cleaned slice ranges", {
+          ...debug,
+          ranges: results.filter(Boolean),
         });
         resolve(results);
       };
