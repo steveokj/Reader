@@ -658,10 +658,7 @@
     if (fullPreview.iframe) {
       fullPreview.iframe.onload = null;
       fullPreview.iframe.removeAttribute("srcdoc");
-      fullPreview.iframe.setAttribute(
-        "sandbox",
-        "allow-same-origin allow-popups allow-forms allow-downloads"
-      );
+      fullPreview.iframe.removeAttribute("sandbox");
       fullPreview.iframe.src = url;
       fullPreview.iframe.style.width = "100%";
       fullPreview.iframe.style.maxWidth = "";
@@ -2328,6 +2325,10 @@
     clearPageSnapshot();
     if (fullPreview.iframe) {
       fullPreview.iframe.removeAttribute("src");
+      fullPreview.iframe.setAttribute(
+        "sandbox",
+        "allow-same-origin allow-popups allow-forms"
+      );
     }
     const safeTitle = escapeHtml(title || "Slice Preview");
     const displayTitle = title || "Slice Preview";
