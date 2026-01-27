@@ -42,11 +42,7 @@ function buildMhtmlFileName(title, url) {
 
 async function ensurePermission(handle) {
   const permission = await handle.queryPermission({ mode: "readwrite" });
-  if (permission === "granted") {
-    return true;
-  }
-  const requested = await handle.requestPermission({ mode: "readwrite" });
-  return requested === "granted";
+  return permission === "granted";
 }
 
 async function saveMhtml(data, title, url, mime) {
@@ -56,7 +52,7 @@ async function saveMhtml(data, title, url, mime) {
   }
   const allowed = await ensurePermission(handle);
   if (!allowed) {
-    throw new Error("MHTML folder permission not granted");
+    throw new Error("MHTML folder permission not granted (re-pick folder in Options)");
   }
   const fileName = buildMhtmlFileName(title, url);
   const fileHandle = await handle.getFileHandle(fileName, { create: true });
