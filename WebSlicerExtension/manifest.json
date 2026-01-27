@@ -3,7 +3,7 @@
   "name": "Web Slicer",
   "version": "0.1.0",
   "description": "Slice and save parts of web pages.",
-  "permissions": ["activeTab", "scripting", "storage", "pageCapture"],
+  "permissions": ["activeTab", "scripting", "storage", "pageCapture", "offscreen"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_title": "Web Slicer"

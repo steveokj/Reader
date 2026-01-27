@@ -52,30 +52,6 @@ async function getSettings() {
   };
 }
 
-function openHandleDb() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(HANDLE_DB, 1);
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains(HANDLE_STORE)) {
-        request.result.createObjectStore(HANDLE_STORE);
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function getMhtmlFolderHandle() {
-  const db = await openHandleDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(HANDLE_STORE, "readonly");
-    const store = tx.objectStore(HANDLE_STORE);
-    const request = store.get(HANDLE_KEY);
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
-  });
-}
-
 function sanitizeFileName(value) {
   return String(value || "page")
     .replace(/[\\/:*?"<>|]+/g, "-")
@@ -90,20 +66,21 @@ function buildMhtmlFileName(title, url) {
   return `${base}-${stamp}.mhtml`;
 }
 
-async function saveMhtmlToDisk(arrayBuffer, title, url, mime) {
-  const handle = await getMhtmlFolderHandle();
-  if (!handle) {
-    throw new Error("No MHTML folder configured");
+async function ensureOffscreenDocument() {
+  if (!chrome.offscreen) {
+    throw new Error("Offscreen API unavailable");
   }
-  const permission = await handle.queryPermission({ mode: "readwrite" });
-  console.info("[WebSlicer] MHTML folder permission", permission);
-  const fileName = buildMhtmlFileName(title, url);
-  const fileHandle = await handle.getFileHandle(fileName, { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(new Blob([arrayBuffer], { type: mime || "multipart/related" }));
-  await writable.close();
-  console.info("[WebSlicer] MHTML saved", fileName);
-  return { fileName, folderName: handle.name || "" };
+  const hasDocument = chrome.offscreen.hasDocument
+    ? await chrome.offscreen.hasDocument()
+    : false;
+  if (hasDocument) {
+    return;
+  }
+  await chrome.offscreen.createDocument({
+    url: "offscreen.html",
+    reasons: ["BLOBS"],
+    justification: "Save MHTML files to disk",
+  });
 }
 
 async function ensureContentScript(tabId) {
@@ -353,14 +330,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const settings = await getSettings();
             console.info("[WebSlicer] autoSaveMhtml", settings.autoSaveMhtml);
             if (settings.autoSaveMhtml) {
-              const savedInfo = await saveMhtmlToDisk(
-                arrayBuffer,
-                message.title,
-                message.url,
-                blob.type
-              );
-              fileName = savedInfo?.fileName || "";
-              folderName = savedInfo?.folderName || "";
+              await ensureOffscreenDocument();
+              const result = await chrome.runtime.sendMessage({
+                type: "slicer-offscreen-save-mhtml",
+                data: arrayBuffer,
+                title: message.title,
+                url: message.url,
+                mime: blob.type,
+              });
+              if (!result?.ok) {
+                throw new Error(result?.error || "Save failed");
+              }
+              fileName = result.fileName || "";
+              folderName = result.folderName || "";
               saved = true;
             } else {
               saveSkipped = true;
@@ -390,17 +372,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "slicer-open-saved-mhtml") {
     (async () => {
       try {
-        const handle = await getMhtmlFolderHandle();
-        if (!handle) {
-          throw new Error("No MHTML folder configured");
+        await ensureOffscreenDocument();
+        const result = await chrome.runtime.sendMessage({
+          type: "slicer-offscreen-open-mhtml",
+          fileName: message.fileName,
+        });
+        if (!result?.ok) {
+          throw new Error(result?.error || "Open failed");
         }
-        const fileHandle = await handle.getFileHandle(message.fileName);
-        const file = await fileHandle.getFile();
-        const arrayBuffer = await file.arrayBuffer();
         sendResponse({
           ok: true,
-          mime: file.type || "multipart/related",
-          data: arrayBuffer,
+          mime: result.mime || "multipart/related",
+          data: result.data,
         });
       } catch (error) {
         console.warn("Web Slicer open saved MHTML failed", error);
