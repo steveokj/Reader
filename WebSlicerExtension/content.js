@@ -579,7 +579,7 @@
         throw new Error(response?.error || "Capture failed");
       }
       const data = response.data;
-      if (!data) {
+      if (!data || !data.byteLength) {
         throw new Error("Empty snapshot");
       }
       const blob = new Blob([data], {
@@ -657,6 +657,10 @@
     if (fullPreview.iframe) {
       fullPreview.iframe.onload = null;
       fullPreview.iframe.removeAttribute("srcdoc");
+      fullPreview.iframe.setAttribute(
+        "sandbox",
+        "allow-same-origin allow-popups allow-forms allow-downloads"
+      );
       fullPreview.iframe.src = url;
       fullPreview.iframe.style.width = "100%";
       fullPreview.iframe.style.maxWidth = "";

@@ -355,7 +355,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({
           ok: true,
           mime: blob.type || "multipart/related",
-          data: arrayBuffer,
+          data: new Uint8Array(arrayBuffer),
           saved,
           saveError,
           saveSkipped,
