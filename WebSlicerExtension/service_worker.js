@@ -3,8 +3,12 @@ const SETTINGS_KEYS = {
   defaultMode: "slicer_default_mode",
   doubleClickLibrary: "slicer_double_click_library",
   hotkeySave: "slicer_hotkey_save",
+  autoSaveMhtml: "slicer_auto_save_mhtml",
 };
 const RELOAD_PENDING_KEY = "reader_reload_pending";
+const HANDLE_DB = "web-slicer-storage";
+const HANDLE_STORE = "handles";
+const HANDLE_KEY = "mhtml-folder";
 
 let configPromise = null;
 let clickTimer = null;
@@ -41,7 +45,66 @@ async function getSettings() {
       typeof data[SETTINGS_KEYS.hotkeySave] === "boolean"
         ? data[SETTINGS_KEYS.hotkeySave]
         : true,
+    autoSaveMhtml:
+      typeof data[SETTINGS_KEYS.autoSaveMhtml] === "boolean"
+        ? data[SETTINGS_KEYS.autoSaveMhtml]
+        : false,
   };
+}
+
+function openHandleDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(HANDLE_DB, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(HANDLE_STORE)) {
+        request.result.createObjectStore(HANDLE_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function getMhtmlFolderHandle() {
+  const db = await openHandleDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HANDLE_STORE, "readonly");
+    const store = tx.objectStore(HANDLE_STORE);
+    const request = store.get(HANDLE_KEY);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function sanitizeFileName(value) {
+  return String(value || "page")
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80) || "page";
+}
+
+function buildMhtmlFileName(title, url) {
+  const base = sanitizeFileName(title || url || "page");
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  return `${base}-${stamp}.mhtml`;
+}
+
+async function saveMhtmlToDisk(arrayBuffer, title, url, mime) {
+  const handle = await getMhtmlFolderHandle();
+  if (!handle) {
+    throw new Error("No MHTML folder configured");
+  }
+  const permission = await handle.queryPermission({ mode: "readwrite" });
+  if (permission !== "granted") {
+    throw new Error("MHTML folder permission not granted");
+  }
+  const fileName = buildMhtmlFileName(title, url);
+  const fileHandle = await handle.getFileHandle(fileName, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(new Blob([arrayBuffer], { type: mime || "multipart/related" }));
+  await writable.close();
+  return fileName;
 }
 
 async function ensureContentScript(tabId) {
@@ -281,10 +344,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           throw new Error("No snapshot blob");
         }
         const arrayBuffer = await blob.arrayBuffer();
+        let saved = false;
+        let saveError = null;
+        let saveSkipped = false;
+        if (message.saveToDisk) {
+          try {
+            const settings = await getSettings();
+            if (settings.autoSaveMhtml) {
+              await saveMhtmlToDisk(
+                arrayBuffer,
+                message.title,
+                message.url,
+                blob.type
+              );
+              saved = true;
+            } else {
+              saveSkipped = true;
+            }
+          } catch (error) {
+            saveError = String(error);
+          }
+        }
         sendResponse({
           ok: true,
           mime: blob.type || "multipart/related",
           data: arrayBuffer,
+          saved,
+          saveError,
+          saveSkipped,
         });
       } catch (error) {
         console.warn("Web Slicer capture failed", error);

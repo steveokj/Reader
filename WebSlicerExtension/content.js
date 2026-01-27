@@ -564,6 +564,9 @@
     try {
       const response = await chrome.runtime.sendMessage({
         type: "slicer-capture-page",
+        saveToDisk: true,
+        title: document.title || "",
+        url: window.location.href,
       });
       if (!response?.ok) {
         throw new Error(response?.error || "Capture failed");
@@ -577,7 +580,14 @@
       });
       const url = URL.createObjectURL(blob);
       openPageSnapshot(url, document.title || window.location.href);
-      updateStatus("Page captured");
+      if (response.saved) {
+        updateStatus("Page captured and saved");
+      } else if (response.saveError) {
+        console.warn("Page save failed", response.saveError);
+        updateStatus("Page captured (save failed)");
+      } else {
+        updateStatus("Page captured");
+      }
     } catch (error) {
       console.warn("Page capture failed", error);
       updateStatus("Page capture failed");
