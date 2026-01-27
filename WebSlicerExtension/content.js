@@ -579,10 +579,11 @@
         throw new Error(response?.error || "Capture failed");
       }
       const data = response.data;
-      if (!data || !data.byteLength) {
+      const dataBuffer = normalizeBinaryData(data);
+      if (!dataBuffer || !dataBuffer.byteLength) {
         throw new Error("Empty snapshot");
       }
-      const blob = new Blob([data], {
+      const blob = new Blob([dataBuffer], {
         type: response.mime || "multipart/related",
       });
       const url = URL.createObjectURL(blob);
@@ -2416,6 +2417,25 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function normalizeBinaryData(data) {
+    if (!data) {
+      return null;
+    }
+    if (data instanceof ArrayBuffer) {
+      return data;
+    }
+    if (ArrayBuffer.isView(data)) {
+      return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    }
+    if (Array.isArray(data)) {
+      return Uint8Array.from(data).buffer;
+    }
+    if (data?.data) {
+      return normalizeBinaryData(data.data);
+    }
+    return null;
   }
 
   function buildSliceDocument(html, safeTitle, safeBase) {
