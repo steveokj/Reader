@@ -269,4 +269,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })();
     return true;
   }
+  if (message.type === "slicer-capture-page") {
+    const tabId = message.tabId || sender?.tab?.id;
+    if (!tabId) {
+      sendResponse({ ok: false, error: "No tab id" });
+      return true;
+    }
+    chrome.pageCapture.saveAsMHTML({ tabId }, async (blob) => {
+      try {
+        if (!blob) {
+          throw new Error("No snapshot blob");
+        }
+        const arrayBuffer = await blob.arrayBuffer();
+        sendResponse({
+          ok: true,
+          mime: blob.type || "multipart/related",
+          data: arrayBuffer,
+        });
+      } catch (error) {
+        console.warn("Web Slicer capture failed", error);
+        sendResponse({ ok: false, error: String(error) });
+      }
+    });
+    return true;
+  }
 });

@@ -23,6 +23,7 @@
     lastPreview: null,
     fullPreviewMode: "slice-in-page",
     sliceOnlyMode: "mask",
+    pageSnapshotUrl: null,
     scrollLock: null,
   };
 
@@ -113,6 +114,7 @@
 
     const pick = createButton("Pick");
     const slice = createButton("Slice");
+    const page = createButton("Page");
     const exclude = createButton("Exclude");
     const preview = createButton("Preview");
     const library = createButton("Library");
@@ -124,6 +126,7 @@
 
     left.appendChild(pick);
     left.appendChild(slice);
+    left.appendChild(page);
     left.appendChild(exclude);
     left.appendChild(preview);
     left.appendChild(library);
@@ -142,6 +145,7 @@
 
     pick.addEventListener("click", () => togglePickMode());
     slice.addEventListener("click", () => toggleSliceMode());
+    page.addEventListener("click", () => capturePageSnapshot());
     exclude.addEventListener("click", () => setMode("exclude"));
     preview.addEventListener("click", () => togglePreview());
     library.addEventListener("click", () => toggleLibrary());
@@ -149,7 +153,19 @@
     close.addEventListener("click", () => hideToolbar());
     save.addEventListener("click", () => saveSlice());
 
-    return { el, status, pick, slice, exclude, preview, library, save, reset, close };
+    return {
+      el,
+      status,
+      pick,
+      slice,
+      page,
+      exclude,
+      preview,
+      library,
+      save,
+      reset,
+      close,
+    };
   }
 
   function buildPreviewPanel() {
@@ -543,6 +559,31 @@
     });
   }
 
+  async function capturePageSnapshot() {
+    updateStatus("Capturing page...");
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "slicer-capture-page",
+      });
+      if (!response?.ok) {
+        throw new Error(response?.error || "Capture failed");
+      }
+      const data = response.data;
+      if (!data) {
+        throw new Error("Empty snapshot");
+      }
+      const blob = new Blob([data], {
+        type: response.mime || "multipart/related",
+      });
+      const url = URL.createObjectURL(blob);
+      openPageSnapshot(url, document.title || window.location.href);
+      updateStatus("Page captured");
+    } catch (error) {
+      console.warn("Page capture failed", error);
+      updateStatus("Page capture failed");
+    }
+  }
+
   function hidePreview() {
     previewPanel.el.style.display = "none";
   }
@@ -560,8 +601,42 @@
     fullPreview.el.style.display = "none";
     if (fullPreview.iframe) {
       fullPreview.iframe.srcdoc = "";
+      fullPreview.iframe.removeAttribute("srcdoc");
+      fullPreview.iframe.src = "about:blank";
     }
+    clearPageSnapshot();
     unlockScroll();
+  }
+
+  function clearPageSnapshot() {
+    if (!state.pageSnapshotUrl) {
+      return;
+    }
+    try {
+      URL.revokeObjectURL(state.pageSnapshotUrl);
+    } catch (error) {
+      console.warn("Page snapshot revoke failed", error);
+    }
+    state.pageSnapshotUrl = null;
+  }
+
+  function openPageSnapshot(url, title) {
+    clearPageSnapshot();
+    state.pageSnapshotUrl = url;
+    state.fullPreviewMode = "page";
+    updateFullPreviewButtons();
+    fullPreview.title.textContent = title || "Page Snapshot";
+    if (fullPreview.iframe) {
+      fullPreview.iframe.onload = null;
+      fullPreview.iframe.removeAttribute("srcdoc");
+      fullPreview.iframe.src = url;
+      fullPreview.iframe.style.width = "100%";
+      fullPreview.iframe.style.maxWidth = "";
+      fullPreview.iframe.style.margin = "0";
+      fullPreview.iframe.style.display = "block";
+    }
+    fullPreview.el.style.display = "flex";
+    lockScroll();
   }
 
   function setFullPreviewMode(mode) {
@@ -2160,6 +2235,10 @@
     pageMetrics,
     snapshotViewportWidth,
   }) {
+    clearPageSnapshot();
+    if (fullPreview.iframe) {
+      fullPreview.iframe.removeAttribute("src");
+    }
     const safeTitle = escapeHtml(title || "Slice Preview");
     const displayTitle = title || "Slice Preview";
     const safeBase = escapeHtml(baseUrl || window.location.href);
