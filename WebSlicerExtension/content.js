@@ -24,6 +24,7 @@
     fullPreviewMode: "slice-in-page",
     sliceOnlyMode: "mask",
     pageSnapshotUrl: null,
+    lastPageSave: null,
     scrollLock: null,
   };
 
@@ -286,6 +287,9 @@
     title.className = "slicer-full__title";
     title.textContent = "Slice Preview";
 
+    const saved = document.createElement("div");
+    saved.className = "slicer-full__saved";
+
     const actions = document.createElement("div");
     actions.className = "slicer-full__actions";
     const modeSlice = createButton("Slice only");
@@ -311,6 +315,7 @@
     close.setAttribute("aria-label", "Close full preview");
 
     header.appendChild(title);
+    header.appendChild(saved);
     header.appendChild(actions);
     header.appendChild(sliceOnlyActions);
     header.appendChild(close);
@@ -341,6 +346,7 @@
       el,
       iframe,
       title,
+      saved,
       modeSlice,
       modeSliceInPage,
       modePage,
@@ -568,6 +574,7 @@
         title: document.title || "",
         url: window.location.href,
       });
+      console.info("[WebSlicer] capture response", response);
       if (!response?.ok) {
         throw new Error(response?.error || "Capture failed");
       }
@@ -579,6 +586,12 @@
         type: response.mime || "multipart/related",
       });
       const url = URL.createObjectURL(blob);
+      state.lastPageSave = {
+        saved: !!response.saved,
+        fileName: response.fileName || "",
+        folderName: response.folderName || "",
+        saveError: response.saveError || "",
+      };
       openPageSnapshot(url, document.title || window.location.href);
       if (response.saved) {
         updateStatus("Page captured and saved");
@@ -615,6 +628,10 @@
       fullPreview.iframe.src = "about:blank";
     }
     clearPageSnapshot();
+    state.lastPageSave = null;
+    if (fullPreview.saved) {
+      fullPreview.saved.innerHTML = "";
+    }
     unlockScroll();
   }
 
@@ -636,6 +653,7 @@
     state.fullPreviewMode = "page";
     updateFullPreviewButtons();
     fullPreview.title.textContent = title || "Page Snapshot";
+    updateFullPreviewSavedInfo();
     if (fullPreview.iframe) {
       fullPreview.iframe.onload = null;
       fullPreview.iframe.removeAttribute("srcdoc");
@@ -647,6 +665,63 @@
     }
     fullPreview.el.style.display = "flex";
     lockScroll();
+  }
+
+  async function openSavedMhtml(fileName) {
+    if (!fileName) {
+      return;
+    }
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "slicer-open-saved-mhtml",
+        fileName,
+      });
+      if (!response?.ok) {
+        throw new Error(response?.error || "Open failed");
+      }
+      const blob = new Blob([response.data], {
+        type: response.mime || "multipart/related",
+      });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      console.warn("Open saved MHTML failed", error);
+      updateStatus("Open saved file failed");
+    }
+  }
+
+  function updateFullPreviewSavedInfo() {
+    if (!fullPreview.saved) {
+      return;
+    }
+    fullPreview.saved.innerHTML = "";
+    const info = state.lastPageSave;
+    if (!info) {
+      return;
+    }
+    if (info.saved) {
+      const text = document.createElement("span");
+      const location = info.folderName ? `${info.folderName}/${info.fileName}` : info.fileName;
+      text.textContent = `Saved: ${location}`;
+      fullPreview.saved.appendChild(text);
+      if (info.fileName) {
+        const link = document.createElement("button");
+        link.type = "button";
+        link.textContent = "Open saved";
+        link.addEventListener("click", () => openSavedMhtml(info.fileName));
+        fullPreview.saved.appendChild(link);
+      }
+      return;
+    }
+    if (info.saveError) {
+      const errorText = document.createElement("span");
+      errorText.textContent = `Save failed: ${info.saveError}`;
+      fullPreview.saved.appendChild(errorText);
+      return;
+    }
+    const pending = document.createElement("span");
+    pending.textContent = "Not saved";
+    fullPreview.saved.appendChild(pending);
   }
 
   function setFullPreviewMode(mode) {

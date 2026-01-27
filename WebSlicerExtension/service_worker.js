@@ -96,15 +96,14 @@ async function saveMhtmlToDisk(arrayBuffer, title, url, mime) {
     throw new Error("No MHTML folder configured");
   }
   const permission = await handle.queryPermission({ mode: "readwrite" });
-  if (permission !== "granted") {
-    throw new Error("MHTML folder permission not granted");
-  }
+  console.info("[WebSlicer] MHTML folder permission", permission);
   const fileName = buildMhtmlFileName(title, url);
   const fileHandle = await handle.getFileHandle(fileName, { create: true });
   const writable = await fileHandle.createWritable();
   await writable.write(new Blob([arrayBuffer], { type: mime || "multipart/related" }));
   await writable.close();
-  return fileName;
+  console.info("[WebSlicer] MHTML saved", fileName);
+  return { fileName, folderName: handle.name || "" };
 }
 
 async function ensureContentScript(tabId) {
@@ -347,22 +346,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         let saved = false;
         let saveError = null;
         let saveSkipped = false;
+        let fileName = "";
+        let folderName = "";
         if (message.saveToDisk) {
           try {
             const settings = await getSettings();
+            console.info("[WebSlicer] autoSaveMhtml", settings.autoSaveMhtml);
             if (settings.autoSaveMhtml) {
-              await saveMhtmlToDisk(
+              const savedInfo = await saveMhtmlToDisk(
                 arrayBuffer,
                 message.title,
                 message.url,
                 blob.type
               );
+              fileName = savedInfo?.fileName || "";
+              folderName = savedInfo?.folderName || "";
               saved = true;
             } else {
               saveSkipped = true;
             }
           } catch (error) {
             saveError = String(error);
+            console.warn("[WebSlicer] MHTML save failed", saveError);
           }
         }
         sendResponse({
@@ -372,12 +377,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           saved,
           saveError,
           saveSkipped,
+          fileName,
+          folderName,
         });
       } catch (error) {
         console.warn("Web Slicer capture failed", error);
         sendResponse({ ok: false, error: String(error) });
       }
     });
+    return true;
+  }
+  if (message.type === "slicer-open-saved-mhtml") {
+    (async () => {
+      try {
+        const handle = await getMhtmlFolderHandle();
+        if (!handle) {
+          throw new Error("No MHTML folder configured");
+        }
+        const fileHandle = await handle.getFileHandle(message.fileName);
+        const file = await fileHandle.getFile();
+        const arrayBuffer = await file.arrayBuffer();
+        sendResponse({
+          ok: true,
+          mime: file.type || "multipart/related",
+          data: arrayBuffer,
+        });
+      } catch (error) {
+        console.warn("Web Slicer open saved MHTML failed", error);
+        sendResponse({ ok: false, error: String(error) });
+      }
+    })();
     return true;
   }
 });
