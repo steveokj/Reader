@@ -333,7 +333,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               await ensureOffscreenDocument();
               const result = await chrome.runtime.sendMessage({
                 type: "slicer-offscreen-save-mhtml",
-                data: arrayBuffer,
+                data: new Uint8Array(arrayBuffer),
                 title: message.title,
                 url: message.url,
                 mime: blob.type,

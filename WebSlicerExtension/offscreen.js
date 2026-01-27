@@ -26,6 +26,25 @@ async function getFolderHandle() {
   });
 }
 
+function toArrayBuffer(data) {
+  if (!data) {
+    return new ArrayBuffer(0);
+  }
+  if (data instanceof ArrayBuffer) {
+    return data;
+  }
+  if (ArrayBuffer.isView(data)) {
+    return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+  }
+  if (Array.isArray(data)) {
+    return Uint8Array.from(data).buffer;
+  }
+  if (data?.data) {
+    return toArrayBuffer(data.data);
+  }
+  return new TextEncoder().encode(String(data)).buffer;
+}
+
 function sanitizeFileName(value) {
   return String(value || "page")
     .replace(/[\\/:*?"<>|]+/g, "-")
@@ -57,7 +76,8 @@ async function saveMhtml(data, title, url, mime) {
   const fileName = buildMhtmlFileName(title, url);
   const fileHandle = await handle.getFileHandle(fileName, { create: true });
   const writable = await fileHandle.createWritable();
-  await writable.write(new Blob([data], { type: mime || "multipart/related" }));
+  const buffer = toArrayBuffer(data);
+  await writable.write(new Blob([buffer], { type: mime || "multipart/related" }));
   await writable.close();
   return { fileName, folderName: handle.name || "" };
 }
