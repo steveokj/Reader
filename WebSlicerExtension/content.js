@@ -2432,6 +2432,18 @@
     if (Array.isArray(data)) {
       return Uint8Array.from(data).buffer;
     }
+    if (typeof data === "object") {
+      if (typeof data.length === "number") {
+        return Uint8Array.from(Array.from(data)).buffer;
+      }
+      const entries = Object.entries(data).filter(([key]) =>
+        Number.isFinite(Number(key))
+      );
+      if (entries.length) {
+        entries.sort((a, b) => Number(a[0]) - Number(b[0]));
+        return Uint8Array.from(entries.map(([, value]) => value)).buffer;
+      }
+    }
     if (data?.data) {
       return normalizeBinaryData(data.data);
     }
